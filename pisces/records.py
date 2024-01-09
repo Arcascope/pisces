@@ -3,7 +3,20 @@
 # %% auto 0
 __all__ = ['TimeseriesRecording', 'AccelerometerRecord', 'ActivityCountRecord', 'PSGRecord', 'PSGPredictionsShapeError',
            'PSGPredictionsNotProbabilityVectorError', 'PSGModelOutputs', 'PSGSleepWakePredictions',
-           'PSGStagingPredictions', 'PSGSleepWakeRecord', 'PSGStagingRecord', 'PSGStagingWLDRRecord']
+           'PSGStagingPredictions', 'PSGSleepWakeRecord', 'PSGStagingRecord', 'PSGStagingWLDRRecord', 'HeartRateRecord']
+
+# %% ../nbs/01_records.ipynb 3
+from dataclasses import dataclass
+from typing import List
+
+import numpy as np
+import numpy.typing as npt
+from typing import Dict, List, Optional, Tuple, Union
+from enum import Enum, auto
+from typing import ClassVar, List
+
+# %% ../nbs/01_records.ipynb 4
+from .enums import PSG_Enums, SleepOrWake, SleepStages, SleepStagesWLDR
 
 # %% ../nbs/01_records.ipynb 5
 @dataclass
@@ -463,4 +476,28 @@ class PSGStagingWLDRRecord(PSGRecord):
             self.labels(unscored_as_wake=unscored_as_wake),
             n_classes=len(self.label_type),
         )
+
+
+# %% ../nbs/01_records.ipynb 6
+@dataclass
+class HeartRateRecord(TimeseriesRecording):
+    heartrate: np.ndarray
+
+    def bin_based_on(self, time: np.ndarray):
+        bins = compute_bins(self.time, time)
+        binned = binmax(bins=bins, weights=self.heartrate)
+        self.heartrate = binned
+        self.time = time
+
+    def _fill_gaps_specific_data(
+        self, gaps: npt.NDArray[np.int64], time_fillers: List[np.ndarray]
+    ):
+        self.heartrate = fill_numpy(
+            self.heartrate,
+            fills=[np.zeros_like(t) for t in time_fillers],  # fill with zeros like time
+            start_idx=gaps,
+        )
+
+    def _trim_specific_data(self, select_idx: np.ndarray) -> None:
+        self.heartrate = self.heartrate[select_idx]
 
