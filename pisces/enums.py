@@ -2,7 +2,7 @@
 
 # %% auto 0
 __all__ = ['PSG_Enums', 'SleepOrWake', 'SleepStagesWLDR', 'SleepStages', 'SleepClassificationProblem', 'KnownFeatures',
-           'KnownModel']
+           'KnownModel', 'ValidationMethod']
 
 # %% ../nbs/enums.ipynb 3
 from enum import Enum, auto
@@ -184,3 +184,87 @@ class KnownModel(Enum):
 
     def __str__(self):
         return self.name
+
+# %% ../nbs/enums.ipynb 7
+from typing import List, Optional
+from sklearn.model_selection import LeaveOneOut
+
+
+class ValidationMethod(Enum):
+    """
+    Describes to a pipeline how it should iterate over the data provided, splitting into training and testing sets.
+    We want to avoid splitting a subject's data across train and test folds! This leaks too much info to the classifiers
+    """
+
+    LOOX = -1
+    LEAVE_ONE_OUT = 0
+
+    def make_splits(
+        self, param: Optional[float | int | str], data_record_set_names: List[str]
+    ) -> List[List[List[int]]]:
+        """
+        Using the validation method represented by self, produce list-of-lists of train/test splits by
+        :param param: Parameter used in the method.
+         - For LEAVE_ONE_OUT this is ignored.
+         - For K_FOLD this is K
+         - For RANDOM_PERCENTILE this is the training fraction
+        :param samples: List of identifiers of the data records being split. An id can be anything, up to you.
+        :return: List of lists of length 2: [..., [[split j training indices], [split j testing indices]], ...]
+        """
+        if self == ValidationMethod.LOOX:
+            """==================================================
+            START: Confusing boilderplate to parse the train and test set
+            =================================================="""
+            try:
+                train_set, test_set = param.split(",")
+            except Exception as e:
+                print(e)
+                print(
+                    'Specify "<train set name>,<test set name>" as "param" value in validation config.'
+                )
+                print(
+                    'or "train:<train set name>,test:<test set name>" with "train:" and "test" in either order, depending on your preference.'
+                )
+            if ":" in train_set or ":" in test_set:
+                *tr_or_tst, first_set = train_set.split(":")
+                *tst_or_tr, second_set = test_set.split(":")
+
+                # One of these branches should catch based on enclosing `if`
+                if tr_or_tst:
+                    if tr_or_tst[0] == "train":
+                        train_set = first_set
+                        test_set = second_set
+                    elif tr_or_tst[0] == "test":
+                        train_set = second_set
+                        test_set = first_set
+                elif tst_or_tr:
+                    if tst_or_tr[0] == "test":
+                        train_set = first_set
+                        test_set = second_set
+                    elif tst_or_tr[0] == "train":
+                        train_set = second_set
+                        test_set = first_set
+
+            """==================================================
+            END: Confusing boilderplate to parse the train and test set
+            =================================================="""
+
+            print(
+                f"training LOOX: Leave-one-out, swapping left-out {train_set} for {test_set}"
+            )
+
+            tests = [
+                j for j in range(len(data_record_set_names)) if data_record_set_names[j] == test_set
+            ]
+            trains = [
+                j for j in range(len(data_record_set_names)) if data_record_set_names[j] == train_set
+            ]
+            splits = [
+                [skipping_index(trains, index=j), [tests[j]]] for j in range(len(tests))
+            ]
+
+            return splits
+
+        if self == ValidationMethod.LEAVE_ONE_OUT:
+            return LeaveOneOut().split(X=range(len(data_record_set_names)))
+
