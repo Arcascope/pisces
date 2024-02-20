@@ -1,0 +1,16 @@
+{
+  "data_config": {
+    "data_directory": "./data_sets",
+    "sets": ""
+  },
+  "validation": {
+    "method": "LEAVE_ONE_OUT",
+    "parameter": null
+  },
+  "models": [
+    "LOGISTIC"
+  ],
+  "features": [
+    "ACTIVITY"
+  ]
+}
