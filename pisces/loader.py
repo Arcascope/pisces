@@ -2,7 +2,7 @@
 
 # %% auto 0
 __all__ = ['determine_header_rows_and_delimiter', 'ActivityCountAlgorithm', 'build_activity_counts', 'build_ADS',
-           'build_activity_counts_te_Lindert_et_al', 'build_ActiGraph_official']
+           'build_activity_counts_te_Lindert_et_al', 'build_ActiGraph_official', 'constant_interp', 'avg_steps']
 
 # %% ../nbs/99_utils.ipynb 4
 import csv
@@ -226,3 +226,79 @@ def build_ActiGraph_official(time_xyz, axis: int = 3) -> Tuple[np.ndarray, np.nd
     times = np.linspace(time_xyz[0, 0], time_xyz[-1, 0], len(counts))
 
     return times, counts
+
+# %% ../nbs/99_utils.ipynb 19
+def constant_interp(
+    x: np.ndarray, xp: np.ndarray, yp: np.ndarray, side: str = "right"
+) -> np.ndarray:
+    # constant interpolation, from https://stackoverflow.com/a/39929401/3856731
+    indices = np.searchsorted(xp, x, side=side)
+    y2 = np.concatenate(([0], yp))
+
+    return y2[indices]
+
+def avg_steps(
+    xs: List[List[float]], ys: List[List[float]]
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Computes average of step functions.
+
+    Each ys[j] is thought of as a right-continuous step function given by
+
+    `ys[j](x) = xs[j][i]`
+    for
+    `xs[j][i] <= x < xs[j][i+1]`
+
+    This function returns two NumPy arrays, `(inputs, outputs)`, giving the pointwise average
+    (see below) of these functions, one for inputs and one for outputs.
+    These output arrays can be considered to give another step function.
+
+    For a list of functions `[f_1, f_2, ..., f_n]`, their pointwise average
+    is the function `f_bar` defined by
+
+    `f_bar(x) = (1/n)(f_1(x) + f_2(x) + ... + f_n(x))`
+
+    Returns
+    ---
+    `inputs`: `np.ndaray`
+        The union of all elements of all vectors in `xs`; this is the mutual domain
+        of the average function.
+    `outputs`: `np.ndarray`
+        The pointwise average of the `ys[j]`s, considered as step functions extended
+        to the full real line by assuming constant values for `x < min(xs[j])`
+        or `x > max(xs[j])`
+    """
+    all_xs = []
+
+    # Start by removing extraneous dims
+    xs = [np.squeeze(x) for x in xs]
+    ys = [np.squeeze(y) for y in ys]
+
+    for j in range(len(xs)):
+        x = xs[j]
+        y = ys[j]
+        # union all x-values
+        all_xs += list(x)
+
+        # ensure array values are sorted
+        x_sort = np.argsort(x)
+        xs[j] = x[x_sort]
+        ys[j] = y[x_sort]
+
+    all_xs = list(set(all_xs))
+    all_xs.sort()
+
+    all_xs = np.array(all_xs)
+
+    # Holds constant-interpolated step fns as rows (axis 0).
+    # We "evaluate" ys[j] for every x-value in `all_xs`
+    # Easy to average via np.mean(all_curves, axis=0)
+    all_curves = np.zeros((len(xs), len(all_xs)))
+
+    for j, (x, y) in enumerate(zip(xs, ys)):
+        x, y = np.array(x), np.array(y)
+        all_curves[j] = constant_interp(all_xs, x, y, side="right")
+
+    avg_curve = np.mean(all_curves, axis=0)
+
+    return all_xs, avg_curve
+
