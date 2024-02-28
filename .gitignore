@@ -1,6 +1,7 @@
 _docs/
 _proc/
 
+*.code-workspace
 *.bak
 .gitattributes
 .last_checked
