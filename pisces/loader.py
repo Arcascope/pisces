@@ -5,9 +5,7 @@ __all__ = ['ValidationConfiguration', 'DatabaseConfiguration', 'PipelineConfigur
 
 # %% ../nbs/09_pipelines.ipynb 4
 from dataclasses import dataclass
-from typing import List, Optional
-
-from pisces.enums import ValidationMethod
+from typing import Optional
 
 
 @dataclass

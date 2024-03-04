@@ -2,6 +2,5 @@ website:
   sidebar:
     contents:
       - index.ipynb
-      - 00_loader.ipynb
-      - 01_records.ipynb
-      - enums.ipynb
+      - 00_utils.ipynb
+      - 05_experiments.ipynb
