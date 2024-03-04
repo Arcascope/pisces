@@ -3,7 +3,7 @@
 # %% auto 0
 __all__ = ['determine_header_rows_and_delimiter', 'ActivityCountAlgorithm', 'build_activity_counts', 'build_ADS',
            'build_activity_counts_te_Lindert_et_al', 'build_ActiGraph_official', 'constant_interp', 'avg_steps',
-           'add_rocs', 'pad_to_hat']
+           'pad_to_hat']
 
 # %% ../nbs/00_utils.ipynb 4
 import csv
@@ -304,40 +304,7 @@ def avg_steps(
     return all_xs, avg_curve
 
 
-# %% ../nbs/00_utils.ipynb 14
-
-def add_rocs(ax, fprs: List[np.ndarray], tprs: List[np.ndarray], x_class: str = "SLEEP", y_class: str = "WAKE", min_auc: float = 0.0):
-    
-    aucs = np.array([
-        auc_score(fpr, tpr)
-        for fpr, tpr in zip(fprs, tprs)
-    ])
-
-    all_fprs, avg_curve = avg_steps(
-            xs=[list(fprs[i]) for i in range(len(aucs)) if aucs[i] > min_auc],
-            ys=[list(tprs[i]) for i in range(len(aucs)) if aucs[i] > min_auc],
-        )
-
-    avg_auc = np.mean(aucs[aucs > min_auc])
-
-    ax.step(
-        all_fprs,
-        avg_curve,
-        c="tab:blue",
-        where="post",
-        label=f"All splits avg ROC-AUC: {avg_auc:0.3f}",
-    )
-    for roc in zip(fprs, tprs):
-        ax.step(roc[0], roc[1], "tab:orange", alpha=0.2, where="post")
-    ax.plot([0, 1], [0, 1], "-.", c="black")
-
-    ax.set_ylabel(f"Fraction of {y_class} scored as {y_class}")
-    ax.set_xlabel(f"Fraction of {x_class} scored as {y_class}")
-
-    ax.spines["top"].set_visible(False)
-    ax.spines["right"].set_visible(False)
-
-# %% ../nbs/00_utils.ipynb 16
+# %% ../nbs/00_utils.ipynb 15
 import warnings
 
 

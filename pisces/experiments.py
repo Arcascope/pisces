@@ -734,6 +734,9 @@ def _load_from_tflite() -> tf.lite.Interpreter:
 
     return tflite_model
 
+import multiprocessing
+from concurrent.futures import ProcessPoolExecutor
+
 
 class MOResUNetPretrained(SleepWakeClassifier):
     tflite_model = _load_from_tflite()
@@ -743,6 +746,50 @@ class MOResUNetPretrained(SleepWakeClassifier):
         self,
     ) -> None:
         super().__init__()
+    
+    def prepare_set_for_training(self, 
+                                 data_set: DataSetObject, ids: List[str] | None = None
+                                 ) -> List[Tuple[np.ndarray, np.ndarray] | None]:
+        """Calls `get_needed_X_y` in parallel for each of the `ids` provided, or all of the IDs in the `data_set` if `ids` is None.
+
+        Returns a list of tuples, where each tuple is the result of `get_needed_X_y` for a given ID. An empty list indicates an error occured during pool.map.
+        """
+        if ids is None:
+            ids = data_set.ids
+        results = []
+        
+        if ids:
+            data_set_and_ids = [(data_set, id) for id in ids]
+            # Get the number of available CPU cores
+            num_cores = multiprocessing.cpu_count()
+
+            # Create a pool of workers
+            with ProcessPoolExecutor(max_workers=num_cores) as executor:
+                results = list(executor.map(MOResUNetPretrained.get_needed_X_y_from_pair, data_set_and_ids))
+            # pool = multiprocessing.Pool(processes=num_cores-1)
+
+            # # Map the function to each id in w.ids
+            # try:
+            #     results = pool.map(curried_get_needed_X_y, ids)
+            # except KeyboardInterrupt:
+            #     pool.terminate()
+            #     pool.join()
+            #     raise
+
+            # # Close the pool of workers
+            # pool.close()
+        else:
+            warnings.warn("No IDs found in the data set.")
+            return results
+        return results
+    
+    @classmethod
+    def get_needed_X_y_from_pair(cls, pair: Tuple[DataSetObject, str] | None = None) -> Tuple[np.ndarray, np.ndarray] | None:
+        if pair:
+            data_set, id = pair
+        else:
+            return None
+        return cls.get_needed_X_y(data_set, id)
     
     @classmethod
     def get_needed_X_y(cls, data_set: DataSetObject, id: str) -> Tuple[np.ndarray, np.ndarray] | None:
@@ -834,6 +881,9 @@ class MOResUNetPretrained(SleepWakeClassifier):
         input_dets = self.tflite_model.get_input_details()
         output_dets = self.tflite_model.get_output_details()
 
+        # set input tensor to FLOAT32
+        inputs = inputs.astype(np.float32)
+
         self.tflite_model.set_tensor(input_dets[0]["index"], inputs)
 
         self.tflite_model.invoke()
@@ -856,9 +906,7 @@ class MOResUNetPretrained(SleepWakeClassifier):
         y_ = acc[:, 1]
         z_ = acc[:, 2]
         for step in cls.config["preprocessing"]:
-            print(step)
             fn = eval(step["type"])  # convert string version to function in environment
-            print(fn)
             fn_args = partial(
                 fn, **step["args"]
             )  # fill in the args given, which must be everything besides numerical input
