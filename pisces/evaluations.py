@@ -3,7 +3,7 @@
 # %% auto 0
 __all__ = ['LOG_LEVEL', 'FS', 'CHANNELS', 'DEPTH', 'N_OUT', 'N_CLASSES', 'MO_UNET_CONFIG', 'MO_PREPROCESSING_CONFIG',
            'SimplifiablePrefixTree', 'IdExtractor', 'DataSetObject', 'psg_to_sleep_wake', 'get_activity_X_PSG_y',
-           'rolling_window', 'SleepWakeClassifier', 'SGDLogisticRegression', 'clip_by_iqr',
+           'rolling_window', 'SleepWakeClassifier', 'SGDLogisticRegression', 'median', 'clip_by_iqr',
            'iqr_normalization_adaptive', 'cal_psd', 'MOResUNetPretrained', 'run_split', 'SplitMaker',
            'LeaveOneOutSplitter', 'run_splits', 'add_rocs']
 
@@ -260,6 +260,8 @@ class DataSetObject:
             except Exception as e:
                 warnings.warn(f"Error reading {file}:\n{e}")
                 return None
+            # sort by time when loading
+            df.sort(df.columns[0])
             self._feature_cache[feature][id] = df
         return df
 
@@ -389,6 +391,9 @@ class SleepWakeClassifier:
     @property
     def model_type(self) -> KnownModel:
         raise NotImplementedError
+    @classmethod
+    def get_needed_X_y(cls, data_set: DataSetObject, id: str) -> Tuple[np.ndarray, np.ndarray] | None:
+        raise NotImplementedError
     def train(self, examples_X: List[pl.DataFrame] = [], examples_y: List[pl.DataFrame] = [], 
               pairs_Xy: List[Tuple[pl.DataFrame, pl.DataFrame]] = [], 
               epochs: int = 10, batch_size: int = 32):
@@ -422,6 +427,10 @@ class SGDLogisticRegression(SleepWakeClassifier):
         self.input_dim = input_dim
         self.output_dim = output_dim
         self.window_step = 1
+
+    @classmethod
+    def get_needed_X_y(cls, data_set: DataSetObject, id: str) -> Tuple[np.ndarray, np.ndarray] | None:
+        return get_activity_X_PSG_y(data_set, id)
     
     @property
     def model_type(self) -> KnownModel:
@@ -533,7 +542,20 @@ class SGDLogisticRegression(SleepWakeClassifier):
 
 
 # %% ../nbs/05_experiments.ipynb 17
+import os
+import sys
 from functools import partial
+
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+from scipy import signal
+from scipy.signal import spectrogram
+from scipy.stats import zscore
+
+from functools import partial
+
+import pandas as pd
 from .enums import KnownModel
 import tensorflow as tf
 import pkg_resources
@@ -577,6 +599,39 @@ MO_PREPROCESSING_CONFIG = {
         },
     ]
 }
+
+def median(x, fs, window_size):
+    if isinstance(x, pl.DataFrame):
+        x = x.to_numpy()
+
+    window = (
+        (fs * window_size + 1) if (fs * window_size) % 2 == 0 else (fs * window_size)
+    )
+
+    reduce_dims = False
+    if len(x.shape) == 1:
+        x = np.expand_dims(x, axis=-1)
+        reduce_dims = True
+    x_norm = np.zeros((x.shape))
+
+    for idx in range(x.shape[-1]):
+
+        x_med = np.ones((x.shape[0])) * np.median(x[:, idx])
+
+        x_pd = pd.Series(x[:, idx])
+        med_ = x_pd.rolling(window).median()
+        x_med[int(window / 2) : -int(window / 2)] = med_[window - 1 :]
+        x_med[: int(window / 2)] = med_[window - 1]
+        x_med[-int(window / 2) :] = med_[-1:]
+
+        x_med[np.isnan(x_med)] = 0  # remove nan
+
+        x_norm[:, idx] = x[:, idx] - x_med
+
+    if reduce_dims:
+        x_norm = x_norm[:, 0]
+    return x_norm
+
 
 def clip_by_iqr(x, fs, threshold=20):
 
@@ -640,6 +695,7 @@ def iqr_normalization_adaptive(x, fs, median_window, iqr_window):
     return x_norm
 
 
+from scipy.signal import spectrogram
 
 def cal_psd(x, fs, window, noverlap, nfft, f_min, f_max, f_sub=1):
     """
@@ -673,19 +729,42 @@ def cal_psd(x, fs, window, noverlap, nfft, f_min, f_max, f_sub=1):
     assert np.sum(np.isnan(S)) == 0
     return S
 
+def _load_from_tflite() -> tf.lite.Interpreter:
+    file_path = pkg_resources.resource_filename('pisces', 'cached_models/mo_resunet.tflite')
+    tflite_model = tf.lite.Interpreter(model_path=file_path)
+    tflite_model.allocate_tensors()
+
+    return tflite_model
 
 
 class MOResUNetPretrained(SleepWakeClassifier):
+    tflite_model = _load_from_tflite()
+    config = MO_PREPROCESSING_CONFIG
+
     def __init__(
         self,
-        preprocessing_config: dict = MO_PREPROCESSING_CONFIG,
     ) -> None:
         super().__init__()
+    
+    @classmethod
+    def get_needed_X_y(cls, data_set: DataSetObject, id: str) -> Tuple[np.ndarray, np.ndarray] | None:
+        accelerometer = data_set.get_feature_data("accelerometer", id)
+        psg = data_set.get_feature_data("psg", id)
 
-        self.tflite_model = self._load_from_tflite()
-        self.config = preprocessing_config
+        if accelerometer is None or psg is None:
+            return None
+        
+        stop_time = min(accelerometer[-1, 0], psg[-1, 0])
+        accelerometer = accelerometer.filter(accelerometer[:, 0] <= stop_time)
+        psg = psg.filter(psg[:, 0] <= stop_time)
 
-    def train(self, examples_X: List[pl.DataFrame] = [], examples_y: List[pl.DataFrame] = [], 
+        mirrored_spectro = cls._input_preprocessing(accelerometer)
+
+        return mirrored_spectro, psg_to_sleep_wake(psg)
+
+    def train(self, 
+              examples_X: List[pl.DataFrame] = [], 
+              examples_y: List[pl.DataFrame] = [], 
               pairs_Xy: List[Tuple[pl.DataFrame, pl.DataFrame]] = [], 
               epochs: int = 10, batch_size: int = 32):
         """This function does nothing, because this is a pre-trained, non-trainable model."""
@@ -706,15 +785,9 @@ class MOResUNetPretrained(SleepWakeClassifier):
 
     @property
     def model_type(self) -> KnownModel:
-        return KnownModel.PRETRAINED_MO_UNET
+        return 
 
     @staticmethod
-    def _load_from_tflite() -> tf.lite.Interpreter:
-        file_path = pkg_resources.resource_filename('pisces', 'cached_models/mo_resunet.tflite')
-        tflite_model = tf.lite.Interpreter(model_path=file_path)
-        tflite_model.allocate_tensors()
-
-        return tflite_model
 
     def __setstate__(self, d):
         self.__dict__ = d
@@ -727,21 +800,34 @@ class MOResUNetPretrained(SleepWakeClassifier):
 
         return selfCopy.__dict__
 
-    def _spectrogram_preprocessing(self, acc_xyz: np.ndarray) -> np.ndarray:
-        return self._preprocessing(acc_xyz, config=self.config)
+    @classmethod
+    def _spectrogram_preprocessing(cls, acc_xyz: np.ndarray) -> np.ndarray:
+        return cls._preprocessing(acc_xyz)
 
+    @classmethod
     def _input_preprocessing(
-        self,
+        cls,
         acc_xyz: pl.DataFrame | np.ndarray
     ) -> np.ndarray:
 
-        spec = self._spectrogram_preprocessing(acc_xyz)
+        spec = cls._spectrogram_preprocessing(acc_xyz)
 
-        input_dets = self.tflite_model.get_input_details()
+        input_dets = cls.tflite_model.get_input_details()
 
-        inputs = np.zeros(shape=input_dets[0]["shape"])
-        inputs[0, : spec.shape[0], :, 0] = spec
-        inputs[0, : spec.shape[0], :, 1] = spec[:, ::-1]
+        # We will copy the spectrogram to both channels, flipping it on channel 1
+        input_shape = input_dets[0]["shape"]
+        inputs_len = input_shape[1]
+
+        inputs = np.zeros(shape=input_shape, dtype=np.float32)
+        # We must do some careful work with indices to not overflow arrays
+        spec = spec[:inputs_len].astype(np.float32) # protect agains spec.len > input_shape
+
+        #! careful, order matters here. We first trim spec to make sure it'll fit into inputs,
+        # then compute the new length which we KNOW is <= inputs_len
+        spec_len = spec.shape[0]
+        # THEN we assign only as much inputs as spec covers
+        inputs[0, : spec_len, :, 0] = spec # protect agains spec_len < input_shape
+        inputs[0, : spec_len, :, 1] = spec[:, ::-1]
 
         return inputs
 
@@ -758,18 +844,23 @@ class MOResUNetPretrained(SleepWakeClassifier):
 
         return preds
     
+    @classmethod
     def _preprocessing(
-        self,
+        cls,
         acc: pl.DataFrame | np.ndarray
     ) -> np.ndarray:
         """
         The Mads Olsen repo uses a list of transformations
         """
+        if isinstance(acc, pl.DataFrame):
+            acc = acc.to_numpy()
         x_ = acc[:, 0]
         y_ = acc[:, 1]
         z_ = acc[:, 2]
-        for step in self.config["preprocessing"]:
+        for step in cls.config["preprocessing"]:
+            print(step)
             fn = eval(step["type"])  # convert string version to function in environment
+            print(fn)
             fn_args = partial(
                 fn, **step["args"]
             )  # fill in the args given, which must be everything besides numerical input
@@ -786,14 +877,15 @@ class MOResUNetPretrained(SleepWakeClassifier):
 
 
 
-# %% ../nbs/05_experiments.ipynb 19
+# %% ../nbs/05_experiments.ipynb 21
 from typing import Type
 from tqdm import tqdm
 from sklearn.model_selection import LeaveOneOut
 
-def run_split(train_indices, preprocessed_data_set,
-              epochs: int, swc: SleepWakeClassifier
-              ) -> SleepWakeClassifier:
+def run_split(train_indices, 
+              preprocessed_data_set: List[Tuple[np.ndarray, np.ndarray]], 
+              epochs: int, 
+              swc: SleepWakeClassifier) -> SleepWakeClassifier:
     training_pairs = [
         preprocessed_data_set[i]
         for i in train_indices
@@ -812,11 +904,15 @@ class LeaveOneOutSplitter(SplitMaker):
         loo = LeaveOneOut()
         return loo.split(ids)
 
-def run_splits(split_maker: SplitMaker, w: DataSetObject, epochs: int, swc_class: Type[SleepWakeClassifier]) -> Tuple[List[SleepWakeClassifier], List[np.ndarray]]:
+def run_splits(split_maker: SplitMaker, w: DataSetObject, epochs: int, swc_class: Type[SleepWakeClassifier]) -> Tuple[
+        List[SleepWakeClassifier], 
+        List[np.ndarray],
+        List[List[List[int]]]]:
     split_models: List[SGDLogisticRegression] = []
     test_indices = []
+    splits = []
 
-    preprocessed_data = [get_activity_X_PSG_y(w, i) for i in w.ids]
+    preprocessed_data = [swc_class.get_needed_X_y(w, i) for i in w.ids]
 
     for train_index, test_index in tqdm(split_maker.split(w.ids)):
         if preprocessed_data[test_index[0]] is None:
@@ -826,12 +922,14 @@ def run_splits(split_maker: SplitMaker, w: DataSetObject, epochs: int, swc_class
                         epochs=500, swc=swc_class())
         split_models.append(model)
         test_indices.append(test_index[0])
+        splits.append([train_index, test_index])
+        # break
     
-    return split_models, preprocessed_data
+    return split_models, preprocessed_data, splits
 
 
 
-# %% ../nbs/05_experiments.ipynb 23
+# %% ../nbs/05_experiments.ipynb 24
 from .loader import avg_steps
 from sklearn.metrics import auc as auc_score
 
