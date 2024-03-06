@@ -501,7 +501,7 @@ class SGDLogisticRegression(SleepWakeClassifier):
         n_wake = np.sum(y_trimmed == 0)
         N = n_sleep + n_wake
         # Want to make a balanced weight loss, along with giving 0.0 * loss for masked values (y < 0)
-        mask_weights_zero = np.where(y_trimmed < 0, 1.0, 1)
+        mask_weights_zero = np.where(y_trimmed < 0, 0.0, 1)
         # balancing_weights_ignore_mask = np.where(y_trimmed > 0, n_wake / N, n_sleep / N)
         balancing_weights_ignore_mask = np.where(y_trimmed > 0, N / n_sleep, N / n_wake)
         sample_weights = mask_weights_zero * balancing_weights_ignore_mask
@@ -742,12 +742,10 @@ def cal_psd(x, fs, window, noverlap, nfft, f_min, f_max, f_sub=1):
     assert np.sum(np.isnan(S)) == 0
     return S
 
-def _load_from_tflite() -> tf.lite.Interpreter:
-    file_path = pkg_resources.resource_filename('pisces', 'cached_models/mo_resunet.tflite')
-    tflite_model = tf.lite.Interpreter(model_path=file_path)
-    tflite_model.allocate_tensors()
+def _load_from_tflite():
+    file_path = pkg_resources.resource_filename('pisces', 'cached_models/mo_resunet.keras')
 
-    return tflite_model
+    return tf.keras.models.load_model(file_path)
 
 
 # %% ../nbs/05_experiments.ipynb 22
@@ -796,7 +794,7 @@ from concurrent.futures import ProcessPoolExecutor
 
 
 class MOResUNetPretrained(SleepWakeClassifier):
-    tflite_model = _load_from_tflite()
+    tf_model = _load_from_tflite()
     config = MO_PREPROCESSING_CONFIG
 
     def __init__(
@@ -900,7 +898,7 @@ class MOResUNetPretrained(SleepWakeClassifier):
     # Called when pickling
     def __getstate__(self) -> dict:
         selfCopy = self
-        selfCopy.tflite_model = None
+        selfCopy.tf_model = None
 
         return selfCopy.__dict__
 
@@ -916,7 +914,7 @@ class MOResUNetPretrained(SleepWakeClassifier):
 
         spec = cls._spectrogram_preprocessing(acc_xyz)
 
-        input_dets = cls.tflite_model.get_input_details()
+        input_dets = cls.tf_model.get_input_details()
 
         # We will copy the spectrogram to both channels, flipping it on channel 1
         input_shape = input_dets[0]["shape"]
@@ -937,17 +935,18 @@ class MOResUNetPretrained(SleepWakeClassifier):
 
     def eval_tflite_interp(self, inputs: np.ndarray) -> np.ndarray:
         # Boilerplate to run inference on a TensorFlow Lite model interpreter.
-        input_dets = self.tflite_model.get_input_details()
-        output_dets = self.tflite_model.get_output_details()
+        input_dets = self.tf_model.get_input_details()
+        output_dets = self.tf_model.get_output_details()
 
         # set input tensor to FLOAT32
         inputs = inputs.astype(np.float32)
 
-        self.tflite_model.set_tensor(input_dets[0]["index"], inputs)
+        # self.tflite_model.set_tensor(input_dets[0]["index"], inputs)
 
-        self.tflite_model.invoke()
+        # self.tflite_model.invoke()
 
-        preds = self.tflite_model.get_tensor(output_dets[0]["index"])
+        # preds = self.tflite_model.get_tensor(output_dets[0]["index"])
+        preds = self.tf_model.predict(inputs)
 
         return preds
     
