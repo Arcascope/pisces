@@ -3,4 +3,6 @@ include LICENSE
 include CONTRIBUTING.md
 include README.md
 include pisces/cached_models/mo_resunet.tflite
+include pisces/cached_models/mo_resunet.keras
+include pisces/cached_models/mo_model-best.h5
 recursive-exclude * __pycache__

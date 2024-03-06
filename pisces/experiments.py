@@ -3,9 +3,9 @@
 # %% auto 0
 __all__ = ['LOG_LEVEL', 'FS', 'CHANNELS', 'DEPTH', 'N_OUT', 'N_CLASSES', 'MO_UNET_CONFIG', 'MO_PREPROCESSING_CONFIG',
            'SimplifiablePrefixTree', 'IdExtractor', 'DataSetObject', 'psg_to_sleep_wake', 'get_activity_X_PSG_y',
-           'rolling_window', 'SleepWakeClassifier', 'SGDLogisticRegression', 'median', 'clip_by_iqr',
-           'iqr_normalization_adaptive', 'cal_psd', 'MOResUNetPretrained', 'run_split', 'SplitMaker',
-           'LeaveOneOutSplitter', 'run_splits']
+           'rolling_window', 'apply_gausian_filter', 'fill_gaps_in_accelerometer_data', 'SleepWakeClassifier',
+           'SGDLogisticRegression', 'median', 'clip_by_iqr', 'iqr_normalization_adaptive', 'cal_psd',
+           'MOResUNetPretrained', 'run_split', 'SplitMaker', 'LeaveOneOutSplitter', 'run_splits']
 
 # %% ../nbs/05_experiments.ipynb 4
 from enum import Enum
@@ -377,7 +377,62 @@ def rolling_window(arr, window_size):
     arr_strided = as_strided(arr, shape=(strided_axis_0, window_size), strides=(arr.strides[0], arr.strides[0]))
     return arr_strided
 
-# %% ../nbs/05_experiments.ipynb 15
+# %% ../nbs/05_experiments.ipynb 14
+import polars as pl
+import numpy as np
+from scipy.ndimage import gaussian_filter1d
+
+def apply_gausian_filter(df: pl.DataFrame, sigma: float = 1.0, overwrite: bool = False) -> pl.DataFrame:
+    data_columns = df.columns[1:]  # Adjust this to match your data column indices
+
+    # Specify the standard deviation of the Gaussian kernel
+    sigma = 1.0  # This controls the smoothing. Adjust based on your data's sampling rate and desired smoothing
+
+    # Apply Gaussian smoothing to each data column
+    for col in data_columns:
+        new_col_name = f"{col}_smoothed" if not overwrite else col
+        df = df.with_columns(
+            pl.Series(gaussian_filter1d(df[col].to_numpy(), sigma)).alias(new_col_name)
+        )
+    return df
+
+def fill_gaps_in_accelerometer_data(acc: pl.DataFrame, smooth: bool = False) -> pl.DataFrame:
+    # Calculate the time difference in seconds to get the 50 Hz rate
+    sampling_rate_hz = 50
+    sampling_period_s = 1 / sampling_rate_hz
+    # Step 0: Save the original 'timestamp' column as 'timestamp_raw'
+    acc = acc.with_columns(acc[acc.columns[0]].alias('timestamp_raw'))
+
+    # Step 1: Calculate the start time and round down each 'timestamp_raw' to the nearest 0.02 sec from the start time
+    start_time = acc['timestamp_raw'].min()
+    acc = acc.with_columns(
+        (((acc['timestamp_raw'] - start_time) / sampling_period_s).floor() * sampling_period_s + start_time)
+        .alias('timestamp')
+    )
+
+
+    # Generate the new timestamps starting from the first timestamp to the last, at 50 Hz
+    start_time = acc['timestamp'].min()
+    end_time = acc['timestamp'].max() + sampling_period_s  # Add one more period to include the last timestamp
+    new_timestamps = np.arange(start_time, end_time, sampling_period_s)
+
+    # Create a new DataFrame with these timestamps
+    new_df = pl.DataFrame({'timestamp': new_timestamps})
+
+    # Join the original DataFrame with the new one based on the closest timestamp
+    # This assumes timestamps are unique. If not, you might need to handle duplicates.
+    acc_resampled = new_df.join(acc, on='timestamp', how='left').with_columns([
+        # Fill missing data with zeros
+        pl.col('*').exclude('timestamp').fill_null(0)
+    ])
+
+    if smooth:
+        acc_resampled = apply_gausian_filter(acc_resampled, overwrite=True)
+
+    return acc_resampled
+
+
+# %% ../nbs/05_experiments.ipynb 17
 import abc
 from sklearn.metrics import roc_auc_score, roc_curve
 from sklearn.preprocessing import StandardScaler
@@ -413,7 +468,7 @@ class SleepWakeClassifier(abc.ABC):
         pass 
 
 
-# %% ../nbs/05_experiments.ipynb 17
+# %% ../nbs/05_experiments.ipynb 19
 class SGDLogisticRegression(SleepWakeClassifier):
     """Uses Sk-Learn's `SGDCLassifier` to train a logistic regression model. The SGD aspect allows for online learning, or custom training regimes through the `partial_fit` method.
      
@@ -544,7 +599,7 @@ class SGDLogisticRegression(SleepWakeClassifier):
         # ex: input_dim = 6 => (3, 2)
         return (self.input_dim // 2, self.input_dim - (self.input_dim // 2))
 
-# %% ../nbs/05_experiments.ipynb 19
+# %% ../nbs/05_experiments.ipynb 21
 import sys
 from functools import partial
 
@@ -558,46 +613,6 @@ import pandas as pd
 from .enums import KnownModel
 import tensorflow as tf
 import pkg_resources
-
-FS = 32
-CHANNELS = 1
-DEPTH = 9
-N_OUT = 2 ** (DEPTH + 1)
-N_CLASSES = 4
-
-MO_UNET_CONFIG = {
-    "input_shape": (15360, 32, CHANNELS),
-    "num_classes": N_CLASSES,
-    "num_outputs": N_OUT,
-    "init_filter_num": 8,  # 16,
-    "filter_increment_factor": 2 ** (1 / 3),
-    "max_pool_size": (2, 2),
-    "depth": DEPTH,
-    "kernel_size": (16, 3),
-}
-
-MO_PREPROCESSING_CONFIG = {
-    "preprocessing": [
-        {"args": {"window_size": 30, "fs": FS}, "type": "median"},
-        {
-            "args": {"iqr_window": 300, "median_window": 300, "fs": FS},
-            "type": "iqr_normalization_adaptive",
-        },
-        {"args": {"threshold": 20, "fs": FS}, "type": "clip_by_iqr"},
-        {
-            "args": {
-                "fs": FS,
-                "nfft": 512,
-                "f_max": 6,
-                "f_min": 0,
-                "f_sub": 3,
-                "window": 320,
-                "noverlap": 256,
-            },
-            "type": "cal_psd",
-        },
-    ]
-}
 
 def median(x, fs, window_size):
     if isinstance(x, pl.DataFrame):
@@ -734,6 +749,48 @@ def _load_from_tflite() -> tf.lite.Interpreter:
 
     return tflite_model
 
+
+# %% ../nbs/05_experiments.ipynb 22
+FS = 32
+CHANNELS = 1
+DEPTH = 9
+N_OUT = 2 ** (DEPTH + 1)
+N_CLASSES = 4
+
+MO_UNET_CONFIG = {
+    "input_shape": (15360, 32, CHANNELS),
+    "num_classes": N_CLASSES,
+    "num_outputs": N_OUT,
+    "init_filter_num": 8,  # 16,
+    "filter_increment_factor": 2 ** (1 / 3),
+    "max_pool_size": (2, 2),
+    "depth": DEPTH,
+    "kernel_size": (16, 3),
+}
+
+MO_PREPROCESSING_CONFIG = {
+    "preprocessing": [
+        {"args": {"window_size": 30, "fs": FS}, "type": "median"},
+        {
+            "args": {"iqr_window": 300, "median_window": 300, "fs": FS},
+            "type": "iqr_normalization_adaptive",
+        },
+        {"args": {"threshold": 20, "fs": FS}, "type": "clip_by_iqr"},
+        {
+            "args": {
+                "fs": FS,
+                "nfft": 512,
+                "f_max": 6,
+                "f_min": 0,
+                "f_sub": 3,
+                "window": 320,
+                "noverlap": 256,
+            },
+            "type": "cal_psd",
+        },
+    ]
+}
+
 import multiprocessing
 from concurrent.futures import ProcessPoolExecutor
 
@@ -799,9 +856,11 @@ class MOResUNetPretrained(SleepWakeClassifier):
         if accelerometer is None or psg is None:
             return None
         
-        stop_time = min(accelerometer[-1, 0], psg[-1, 0])
+        accelerometer = fill_gaps_in_accelerometer_data(accelerometer, smooth=False)
+        stop_time = min(accelerometer[:, 0].max(), psg[:, 0].max())
         accelerometer = accelerometer.filter(accelerometer[:, 0] <= stop_time)
         psg = psg.filter(psg[:, 0] <= stop_time)
+
 
         mirrored_spectro = cls._input_preprocessing(accelerometer)
 
@@ -923,7 +982,7 @@ class MOResUNetPretrained(SleepWakeClassifier):
 
 
 
-# %% ../nbs/05_experiments.ipynb 21
+# %% ../nbs/05_experiments.ipynb 24
 from typing import Type
 from tqdm import tqdm
 from sklearn.model_selection import LeaveOneOut
