@@ -745,10 +745,10 @@ def cal_psd(x, fs, window, noverlap, nfft, f_min, f_max, f_sub=1):
 def _load_from_tflite():
     file_path = pkg_resources.resource_filename('pisces', 'cached_models/mo_resunet.keras')
 
-    return tf.keras.models.load_model(file_path)
+    return tf.keras.models.load_model(file_path, safe_mode=False)
 
 
-# %% ../nbs/05_experiments.ipynb 22
+# %% ../nbs/05_experiments.ipynb 23
 FS = 32
 CHANNELS = 1
 DEPTH = 9
@@ -981,7 +981,7 @@ class MOResUNetPretrained(SleepWakeClassifier):
 
 
 
-# %% ../nbs/05_experiments.ipynb 24
+# %% ../nbs/05_experiments.ipynb 25
 from typing import Type
 from tqdm import tqdm
 from sklearn.model_selection import LeaveOneOut
