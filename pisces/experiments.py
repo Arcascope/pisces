@@ -748,9 +748,9 @@ def _load_from_tflite():
     return tf.keras.models.load_model(file_path, safe_mode=False)
 
 
-# %% ../nbs/05_experiments.ipynb 23
+# %% ../nbs/05_experiments.ipynb 22
 FS = 32
-CHANNELS = 1
+CHANNELS = 2
 DEPTH = 9
 N_OUT = 2 ** (DEPTH + 1)
 N_CLASSES = 4
@@ -801,6 +801,9 @@ class MOResUNetPretrained(SleepWakeClassifier):
         self,
     ) -> None:
         super().__init__()
+
+    def model_type(self) -> KnownModel:
+        return KnownModel.MO_RES_UNET
     
     def prepare_set_for_training(self, 
                                  data_set: DataSetObject, ids: List[str] | None = None
@@ -885,12 +888,7 @@ class MOResUNetPretrained(SleepWakeClassifier):
     def roc_auc(self, examples_X_y: Tuple[np.ndarray, np.ndarray]) -> float:
         raise NotImplementedError
 
-    @property
-    def model_type(self) -> KnownModel:
-        return 
-
     @staticmethod
-
     def __setstate__(self, d):
         self.__dict__ = d
         self.tflite_model = self._load_from_tflite()
@@ -914,10 +912,12 @@ class MOResUNetPretrained(SleepWakeClassifier):
 
         spec = cls._spectrogram_preprocessing(acc_xyz)
 
-        input_dets = cls.tf_model.get_input_details()
-
         # We will copy the spectrogram to both channels, flipping it on channel 1
-        input_shape = input_dets[0]["shape"]
+        # input_dets = cls.tf_model.get_input_details()
+        # input_shape = input_dets[0]["shape"]
+
+        # input_shape = MO_UNET_CONFIG['input_shape']
+        input_shape = (1, *MO_UNET_CONFIG['input_shape'])
         inputs_len = input_shape[1]
 
         inputs = np.zeros(shape=input_shape, dtype=np.float32)
@@ -935,8 +935,8 @@ class MOResUNetPretrained(SleepWakeClassifier):
 
     def eval_tflite_interp(self, inputs: np.ndarray) -> np.ndarray:
         # Boilerplate to run inference on a TensorFlow Lite model interpreter.
-        input_dets = self.tf_model.get_input_details()
-        output_dets = self.tf_model.get_output_details()
+        # input_dets = self.tf_model.get_input_details()
+        # output_dets = self.tf_model.get_output_details()
 
         # set input tensor to FLOAT32
         inputs = inputs.astype(np.float32)
@@ -981,7 +981,7 @@ class MOResUNetPretrained(SleepWakeClassifier):
 
 
 
-# %% ../nbs/05_experiments.ipynb 25
+# %% ../nbs/05_experiments.ipynb 24
 from typing import Type
 from tqdm import tqdm
 from sklearn.model_selection import LeaveOneOut
