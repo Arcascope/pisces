@@ -396,10 +396,11 @@ def apply_gausian_filter(df: pl.DataFrame, sigma: float = 1.0, overwrite: bool =
         )
     return df
 
-def fill_gaps_in_accelerometer_data(acc: pl.DataFrame, smooth: bool = False) -> pl.DataFrame:
-    # Calculate the time difference in seconds to get the 50 Hz rate
-    sampling_rate_hz = 50
-    sampling_period_s = 1 / sampling_rate_hz
+def fill_gaps_in_accelerometer_data(acc: pl.DataFrame, smooth: bool = False, final_sampling_rate_hz: int = 50) -> pl.DataFrame:
+    
+    # median sampling rate (to account for missing data)
+    sampling_period_s = acc[acc.columns[0]].diff().median() # 1 / sampling_rate_hz
+    
     # Step 0: Save the original 'timestamp' column as 'timestamp_raw'
     acc = acc.with_columns(acc[acc.columns[0]].alias('timestamp_raw'))
 
@@ -425,6 +426,25 @@ def fill_gaps_in_accelerometer_data(acc: pl.DataFrame, smooth: bool = False) -> 
         # Fill missing data with zeros
         pl.col('*').exclude('timestamp').fill_null(0)
     ])
+
+    if (final_rate_sec := 1 / final_sampling_rate_hz) != sampling_period_s:
+        print(f"resampling to {final_rate_sec:0.3f}s from {sampling_period_s:0.3f}s")
+        # make a new data frame with the new timestamps
+        # do this using linear interpolation
+
+        median_time = acc_resampled['timestamp'].to_numpy()
+        final_timestamps = np.arange(median_time.min(), median_time.max() + final_rate_sec, final_rate_sec)
+        median_data = acc_resampled[:, 1:].to_numpy()
+        new_data = np.zeros((final_timestamps.shape[0], median_data.shape[1]))
+        for i in range(median_data.shape[1]):
+            new_data[:, i] = np.interp(final_timestamps, median_time, median_data[:, i])
+        acc_resampled = pl.DataFrame({
+            'timestamp': final_timestamps, 
+            **{
+                f'col_{i}': new_data[:, i] 
+                for i in range(new_data.shape[1])
+            }})
+
 
     if smooth:
         acc_resampled = apply_gausian_filter(acc_resampled, overwrite=True)
@@ -857,7 +877,7 @@ class MOResUNetPretrained(SleepWakeClassifier):
         if accelerometer is None or psg is None:
             return None
         
-        accelerometer = fill_gaps_in_accelerometer_data(accelerometer, smooth=False)
+        accelerometer = fill_gaps_in_accelerometer_data(accelerometer, smooth=True, final_sampling_rate_hz=FS)
         stop_time = min(accelerometer[:, 0].max(), psg[:, 0].max())
         accelerometer = accelerometer.filter(accelerometer[:, 0] <= stop_time)
         psg = psg.filter(psg[:, 0] <= stop_time)
