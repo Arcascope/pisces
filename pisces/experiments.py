@@ -432,10 +432,10 @@ def fill_gaps_in_accelerometer_data(acc: pl.DataFrame, smooth: bool = False, fin
     #     pl.col('*').exclude('timestamp').fill_null(0)
     # ])
 
-    if (final_sampling_rate_hz is not None):
+    if isinstance(final_sampling_rate_hz, int):
     #         and (final_rate_sec := 1 / final_sampling_rate_hz) != sampling_period_s:
         final_rate_sec = 1 / final_sampling_rate_hz
-        print(f"resampling to {final_rate_sec:0.5f}s from {sampling_period_s:0.5f}s")
+        print(f"resampling to {final_sampling_rate_hz}Hz ({final_rate_sec:0.5f}s) from {int(1/sampling_period_s)} Hz ({sampling_period_s:0.5f}s)")
         # make a new data frame with the new timestamps
         # do this using linear interpolation
 
@@ -473,13 +473,8 @@ from .enums import KnownModel
 class SleepWakeClassifier(abc.ABC):
     """
     """
-    @classmethod
     @abc.abstractmethod
-    def model_type(self) -> KnownModel:
-        pass
-    @classmethod
-    @abc.abstractmethod
-    def get_needed_X_y(cls, data_set: DataSetObject, id: str) -> Tuple[np.ndarray, np.ndarray] | None:
+    def get_needed_X_y(self, data_set: DataSetObject, id: str) -> Tuple[np.ndarray, np.ndarray] | None:
         pass
     def train(self, examples_X: List[pl.DataFrame] = [], examples_y: List[pl.DataFrame] = [], 
               pairs_Xy: List[Tuple[pl.DataFrame, pl.DataFrame]] = [], 
@@ -514,14 +509,9 @@ class SGDLogisticRegression(SleepWakeClassifier):
         self.output_dim = output_dim
         self.window_step = 1
 
-    @classmethod
-    def get_needed_X_y(cls, data_set: DataSetObject, id: str) -> Tuple[np.ndarray, np.ndarray] | None:
+    def get_needed_X_y(self, data_set: DataSetObject, id: str) -> Tuple[np.ndarray, np.ndarray] | None:
         return get_activity_X_PSG_y(data_set, id)
     
-    @property
-    def model_type(self) -> KnownModel:
-        return KnownModel.LOG_REG_SKLEARN
-
     def _prepare_labels(self, y: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         y_trimmed = self._trim_labels(y)
         n_sleep = np.sum(y_trimmed > 0)
@@ -826,12 +816,11 @@ class MOResUNetPretrained(SleepWakeClassifier):
 
     def __init__(
         self,
+        sampling_hz: int = FS,
     ) -> None:
         super().__init__()
+        self.sampling_hz = sampling_hz
 
-    def model_type(self) -> KnownModel:
-        return KnownModel.MO_RES_UNET
-    
     def prepare_set_for_training(self, 
                                  data_set: DataSetObject, ids: List[str] | None = None
                                  ) -> List[Tuple[np.ndarray, np.ndarray] | None]:
@@ -850,7 +839,7 @@ class MOResUNetPretrained(SleepWakeClassifier):
 
             # Create a pool of workers
             with ProcessPoolExecutor(max_workers=num_cores) as executor:
-                results = list(executor.map(MOResUNetPretrained.get_needed_X_y_from_pair, data_set_and_ids))
+                results = list(executor.map(self.get_needed_X_y_from_pair, data_set_and_ids))
             # pool = multiprocessing.Pool(processes=num_cores-1)
 
             # # Map the function to each id in w.ids
@@ -868,29 +857,27 @@ class MOResUNetPretrained(SleepWakeClassifier):
             return results
         return results
     
-    @classmethod
-    def get_needed_X_y_from_pair(cls, pair: Tuple[DataSetObject, str] | None = None) -> Tuple[np.ndarray, np.ndarray] | None:
-        if pair:
-            data_set, id = pair
-        else:
-            return None
-        return cls.get_needed_X_y(data_set, id)
+    def get_needed_X_y_from_pair(self, pair: Tuple[DataSetObject, str]) -> Tuple[np.ndarray, np.ndarray] | None:
+        data_set, id = pair
+        print(f"getting needed X, y for {id}")
+        return self.get_needed_X_y(data_set, id)
     
-    @classmethod
-    def get_needed_X_y(cls, data_set: DataSetObject, id: str) -> Tuple[np.ndarray, np.ndarray] | None:
+    def get_needed_X_y(self, data_set: DataSetObject, id: str) -> Tuple[np.ndarray, np.ndarray] | None:
         accelerometer = data_set.get_feature_data("accelerometer", id)
         psg = data_set.get_feature_data("psg", id)
 
         if accelerometer is None or psg is None:
+            print(f"ID {id} {'psg' if psg is None else 'accelerometer'} not found in {data_set.name}")
             return None
         
-        accelerometer = fill_gaps_in_accelerometer_data(accelerometer, smooth=False, final_sampling_rate_hz=FS)
+        print("sampling hz:", self.sampling_hz)
+        accelerometer = fill_gaps_in_accelerometer_data(accelerometer, smooth=False, final_sampling_rate_hz=self.sampling_hz)
         stop_time = min(accelerometer[:, 0].max(), psg[:, 0].max())
         accelerometer = accelerometer.filter(accelerometer[:, 0] <= stop_time)
         psg = psg.filter(psg[:, 0] <= stop_time)
 
 
-        mirrored_spectro = cls._input_preprocessing(accelerometer)
+        mirrored_spectro = self._input_preprocessing(accelerometer)
 
         return mirrored_spectro, psg_to_sleep_wake(psg)
 
@@ -915,17 +902,17 @@ class MOResUNetPretrained(SleepWakeClassifier):
     def roc_auc(self, examples_X_y: Tuple[np.ndarray, np.ndarray]) -> float:
         raise NotImplementedError
 
-    @staticmethod
-    def __setstate__(self, d):
-        self.__dict__ = d
-        self.tflite_model = self._load_from_tflite()
+    # @staticmethod
+    # def __setstate__(self, d):
+    #     self.__dict__ = d
+    #     self.tflite_model = self._load_from_tflite()
 
-    # Called when pickling
-    def __getstate__(self) -> dict:
-        selfCopy = self
-        selfCopy.tf_model = None
+    # # Called when pickling
+    # def __getstate__(self) -> dict:
+    #     selfCopy = self
+    #     selfCopy.tf_model = None
 
-        return selfCopy.__dict__
+    #     return selfCopy.__dict__
 
     @classmethod
     def _spectrogram_preprocessing(cls, acc_xyz: np.ndarray) -> np.ndarray:
@@ -1043,7 +1030,7 @@ def run_splits(split_maker: SplitMaker, w: DataSetObject, epochs: int, swc_class
     test_indices = []
     splits = []
 
-    preprocessed_data = [swc_class.get_needed_X_y(w, i) for i in w.ids]
+    preprocessed_data = [swc_class().get_needed_X_y(w, i) for i in w.ids]
 
     for train_index, test_index in tqdm(split_maker.split(w.ids)):
         if preprocessed_data[test_index[0]] is None:
