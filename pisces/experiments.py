@@ -396,52 +396,59 @@ def apply_gausian_filter(df: pl.DataFrame, sigma: float = 1.0, overwrite: bool =
         )
     return df
 
-def fill_gaps_in_accelerometer_data(acc: pl.DataFrame, smooth: bool = False, final_sampling_rate_hz: int = 50) -> pl.DataFrame:
+def fill_gaps_in_accelerometer_data(acc: pl.DataFrame, smooth: bool = False, final_sampling_rate_hz: int | None = None) -> np.ndarray:
     
     # median sampling rate (to account for missing data)
     sampling_period_s = acc[acc.columns[0]].diff().median() # 1 / sampling_rate_hz
     
     # Step 0: Save the original 'timestamp' column as 'timestamp_raw'
-    acc = acc.with_columns(acc[acc.columns[0]].alias('timestamp_raw'))
+    acc_resampled = acc.with_columns(acc[acc.columns[0]].alias('timestamp'))
 
-    # Step 1: Calculate the start time and round down each 'timestamp_raw' to the nearest 0.02 sec from the start time
-    start_time = acc['timestamp_raw'].min()
-    acc = acc.with_columns(
-        (((acc['timestamp_raw'] - start_time) / sampling_period_s).floor() * sampling_period_s + start_time)
-        .alias('timestamp')
-    )
+    # # Step 1: Calculate the start time and round down each 'timestamp_raw' to the nearest 0.02 sec from the start time
+    # start_time = acc['timestamp_raw'].min()
+    # acc = acc.with_columns(
+    #     ((
+    #         (acc['timestamp_raw'] - start_time) / sampling_period_s).floor() * sampling_period_s 
+    #         + start_time
+    #     ).alias('timestamp'))
 
 
-    # Generate the new timestamps starting from the first timestamp to the last, at 50 Hz
-    start_time = acc['timestamp'].min()
-    end_time = acc['timestamp'].max() + sampling_period_s  # Add one more period to include the last timestamp
-    new_timestamps = np.arange(start_time, end_time, sampling_period_s)
+    # # Generate the new timestamps starting from the first timestamp to the last, at 50 Hz
+    # start_time = acc['timestamp'].min()
+    # end_time = acc['timestamp'].max() + sampling_period_s  # Add one more period to include the last timestamp
+    # new_timestamps = np.arange(start_time, end_time, sampling_period_s)
 
-    # Create a new DataFrame with these timestamps
-    new_df = pl.DataFrame({'timestamp': new_timestamps})
+    # # Create a new DataFrame with these timestamps
+    # new_df = pl.DataFrame({'timestamp': new_timestamps})
 
-    # Join the original DataFrame with the new one based on the closest timestamp
-    # This assumes timestamps are unique. If not, you might need to handle duplicates.
-    acc_resampled = new_df.join(acc, on='timestamp', how='left').with_columns([
-        # Fill missing data with zeros
-        pl.col('*').exclude('timestamp').fill_null(0)
-    ])
+    # # Join the original DataFrame with the new one based on the closest timestamp
+    # # This assumes timestamps are unique. If not, you might need to handle duplicates.
+    # acc_resampled = new_df.join(acc, on='timestamp', how='left')
+    # # identify gaps by nulls
+    # acc_gaps = acc_resampled.select(pl.any_horizontal(pl.col('*').is_null()))
+    
+    # acc_resampled = acc_resampled.with_columns([
+    #     # Fill missing data with zeros
+    #     pl.col('*').exclude('timestamp').fill_null(0)
+    # ])
 
-    if (final_rate_sec := 1 / final_sampling_rate_hz) != sampling_period_s:
-        print(f"resampling to {final_rate_sec:0.3f}s from {sampling_period_s:0.3f}s")
+    if (final_sampling_rate_hz is not None):
+    #         and (final_rate_sec := 1 / final_sampling_rate_hz) != sampling_period_s:
+        final_rate_sec = 1 / final_sampling_rate_hz
+        print(f"resampling to {final_rate_sec:0.5f}s from {sampling_period_s:0.5f}s")
         # make a new data frame with the new timestamps
         # do this using linear interpolation
 
         median_time = acc_resampled['timestamp'].to_numpy()
         final_timestamps = np.arange(median_time.min(), median_time.max() + final_rate_sec, final_rate_sec)
-        median_data = acc_resampled[:, 1:].to_numpy()
+        median_data = acc_resampled[:, 1:4].to_numpy()
         new_data = np.zeros((final_timestamps.shape[0], median_data.shape[1]))
         for i in range(median_data.shape[1]):
             new_data[:, i] = np.interp(final_timestamps, median_time, median_data[:, i])
         acc_resampled = pl.DataFrame({
             'timestamp': final_timestamps, 
             **{
-                f'col_{i}': new_data[:, i] 
+                acc_resampled.columns[i+1]: new_data[:, i] 
                 for i in range(new_data.shape[1])
             }})
 
@@ -452,7 +459,7 @@ def fill_gaps_in_accelerometer_data(acc: pl.DataFrame, smooth: bool = False, fin
     return acc_resampled
 
 
-# %% ../nbs/05_experiments.ipynb 17
+# %% ../nbs/05_experiments.ipynb 24
 import abc
 from sklearn.metrics import roc_auc_score, roc_curve
 from sklearn.preprocessing import StandardScaler
@@ -488,7 +495,7 @@ class SleepWakeClassifier(abc.ABC):
         pass 
 
 
-# %% ../nbs/05_experiments.ipynb 19
+# %% ../nbs/05_experiments.ipynb 26
 class SGDLogisticRegression(SleepWakeClassifier):
     """Uses Sk-Learn's `SGDCLassifier` to train a logistic regression model. The SGD aspect allows for online learning, or custom training regimes through the `partial_fit` method.
      
@@ -619,7 +626,7 @@ class SGDLogisticRegression(SleepWakeClassifier):
         # ex: input_dim = 6 => (3, 2)
         return (self.input_dim // 2, self.input_dim - (self.input_dim // 2))
 
-# %% ../nbs/05_experiments.ipynb 21
+# %% ../nbs/05_experiments.ipynb 28
 import sys
 from functools import partial
 
@@ -768,7 +775,7 @@ def _load_from_tflite():
     return tf.keras.models.load_model(file_path, safe_mode=False)
 
 
-# %% ../nbs/05_experiments.ipynb 22
+# %% ../nbs/05_experiments.ipynb 29
 FS = 32
 CHANNELS = 2
 DEPTH = 9
@@ -871,13 +878,13 @@ class MOResUNetPretrained(SleepWakeClassifier):
     
     @classmethod
     def get_needed_X_y(cls, data_set: DataSetObject, id: str) -> Tuple[np.ndarray, np.ndarray] | None:
-        accelerometer = data_set.get_feature_data("accelerometer", id)
+        accelerometer, gaps = data_set.get_feature_data("accelerometer", id)
         psg = data_set.get_feature_data("psg", id)
 
         if accelerometer is None or psg is None:
             return None
         
-        accelerometer = fill_gaps_in_accelerometer_data(accelerometer, smooth=True, final_sampling_rate_hz=FS)
+        accelerometer = fill_gaps_in_accelerometer_data(accelerometer, smooth=False, final_sampling_rate_hz=FS)
         stop_time = min(accelerometer[:, 0].max(), psg[:, 0].max())
         accelerometer = accelerometer.filter(accelerometer[:, 0] <= stop_time)
         psg = psg.filter(psg[:, 0] <= stop_time)
@@ -1001,7 +1008,7 @@ class MOResUNetPretrained(SleepWakeClassifier):
 
 
 
-# %% ../nbs/05_experiments.ipynb 24
+# %% ../nbs/05_experiments.ipynb 31
 from typing import Type
 from tqdm import tqdm
 from sklearn.model_selection import LeaveOneOut
