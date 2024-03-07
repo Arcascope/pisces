@@ -5,7 +5,7 @@ __all__ = ['LOG_LEVEL', 'FS', 'CHANNELS', 'DEPTH', 'N_OUT', 'N_CLASSES', 'MO_UNE
            'SimplifiablePrefixTree', 'IdExtractor', 'DataSetObject', 'psg_to_sleep_wake', 'get_activity_X_PSG_y',
            'rolling_window', 'apply_gausian_filter', 'fill_gaps_in_accelerometer_data', 'SleepWakeClassifier',
            'SGDLogisticRegression', 'median', 'clip_by_iqr', 'iqr_normalization_adaptive', 'cal_psd',
-           'MOResUNetPretrained', 'run_split', 'SplitMaker', 'LeaveOneOutSplitter', 'run_splits']
+           'MOResUNetPretrained', 'SplitMaker', 'LeaveOneOutSplitter', 'run_split', 'run_splits']
 
 # %% ../nbs/05_experiments.ipynb 4
 from enum import Enum
@@ -433,7 +433,6 @@ def fill_gaps_in_accelerometer_data(acc: pl.DataFrame, smooth: bool = False, fin
     # ])
 
     if isinstance(final_sampling_rate_hz, int):
-    #         and (final_rate_sec := 1 / final_sampling_rate_hz) != sampling_period_s:
         final_rate_sec = 1 / final_sampling_rate_hz
         print(f"resampling to {final_sampling_rate_hz}Hz ({final_rate_sec:0.5f}s) from {int(1/sampling_period_s)} Hz ({sampling_period_s:0.5f}s)")
         # make a new data frame with the new timestamps
@@ -895,7 +894,7 @@ class MOResUNetPretrained(SleepWakeClassifier):
     def predict_probabilities(self, sample_X: np.ndarray | pl.DataFrame) -> np.ndarray:
         if isinstance(sample_X, pl.DataFrame):
             sample_X = sample_X.to_numpy()
-        return self.eval_tflite_interp(sample_X)
+        return self._evaluate_tf_model(sample_X)
 
     def roc_curve(self, examples_X_y: Tuple[np.ndarray, np.ndarray]) -> Tuple[np.ndarray, np.ndarray]:
         raise NotImplementedError
@@ -947,19 +946,11 @@ class MOResUNetPretrained(SleepWakeClassifier):
 
         return inputs
 
-    def eval_tflite_interp(self, inputs: np.ndarray) -> np.ndarray:
-        # Boilerplate to run inference on a TensorFlow Lite model interpreter.
-        # input_dets = self.tf_model.get_input_details()
-        # output_dets = self.tf_model.get_output_details()
-
+    def _evaluate_tf_model(self, inputs: np.ndarray) -> np.ndarray:
         # set input tensor to FLOAT32
         inputs = inputs.astype(np.float32)
 
-        # self.tflite_model.set_tensor(input_dets[0]["index"], inputs)
-
-        # self.tflite_model.invoke()
-
-        # preds = self.tflite_model.get_tensor(output_dets[0]["index"])
+        # run inference
         preds = self.tf_model.predict(inputs)
 
         return preds
@@ -1000,18 +991,6 @@ from typing import Type
 from tqdm import tqdm
 from sklearn.model_selection import LeaveOneOut
 
-def run_split(train_indices, 
-              preprocessed_data_set: List[Tuple[np.ndarray, np.ndarray]], 
-              epochs: int, 
-              swc: SleepWakeClassifier) -> SleepWakeClassifier:
-    training_pairs = [
-        preprocessed_data_set[i]
-        for i in train_indices
-        if preprocessed_data_set[i]
-    ]
-    swc.train(pairs_Xy=training_pairs, epochs=epochs)
-
-    return swc
 
 class SplitMaker:
     def split(self, ids: List[str]) -> Tuple[List[int], List[int]]:
@@ -1022,11 +1001,23 @@ class LeaveOneOutSplitter(SplitMaker):
         loo = LeaveOneOut()
         return loo.split(ids)
 
-def run_splits(split_maker: SplitMaker, w: DataSetObject, epochs: int, swc_class: Type[SleepWakeClassifier]) -> Tuple[
+def run_split(train_indices, 
+              preprocessed_data_set: List[Tuple[np.ndarray, np.ndarray]], 
+              swc: SleepWakeClassifier) -> SleepWakeClassifier:
+    training_pairs = [
+        preprocessed_data_set[i]
+        for i in train_indices
+        if preprocessed_data_set[i]
+    ]
+    swc.train(pairs_Xy=training_pairs)
+
+    return swc
+
+def run_splits(split_maker: SplitMaker, w: DataSetObject, swc_class: Type[SleepWakeClassifier]) -> Tuple[
         List[SleepWakeClassifier], 
         List[np.ndarray],
         List[List[List[int]]]]:
-    split_models: List[SGDLogisticRegression] = []
+    split_models: List[swc_class] = []
     test_indices = []
     splits = []
 
@@ -1037,7 +1028,7 @@ def run_splits(split_maker: SplitMaker, w: DataSetObject, epochs: int, swc_class
             continue
         model = run_split(train_indices=train_index,
                         preprocessed_data_set=preprocessed_data,
-                        epochs=500, swc=swc_class())
+                        swc=swc_class())
         split_models.append(model)
         test_indices.append(test_index[0])
         splits.append([train_index, test_index])

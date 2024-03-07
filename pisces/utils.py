@@ -3,7 +3,7 @@
 # %% auto 0
 __all__ = ['determine_header_rows_and_delimiter', 'ActivityCountAlgorithm', 'build_activity_counts', 'build_ADS',
            'build_activity_counts_te_Lindert_et_al', 'build_ActiGraph_official', 'constant_interp', 'avg_steps',
-           'pad_to_hat']
+           'pad_to_hat', 'mae_func', 'Constants', 'SleepMetricsCalculator']
 
 # %% ../nbs/00_utils.ipynb 4
 import csv
@@ -319,3 +319,156 @@ def pad_to_hat(y: np.ndarray, y_hat: np.ndarray) -> np.ndarray:
         return y
     y_padded = np.pad(y, (0, pad), constant_values=0)
     return y_padded
+
+# %% ../nbs/00_utils.ipynb 16
+from typing import Callable
+
+
+def mae_func(
+    func: Callable[[np.ndarray], float],
+    trues: List[np.ndarray],
+    preds: List[np.ndarray],
+) -> float:
+    """Computes Mean Absolute Error (MAE) for the numerical function `func` on the given lists.
+
+    This function is useful for computing MAE of statistical functions giving a single float
+    for every NumPy array.
+
+    Parameters
+    ---
+    `func`: callable `(np.ndarray) -> float`
+        The statistic we are computing for truth/prediction arrays. It is called on each element
+        of the lists of NumPy arrays, then MAE of the resulting statistic lists is computed.
+    `trues`: `list` of `np.ndarray`
+        The "True" labels, eg. This function is symmetric in `trues` and `preds`, and isn't specific
+        to classifiers, so the argument names are just mnemonics.
+    `preds`: `list` of `np.ndarray`
+        The "Predicted" labels, eg.
+
+    Returns
+    ---
+    MAE of `func` applied to elements of `trues` and `preds`.
+    """
+    assert len(trues) == len(preds)
+
+    # aes = (A)bsolute (E)rror(S)
+    # We will take the mean of this list for Mean Absolute Error
+    aes = list(
+        map(lambda ab: abs(ab[0] - ab[1]), zip(map(func, trues), map(func, preds)))
+    )
+
+    return sum(aes) / len(aes)
+
+
+# %% ../nbs/00_utils.ipynb 18
+from sklearn.metrics import roc_auc_score, roc_curve
+from functools import partial
+
+
+class Constants:
+    # WAKE_THRESHOLD = 0.3  # These values were used for scikit-learn 0.20.3, See:
+    # REM_THRESHOLD = 0.35  # https://scikit-learn.org/stable/whats_new.html#version-0-21-0
+    WAKE_THRESHOLD = 0.5  #
+    REM_THRESHOLD = 0.35
+
+    EPOCH_DURATION_IN_SECONDS = 30
+    SECONDS_PER_MINUTE = 60
+    SECONDS_PER_DAY = 3600 * 24
+    SECONDS_PER_HOUR = 3600
+    VERBOSE = True
+    LOWER_BOUND = -0.2
+
+
+class SleepMetricsCalculator:
+    @staticmethod
+    def get_tst(labels, epoch_seconds: float | None = 30.0):
+        tst = np.sum(labels > 0)
+        epoch_seconds = (
+            epoch_seconds
+            if epoch_seconds is not None
+            else Constants.EPOCH_DURATION_IN_SECONDS
+        )
+        return tst * epoch_seconds / Constants.SECONDS_PER_MINUTE
+
+    @staticmethod
+    def get_wake_after_sleep_onset(labels, epoch_seconds: float | None = 30.0):
+        select = labels >= 0
+        labels = labels[select]
+        sleep_indices = np.argwhere(labels > 0)
+
+        epoch_seconds = (
+            epoch_seconds
+            if epoch_seconds is not None
+            else Constants.EPOCH_DURATION_IN_SECONDS
+        )
+        if np.shape(sleep_indices)[0] > 0:
+            sol_index = np.amin(sleep_indices)
+            indices_where_wake_occurred = np.where(labels == 0)
+
+            waso_indices = np.where(indices_where_wake_occurred > sol_index)
+            waso_indices = waso_indices[1]
+            number_waso_indices = np.shape(waso_indices)[0]
+            return number_waso_indices * epoch_seconds / Constants.SECONDS_PER_MINUTE
+        else:
+            # print("*" * 10 + "get_wake_after_sleep_onset" + "*" * 10)
+            # print(labels)
+            return len(labels) * epoch_seconds / Constants.SECONDS_PER_MINUTE
+
+    @staticmethod
+    def get_sleep_efficiency(labels):
+        sleep_indices = np.where(labels > 0)
+        sleep_efficiency = float(np.shape(sleep_indices)[1]) / float(
+            np.shape(labels)[0]
+        )
+        return sleep_efficiency
+
+    @staticmethod
+    def get_sleep_onset_latency(labels, epoch_seconds: Optional[float]):
+        sleep_indices = np.argwhere(labels > 0)
+        epoch_seconds = (
+            epoch_seconds
+            if epoch_seconds is not None
+            else Constants.EPOCH_DURATION_IN_SECONDS
+        )
+        if np.shape(sleep_indices)[0] > 0:
+            return np.amin(sleep_indices) * epoch_seconds / Constants.SECONDS_PER_MINUTE
+        else:
+            return len(labels) * epoch_seconds / Constants.SECONDS_PER_MINUTE
+
+    @staticmethod
+    def get_time_in_rem(labels, epoch_seconds: Optional[float]):
+        rem_epoch_indices = np.where(labels == 2)
+        rem_time = np.shape(rem_epoch_indices)[1]
+        return rem_time * epoch_seconds / Constants.SECONDS_PER_MINUTE
+
+    @staticmethod
+    def get_time_in_nrem(labels, epoch_seconds: Optional[float]):
+        rem_epoch_indices = np.where(labels == 1)
+        rem_time = np.shape(rem_epoch_indices)[1]
+        return rem_time * epoch_seconds / Constants.SECONDS_PER_MINUTE
+
+    @classmethod
+    def report_mae_tst_waso(
+        cls,
+        y_pred_y_true: List[Tuple[np.ndarray, np.ndarray]],
+        sleep_acc: float = 0.93,
+        epoch_seconds: Optional[float] = 30,
+        plots: bool = False,
+        unscored_as_wake: bool = True,
+    ) -> Dict[str, float]:
+        res = {"mae_tst_minutes": [], "mae_waso_minutes": []}
+        preds = []
+        trues = []
+        for pred, true in y_pred_y_true:
+            fprs, tprs, thresholds = roc_curve(true, pred)
+            threshold = thresholds[np.argmax(fprs <= (1 - sleep_acc))]
+            preds.append(pred >= threshold)
+            trues.append(true)
+
+        tst_func = partial(cls.get_tst, epoch_seconds=epoch_seconds)
+        waso_func = partial(cls.get_wake_after_sleep_onset, epoch_seconds=epoch_seconds)
+        res["mae_tst_minutes"] = mae_func(tst_func, trues=trues, preds=preds)
+        res["mae_waso_minutes"] = mae_func(waso_func, trues=trues, preds=preds)
+
+        return res
+
