@@ -483,10 +483,6 @@ class SleepWakeClassifier(abc.ABC):
         pass
     def predict_probabilities(self, sample_X: np.ndarray | pl.DataFrame) -> np.ndarray:
         pass
-    def roc_curve(self, examples_X_y: Tuple[np.ndarray, np.ndarray]) -> Tuple[np.ndarray, np.ndarray]:
-        pass 
-    def roc_auc(self, examples_X_y: Tuple[np.ndarray, np.ndarray]) -> float:
-        pass 
 
 
 # %% ../nbs/05_experiments.ipynb 26
@@ -571,37 +567,10 @@ class SGDLogisticRegression(SleepWakeClassifier):
     
     def predict_probabilities(self, sample_X: np.ndarray | pl.DataFrame) -> np.ndarray:
         return self.model.predict_proba(self._input_preprocessing(sample_X))
-
-    def roc_auc(self, examples_X_y: Tuple[np.ndarray, np.ndarray]) -> float:
-        prediction, labels, balancing_weights = self._evaluation_preprocessing(examples_X_y)
-        auc = roc_auc_score(labels, prediction)
-        return auc
     
-    def _evaluation_preprocessing(self, examples_X_y: Tuple[np.ndarray, np.ndarray]
-                                  ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-        labels, balancing_weights = self._prepare_labels(examples_X_y[1])
-
-        # get probability of sleep
-        prediction = self.predict_probabilities(examples_X_y[0])[:, -1]
-        # drop all -1 (mask) classes
-        min_matching_length = min(len(labels), len(prediction))
-        prediction = prediction[:min_matching_length]
-        if len(prediction) != len(labels):
-            print(f"prediction: {prediction.shape}, labels: {labels.shape}")
-        labels = labels[:min_matching_length]
-        balancing_weights = balancing_weights[:min_matching_length]
-
-        return prediction, labels, balancing_weights
-
-    def roc_curve(self, examples_X_y: Tuple[np.ndarray, np.ndarray]) -> Tuple[np.ndarray, np.ndarray]:
-        prediction, labels, balancing_weights = self._evaluation_preprocessing(examples_X_y)
-        fpr, tpr, _ = roc_curve(labels, prediction, sample_weight=balancing_weights)
-        return fpr, tpr
-
-
     def _fold(self, input_X: np.ndarray | pl.DataFrame) -> np.array:
         if isinstance(input_X, pl.DataFrame):
-            xa = input_X.to_numpy()
+            input_X = input_X.to_numpy()
         return rolling_window(input_X, self.input_dim)
     
     def _trim_labels(self, labels_y: pl.DataFrame) -> np.ndarray:
@@ -1005,9 +974,9 @@ def run_split(train_indices,
               preprocessed_data_set: List[Tuple[np.ndarray, np.ndarray]], 
               swc: SleepWakeClassifier) -> SleepWakeClassifier:
     training_pairs = [
-        preprocessed_data_set[i]
+        preprocessed_data_set[i][0]
         for i in train_indices
-        if preprocessed_data_set[i]
+        if preprocessed_data_set[i][0] is not None
     ]
     swc.train(pairs_Xy=training_pairs)
 
@@ -1021,10 +990,10 @@ def run_splits(split_maker: SplitMaker, w: DataSetObject, swc_class: Type[SleepW
     test_indices = []
     splits = []
 
-    preprocessed_data = [swc_class().get_needed_X_y(w, i) for i in w.ids]
+    preprocessed_data = [(swc_class().get_needed_X_y(w, i), i) for i in w.ids]
 
     for train_index, test_index in tqdm(split_maker.split(w.ids)):
-        if preprocessed_data[test_index[0]] is None:
+        if preprocessed_data[test_index[0]][0] is None:
             continue
         model = run_split(train_indices=train_index,
                         preprocessed_data_set=preprocessed_data,
