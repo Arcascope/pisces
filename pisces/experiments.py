@@ -878,7 +878,7 @@ class MOResUNetPretrained(SleepWakeClassifier):
     
     @classmethod
     def get_needed_X_y(cls, data_set: DataSetObject, id: str) -> Tuple[np.ndarray, np.ndarray] | None:
-        accelerometer, gaps = data_set.get_feature_data("accelerometer", id)
+        accelerometer = data_set.get_feature_data("accelerometer", id)
         psg = data_set.get_feature_data("psg", id)
 
         if accelerometer is None or psg is None:
