@@ -2,8 +2,8 @@
 
 # %% auto 0
 __all__ = ['determine_header_rows_and_delimiter', 'ActivityCountAlgorithm', 'build_activity_counts', 'build_ADS',
-           'build_activity_counts_te_Lindert_et_al', 'build_ActiGraph_official', 'constant_interp', 'avg_steps',
-           'pad_to_hat', 'mae_func', 'Constants', 'SleepMetricsCalculator']
+           'build_activity_counts_te_Lindert_et_al', 'build_ActiGraph_official', 'plot_scores_CDF', 'plot_scores_PDF',
+           'constant_interp', 'avg_steps', 'add_rocs', 'pad_to_hat', 'mae_func', 'Constants', 'SleepMetricsCalculator']
 
 # %% ../nbs/00_utils.ipynb 4
 import csv
@@ -229,6 +229,36 @@ def build_ActiGraph_official(time_xyz, axis: int = 3) -> Tuple[np.ndarray, np.nd
     return times, counts
 
 # %% ../nbs/00_utils.ipynb 13
+from typing import List
+from matplotlib import pyplot as plt
+import numpy as np
+
+def plot_scores_CDF(scores: List[float], ax: plt.Axes = None):
+    """Plot the cumulative dist function (CDF) of the scores."""
+    # plt.figure(figsize=(20, 10))
+    if ax is None:
+        _, ax = plt.subplots()
+    ax.set_xlim(0, 1)
+    _ = ax.hist(scores,
+                cumulative=True,
+                density=True,
+                bins=100)
+
+
+def plot_scores_PDF(scores: List[float], ax: plt.Axes = None):
+    """Plot the probability dist function (PDF) of the scores."""
+    ax_ = ax
+    if ax is None:
+        _, ax_ = plt.subplots()
+    ax_.set_xlim(0, 1)
+    _ = ax_.hist(scores, bins=20)
+
+    # plot the mean as a vertical 'tab:orange' line
+    ax_.axvline(np.mean(scores), color='tab:orange', linestyle='--', label=f"Mean: {np.mean(scores):.3f}")
+    if ax is None:
+        ax_.legend()
+
+# %% ../nbs/00_utils.ipynb 14
 def constant_interp(
     x: np.ndarray, xp: np.ndarray, yp: np.ndarray, side: str = "right"
 ) -> np.ndarray:
@@ -305,6 +335,67 @@ def avg_steps(
 
 
 # %% ../nbs/00_utils.ipynb 15
+from typing import List
+
+from sklearn.metrics import auc as auc_score
+
+def add_rocs(fprs: List[np.ndarray],
+             tprs: List[np.ndarray],
+             x_class: str = "SLEEP",
+             y_class: str = "WAKE", 
+             min_auc: float = 0.0,
+             avg_curve_color: str = "tab:blue",
+             specific_curve_color: str = "tab:orange",
+             roc_group_name: str = "", 
+             ax: plt.Axes | None = None):
+    """
+    Adds ROC curves to the given plot, or makes a new plot if ax is None.
+
+    if ax is None, we are making a new plot. We do additional formatting
+    in this case, such as adding the legend and showing the plot. 
+    
+    When `ax` is provided, we expect the call site to do formatting.
+    """
+    # don't overwrite ax, this lets us use the None info later on 
+    # to automatically show the legend and do other formatting, 
+    # which otherwise we'd expect the call site to peform on `ax`
+    resolved_ax = ax if ax is not None else plt.subplots()[1]
+    aucs = np.array([
+        auc_score(fpr, tpr)
+        for fpr, tpr in zip(fprs, tprs)
+    ])
+
+    all_fprs, avg_curve = avg_steps(
+            xs=[list(fprs[i]) for i in range(len(aucs)) if aucs[i] > min_auc],
+            ys=[list(tprs[i]) for i in range(len(aucs)) if aucs[i] > min_auc],
+        )
+
+    avg_auc = np.mean(aucs[aucs > min_auc])
+
+    resolved_ax.step(
+        all_fprs,
+        avg_curve,
+        c=avg_curve_color,
+        where="post",
+        label=f"{roc_group_name + ' ' * bool(roc_group_name)}All splits avg ROC-AUC: {avg_auc:0.3f}",
+    )
+    for roc in zip(fprs, tprs):
+        resolved_ax.step(roc[0], roc[1], c=specific_curve_color, alpha=0.2, where="post")
+    resolved_ax.plot([0, 1], [0, 1], "-.", c="black")
+
+    resolved_ax.set_ylabel(f"Fraction of {y_class} scored as {y_class}")
+    resolved_ax.set_xlabel(f"Fraction of {x_class} scored as {y_class}")
+
+    resolved_ax.spines["top"].set_visible(False)
+    resolved_ax.spines["right"].set_visible(False)
+
+    if ax is None:
+        # show the legend if we are making a new plot
+        # otherwise, the call site might want to make their own legend, leave it.
+        resolved_ax.legend()
+        plt.show()
+
+# %% ../nbs/00_utils.ipynb 17
 import warnings
 
 
@@ -320,7 +411,7 @@ def pad_to_hat(y: np.ndarray, y_hat: np.ndarray) -> np.ndarray:
     y_padded = np.pad(y, (0, pad), constant_values=0)
     return y_padded
 
-# %% ../nbs/00_utils.ipynb 16
+# %% ../nbs/00_utils.ipynb 18
 from typing import Callable
 
 
@@ -360,7 +451,7 @@ def mae_func(
     return sum(aes) / len(aes)
 
 
-# %% ../nbs/00_utils.ipynb 18
+# %% ../nbs/00_utils.ipynb 20
 from sklearn.metrics import roc_auc_score, roc_curve
 from functools import partial
 
