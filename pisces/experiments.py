@@ -982,7 +982,7 @@ def run_split(train_indices,
 
     return swc
 
-def run_splits(split_maker: SplitMaker, w: DataSetObject, swc_class: Type[SleepWakeClassifier]) -> Tuple[
+def run_splits(split_maker: SplitMaker, w: DataSetObject, swc_class: Type[SleepWakeClassifier], exclude: List[str] = []) -> Tuple[
         List[SleepWakeClassifier], 
         List[np.ndarray],
         List[List[List[int]]]]:
@@ -990,7 +990,7 @@ def run_splits(split_maker: SplitMaker, w: DataSetObject, swc_class: Type[SleepW
     test_indices = []
     splits = []
 
-    preprocessed_data = [(swc_class().get_needed_X_y(w, i), i) for i in w.ids]
+    preprocessed_data = [(swc_class().get_needed_X_y(w, i), i) for i in w.ids if i not in exclude]
 
     for train_index, test_index in tqdm(split_maker.split(w.ids)):
         if preprocessed_data[test_index[0]][0] is None:
