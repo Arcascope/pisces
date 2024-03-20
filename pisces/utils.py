@@ -462,12 +462,11 @@ class Constants:
     WAKE_THRESHOLD = 0.5  #
     REM_THRESHOLD = 0.35
 
-    EPOCH_DURATION_IN_SECONDS = 30
+    DEFAULT_EPOCH_DURATION_IN_SECONDS = 30
     SECONDS_PER_MINUTE = 60
     SECONDS_PER_DAY = 3600 * 24
     SECONDS_PER_HOUR = 3600
     VERBOSE = True
-    LOWER_BOUND = -0.2
 
 
 class SleepMetricsCalculator:
@@ -477,7 +476,7 @@ class SleepMetricsCalculator:
         epoch_seconds = (
             epoch_seconds
             if epoch_seconds is not None
-            else Constants.EPOCH_DURATION_IN_SECONDS
+            else Constants.DEFAULT_EPOCH_DURATION_IN_SECONDS
         )
         return tst * epoch_seconds / Constants.SECONDS_PER_MINUTE
 
@@ -490,7 +489,7 @@ class SleepMetricsCalculator:
         epoch_seconds = (
             epoch_seconds
             if epoch_seconds is not None
-            else Constants.EPOCH_DURATION_IN_SECONDS
+            else Constants.DEFAULT_EPOCH_DURATION_IN_SECONDS
         )
         if np.shape(sleep_indices)[0] > 0:
             sol_index = np.amin(sleep_indices)
@@ -519,7 +518,7 @@ class SleepMetricsCalculator:
         epoch_seconds = (
             epoch_seconds
             if epoch_seconds is not None
-            else Constants.EPOCH_DURATION_IN_SECONDS
+            else Constants.DEFAULT_EPOCH_DURATION_IN_SECONDS
         )
         if np.shape(sleep_indices)[0] > 0:
             return np.amin(sleep_indices) * epoch_seconds / Constants.SECONDS_PER_MINUTE
@@ -544,8 +543,6 @@ class SleepMetricsCalculator:
         y_pred_y_true: List[Tuple[np.ndarray, np.ndarray]],
         sleep_acc: float = 0.93,
         epoch_seconds: Optional[float] = 30,
-        plots: bool = False,
-        unscored_as_wake: bool = True,
     ) -> Dict[str, float]:
         res = {"mae_tst_minutes": [], "mae_waso_minutes": []}
         preds = []
