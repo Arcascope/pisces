@@ -45,8 +45,8 @@ The primary module to import is `pisces.experiments` which contains
 classes used for discovering and providing access to data sets in your
 chosen folder, as well as (trainable) classifiers.
 
-Pisces is designed to be extended to support new models, and , datasets,
-and evaluation metrics. The `analyses` folder contains example notebooks
+Pisces is designed to be extended to support new models, datasets, and
+evaluation metrics. The `analyses` folder contains example notebooks
 that demonstrate how to use this code for comparing classifier
 performance on in-distribution and out-of-distribution accelerometer
 data.
@@ -60,7 +60,6 @@ The code is simple:
 
 ``` python
 from pisces.experiments import DataSetObject
-
 
 sets = DataSetObject.find_data_sets("../data_sets")
 walch = sets['walch_et_al']
