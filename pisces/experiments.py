@@ -786,13 +786,21 @@ class MOResUNetPretrained(SleepWakeClassifier):
             data_set_and_ids = [(data_set, id) for id in ids]
             # Get the number of available CPU cores
             num_cores = multiprocessing.cpu_count()
+            workers_to_use = max_workers if max_workers is not None else num_cores
+            if (workers_to_use > num_cores):
+                warnings.warn(f"Attempting to use {max_workers} but only have {num_cores}. Running with {num_cores} workers.")
+                workers_to_use = num_cores
+            if workers_to_use <= 0:
+                workers_to_use = num_cores + max_workers
+            if workers_to_use < 1:
+                # do this check second, NOT with elif, to verify we're still in a valid state
+                raise ValueError(f"With `max_workers` == {max_workers}, we end up with max_workers + num_cores ({max_workers} + {num_cores}) which is less than 1. This is an error.")
 
-            print(f"Using {max_workers} of {num_cores} cores ({int(100 * max_workers / num_cores)}%) for parallel preprocessing.")
-            print(f"This can cause memory or heat issues if max_workers is too high; if you run into problems, call prepare_set_for_training() again with max_workers = -1, going more negative if needed. (See the docstring for more info.)")
-
+            print(f"Using {workers_to_use} of {num_cores} cores ({int(100 * workers_to_use / num_cores)}%) for parallel preprocessing.")
+            print(f"This can cause memory or heat issues if  is too high; if you run into problems, call prepare_set_for_training() again with max_workers = -1, going more negative if needed. (See the docstring for more info.)")
 
             # Create a pool of workers
-            with ProcessPoolExecutor(max_workers=max_workers) as executor:
+            with ProcessPoolExecutor(max_workers=workers_to_use) as executor:
                 results = list(
                     executor.map(
                         self.get_needed_X_y_from_pair, 
@@ -841,7 +849,7 @@ class MOResUNetPretrained(SleepWakeClassifier):
               examples_y: List[pl.DataFrame] = [], 
               pairs_Xy: List[Tuple[pl.DataFrame, pl.DataFrame]] = [], 
               epochs: int = 10, batch_size: int = 32):
-        """This function does nothing, because this is a pre-trained, non-trainable model."""
+        """Training is not implemented yet for this model. You can run inference, though, using `predict_probabilities` and `predict`."""
         pass
 
     def predict(self, sample_X: np.ndarray | pl.DataFrame) -> np.ndarray:
