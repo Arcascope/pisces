@@ -119,15 +119,19 @@ data_sets
     feature; these features are named after the part matching `*`.
 3.  Subjects within a feature are computed per-feature, based on
     variadic and constant parts of the filenames within each feature
-    directory.
+    directory. Said in a less fancy way, because the `walch_et_al`
+    accelerometer folders contain the files `46343_cleaned_motion.out`
+    and `759667_cleaned_motion.out` which have `_cleaned_motion.out` in
+    common, Pisces identifies `46343` and `759667` as subject IDs that
+    have accelerometer feature data for `walch_et_al`.
     1.  It is no problem if some subjects are missing a certain feature.
         When the feature data for an existing subject, without that
         feature in their data, is requested, the feature will return
         `None` for that subject.
     2.  The naming scheme can vary greatly between features. However,
         the subject id MUST be the prefix on the filenames. For example,
-        `46343_cleaned_motion.out` and `46343_labeled_sleep.txt` are
-        both for the same subject, `46343`. If instead we named those
+        `46343_labeled_sleep.txt` are both for the same subject,
+        `46343`. If instead we named those
         `final_46343_cleaned_motion.out` and `46343_labeled_sleep.txt`
         then the subject’s data would be broken into two subjects,
         `46343` and `final_46343`.
