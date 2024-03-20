@@ -466,8 +466,6 @@ from sklearn.linear_model import SGDClassifier
 from sklearn.pipeline import make_pipeline
 import numpy as np
 
-from .enums import KnownModel
-
 
 class SleepWakeClassifier(abc.ABC):
     """
@@ -595,7 +593,6 @@ from scipy.signal import spectrogram
 from functools import partial
 
 import pandas as pd
-from .enums import KnownModel
 import tensorflow as tf
 import pkg_resources
 
@@ -808,18 +805,6 @@ class MOResUNetPretrained(SleepWakeClassifier):
             # Create a pool of workers
             with ProcessPoolExecutor(max_workers=num_cores) as executor:
                 results = list(executor.map(self.get_needed_X_y_from_pair, data_set_and_ids))
-            # pool = multiprocessing.Pool(processes=num_cores-1)
-
-            # # Map the function to each id in w.ids
-            # try:
-            #     results = pool.map(curried_get_needed_X_y, ids)
-            # except KeyboardInterrupt:
-            #     pool.terminate()
-            #     pool.join()
-            #     raise
-
-            # # Close the pool of workers
-            # pool.close()
         else:
             warnings.warn("No IDs found in the data set.")
             return results
@@ -870,18 +855,6 @@ class MOResUNetPretrained(SleepWakeClassifier):
     def roc_auc(self, examples_X_y: Tuple[np.ndarray, np.ndarray]) -> float:
         raise NotImplementedError
 
-    # @staticmethod
-    # def __setstate__(self, d):
-    #     self.__dict__ = d
-    #     self.tflite_model = self._load_from_tflite()
-
-    # # Called when pickling
-    # def __getstate__(self) -> dict:
-    #     selfCopy = self
-    #     selfCopy.tf_model = None
-
-    #     return selfCopy.__dict__
-
     @classmethod
     def _spectrogram_preprocessing(cls, acc_xyz: np.ndarray) -> np.ndarray:
         return cls._preprocessing(acc_xyz)
@@ -895,10 +868,6 @@ class MOResUNetPretrained(SleepWakeClassifier):
         spec = cls._spectrogram_preprocessing(acc_xyz)
 
         # We will copy the spectrogram to both channels, flipping it on channel 1
-        # input_dets = cls.tf_model.get_input_details()
-        # input_shape = input_dets[0]["shape"]
-
-        # input_shape = MO_UNET_CONFIG['input_shape']
         input_shape = (1, *MO_UNET_CONFIG['input_shape'])
         inputs_len = input_shape[1]
 
