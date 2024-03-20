@@ -8,11 +8,7 @@ __all__ = ['LOG_LEVEL', 'FS', 'CHANNELS', 'DEPTH', 'N_OUT', 'N_CLASSES', 'MO_UNE
            'MOResUNetPretrained', 'SplitMaker', 'LeaveOneOutSplitter', 'run_split', 'run_splits']
 
 # %% ../nbs/05_experiments.ipynb 4
-from enum import Enum
-from typing import List
-
-from enum import Enum, auto
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Tuple
 
 from pathlib import Path
 
@@ -357,7 +353,6 @@ def get_activity_X_PSG_y(data_set: DataSetObject, id: str) -> Tuple[np.ndarray, 
 
     # trim the activity and psg data to both end when the 0th column (time) of either ends
     end_time = min(activity_0[-1, 0], psg_0[-1, 0])
-    rows_retained = sum(activity_0[:, 0] <= end_time)
     activity_0 = activity_0.filter(activity_0[:, 0] <= end_time)
     psg_0 = psg_0.filter(psg_0[:, 0] <= end_time)
 
@@ -403,34 +398,6 @@ def fill_gaps_in_accelerometer_data(acc: pl.DataFrame, smooth: bool = False, fin
     
     # Step 0: Save the original 'timestamp' column as 'timestamp_raw'
     acc_resampled = acc.with_columns(acc[acc.columns[0]].alias('timestamp'))
-
-    # # Step 1: Calculate the start time and round down each 'timestamp_raw' to the nearest 0.02 sec from the start time
-    # start_time = acc['timestamp_raw'].min()
-    # acc = acc.with_columns(
-    #     ((
-    #         (acc['timestamp_raw'] - start_time) / sampling_period_s).floor() * sampling_period_s 
-    #         + start_time
-    #     ).alias('timestamp'))
-
-
-    # # Generate the new timestamps starting from the first timestamp to the last, at 50 Hz
-    # start_time = acc['timestamp'].min()
-    # end_time = acc['timestamp'].max() + sampling_period_s  # Add one more period to include the last timestamp
-    # new_timestamps = np.arange(start_time, end_time, sampling_period_s)
-
-    # # Create a new DataFrame with these timestamps
-    # new_df = pl.DataFrame({'timestamp': new_timestamps})
-
-    # # Join the original DataFrame with the new one based on the closest timestamp
-    # # This assumes timestamps are unique. If not, you might need to handle duplicates.
-    # acc_resampled = new_df.join(acc, on='timestamp', how='left')
-    # # identify gaps by nulls
-    # acc_gaps = acc_resampled.select(pl.any_horizontal(pl.col('*').is_null()))
-    
-    # acc_resampled = acc_resampled.with_columns([
-    #     # Fill missing data with zeros
-    #     pl.col('*').exclude('timestamp').fill_null(0)
-    # ])
 
     if isinstance(final_sampling_rate_hz, int):
         final_rate_sec = 1 / final_sampling_rate_hz
@@ -583,6 +550,10 @@ class SGDLogisticRegression(SleepWakeClassifier):
         return (self.input_dim // 2, self.input_dim - (self.input_dim // 2))
 
 # %% ../nbs/05_experiments.ipynb 28
+"""
+This section is copied straight from https://github.com/MADSOLSEN/SleepStagePrediction, pulling just the functions needed for the classifier and modifying some of them to work here.
+"""
+
 import sys
 from functools import partial
 
@@ -724,7 +695,7 @@ def cal_psd(x, fs, window, noverlap, nfft, f_min, f_max, f_sub=1):
     assert np.sum(np.isnan(S)) == 0
     return S
 
-def _load_from_tflite():
+def _load_saved_keras():
     file_path = pkg_resources.resource_filename('pisces', 'cached_models/mo_resunet.keras')
 
     return tf.keras.models.load_model(file_path, safe_mode=False)
@@ -776,22 +747,36 @@ from concurrent.futures import ProcessPoolExecutor
 
 
 class MOResUNetPretrained(SleepWakeClassifier):
-    tf_model = _load_from_tflite()
+    tf_model = _load_saved_keras()
     config = MO_PREPROCESSING_CONFIG
 
     def __init__(
         self,
         sampling_hz: int = FS,
     ) -> None:
+        """
+        Initialize the MOResUNetPretrained classifier.
+
+        Args:
+            sampling_hz (int, optional): The sampling frequency in Hz. Defaults to FS.
+        """
         super().__init__()
         self.sampling_hz = sampling_hz
 
     def prepare_set_for_training(self, 
-                                 data_set: DataSetObject, ids: List[str] | None = None
+                                 data_set: DataSetObject, ids: List[str] | None = None,
+                                 max_workers: int | None = None 
                                  ) -> List[Tuple[np.ndarray, np.ndarray] | None]:
-        """Calls `get_needed_X_y` in parallel for each of the `ids` provided, or all of the IDs in the `data_set` if `ids` is None.
+        """
+        Prepare the data set for training.
 
-        Returns a list of tuples, where each tuple is the result of `get_needed_X_y` for a given ID. An empty list indicates an error occured during pool.map.
+        Args:
+            data_set (DataSetObject): The data set to prepare for training.
+            ids (List[str], optional): The IDs to prepare. Defaults to None.
+            max_workers (int, optional): The number of workers to use for parallel processing. Defaults to None, which uses all available cores. Setting to a negative number leaves that many cores unused. For example, if my machine has 4 cores and I set max_workers to -1, then 3 = 4 - 1 cores will be used; if max_workers=-3 then 1 = 4 - 3 cores are used.
+
+        Returns:
+            List[Tuple[np.ndarray, np.ndarray] | None]: A list of tuples, where each tuple is the result of `get_needed_X_y` for a given ID. An empty list indicates an error occurred during processing.
         """
         if ids is None:
             ids = data_set.ids
@@ -802,15 +787,32 @@ class MOResUNetPretrained(SleepWakeClassifier):
             # Get the number of available CPU cores
             num_cores = multiprocessing.cpu_count()
 
+            print(f"Using {max_workers} of {num_cores} cores ({int(100 * max_workers / num_cores)}%) for parallel preprocessing.")
+            print(f"This can cause memory or heat issues if max_workers is too high; if you run into problems, call prepare_set_for_training() again with max_workers = -1, going more negative if needed. (See the docstring for more info.)")
+
+
             # Create a pool of workers
-            with ProcessPoolExecutor(max_workers=num_cores) as executor:
-                results = list(executor.map(self.get_needed_X_y_from_pair, data_set_and_ids))
+            with ProcessPoolExecutor(max_workers=max_workers) as executor:
+                results = list(
+                    executor.map(
+                        self.get_needed_X_y_from_pair, 
+                        data_set_and_ids
+                    ))
         else:
             warnings.warn("No IDs found in the data set.")
             return results
         return results
     
     def get_needed_X_y_from_pair(self, pair: Tuple[DataSetObject, str]) -> Tuple[np.ndarray, np.ndarray] | None:
+        """
+        Get the needed X and y data from a pair of data set and ID.
+
+        Args:
+            pair (Tuple[DataSetObject, str]): The pair of data set and ID.
+
+        Returns:
+            Tuple[np.ndarray, np.ndarray] | None: The X and y data as a tuple, or None if an error occurred.
+        """
         data_set, id = pair
         print(f"getting needed X, y for {id}")
         return self.get_needed_X_y(data_set, id)
