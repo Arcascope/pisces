@@ -2,9 +2,9 @@
 
 # %% auto 0
 __all__ = ['WASA_THRESHOLD', 'BALANCE_WEIGHTS', 'determine_header_rows_and_delimiter', 'ActivityCountAlgorithm',
-           'build_activity_counts', 'build_ADS', 'build_activity_counts_te_Lindert_et_al', 'build_ActiGraph_official',
-           'plot_scores_CDF', 'plot_scores_PDF', 'constant_interp', 'avg_steps', 'add_rocs', 'pad_to_hat', 'mae_func',
-           'Constants', 'SleepMetricsCalculator', 'split_analysis']
+           'build_activity_counts', 'build_ADS', 'build_activity_counts_te_Lindert_et_al', 'plot_scores_CDF',
+           'plot_scores_PDF', 'constant_interp', 'avg_steps', 'add_rocs', 'pad_to_hat', 'mae_func', 'Constants',
+           'SleepMetricsCalculator', 'split_analysis']
 
 # %% ../nbs/00_utils.ipynb 4
 import csv
@@ -73,7 +73,6 @@ def determine_header_rows_and_delimiter(
 # %% ../nbs/00_utils.ipynb 8
 class ActivityCountAlgorithm(Enum):
     te_Lindert_et_al = 0
-    ActiGraphOfficial = 1
     ADS = 2
 
 
@@ -84,7 +83,7 @@ def build_activity_counts(
     algorithm: ActivityCountAlgorithm = ActivityCountAlgorithm.ADS
 ) -> Tuple[np.ndarray, np.ndarray]:
     if algorithm == ActivityCountAlgorithm.ActiGraphOfficial:
-        return build_ActiGraph_official(data)
+        print("No longer implemented due to conflicts with the `agcounts` package.")
     if algorithm == ActivityCountAlgorithm.ADS:
         return build_ADS(data)
     if algorithm == ActivityCountAlgorithm.te_Lindert_et_al:
@@ -219,22 +218,12 @@ def build_activity_counts_te_Lindert_et_al(
 
     return time_counts, counts
 
-# %% ../nbs/00_utils.ipynb 11
-from agcounts.extract import get_counts
-
-def build_ActiGraph_official(time_xyz, axis: int = 3) -> Tuple[np.ndarray, np.ndarray]:
-    freq = 50
-    counts = get_counts(time_xyz[:, 1:], freq=freq, epoch=15)[:, axis - 1]
-    times = np.linspace(time_xyz[0, 0], time_xyz[-1, 0], len(counts))
-
-    return times, counts
-
-# %% ../nbs/00_utils.ipynb 13
-from typing import List
+# %% ../nbs/00_utils.ipynb 12
+from typing import Any, List
 from matplotlib import pyplot as plt
 import numpy as np
 
-def plot_scores_CDF(scores: List[float], ax: plt.Axes = None):
+def plot_scores_CDF(scores: List[float], ax: plt.Axes = None, label: str = None, color: str = None):
     """Plot the cumulative dist function (CDF) of the scores."""
     # plt.figure(figsize=(20, 10))
     if ax is None:
@@ -243,23 +232,42 @@ def plot_scores_CDF(scores: List[float], ax: plt.Axes = None):
     _ = ax.hist(scores,
                 cumulative=True,
                 density=True,
-                bins=100)
+                bins=100,
+                label=label,
+                color=color,)
 
 
-def plot_scores_PDF(scores: List[float], ax: plt.Axes = None):
+def plot_scores_PDF(
+        scores: List[float], 
+        ax: plt.Axes = None, 
+        label: str = None, 
+        hist_color: str = None, 
+        mean_color: str = 'tab:orange', 
+        stdev_color: str = 'gray', 
+        alpha: float = 1.0
+        ):
     """Plot the probability dist function (PDF) of the scores."""
     ax_ = ax
     if ax is None:
         _, ax_ = plt.subplots()
     ax_.set_xlim(0, 1)
-    _ = ax_.hist(scores, bins=20)
+    _ = ax_.hist(scores, bins=20,
+                density=True,   
+                label=label,
+                color=hist_color,
+                alpha=alpha,
+                )
 
     # plot the mean as a vertical 'tab:orange' line
-    ax_.axvline(np.mean(scores), color='tab:orange', linestyle='--', label=f"Mean: {np.mean(scores):.3f}")
+    mean_score = np.mean(scores)
+    ax_.axvline(mean_score, color=mean_color, linestyle='--', label=f"Mean: {mean_score:.3f}")
+    stdev_score = np.std(scores)
+    ax_.axvline(mean_score - stdev_score, color=stdev_color, linestyle='--', label=f"Std. Dev: {stdev_score:.3f}")
+    ax_.axvline(mean_score + stdev_score, color=stdev_color, linestyle='--')
     if ax is None:
         ax_.legend()
 
-# %% ../nbs/00_utils.ipynb 14
+# %% ../nbs/00_utils.ipynb 13
 def constant_interp(
     x: np.ndarray, xp: np.ndarray, yp: np.ndarray, side: str = "right"
 ) -> np.ndarray:
@@ -335,7 +343,7 @@ def avg_steps(
     return all_xs, avg_curve
 
 
-# %% ../nbs/00_utils.ipynb 15
+# %% ../nbs/00_utils.ipynb 14
 from typing import List
 
 from sklearn.metrics import auc as auc_score
@@ -396,7 +404,7 @@ def add_rocs(fprs: List[np.ndarray],
         resolved_ax.legend()
         plt.show()
 
-# %% ../nbs/00_utils.ipynb 17
+# %% ../nbs/00_utils.ipynb 16
 import warnings
 
 
@@ -407,12 +415,12 @@ def pad_to_hat(y: np.ndarray, y_hat: np.ndarray) -> np.ndarray:
     """
     pad = y_hat.shape[-1] - y.shape[-1]
     if pad < 0:
-        warnings.warn(f"y_hat is shorter than y by {pad} elements, returning y unchanged")
-        return y
+        warnings.warn(f"y_hat is shorter than y by {-pad} elements, trimming y.")
+        return y[:pad]
     y_padded = np.pad(y, (0, pad), constant_values=0)
     return y_padded
 
-# %% ../nbs/00_utils.ipynb 18
+# %% ../nbs/00_utils.ipynb 17
 from typing import Callable
 
 
@@ -452,7 +460,7 @@ def mae_func(
     return sum(aes) / len(aes)
 
 
-# %% ../nbs/00_utils.ipynb 20
+# %% ../nbs/00_utils.ipynb 19
 from sklearn.metrics import roc_auc_score, roc_curve
 from functools import partial
 
@@ -562,7 +570,7 @@ class SleepMetricsCalculator:
         return res
 
 
-# %% ../nbs/00_utils.ipynb 22
+# %% ../nbs/00_utils.ipynb 21
 from sklearn.metrics import roc_auc_score, roc_curve, cohen_kappa_score
 
 WASA_THRESHOLD = 0.93
