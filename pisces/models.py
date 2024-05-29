@@ -6,17 +6,30 @@ __all__ = ['psg_to_sleep_wake', 'get_activity_X_PSG_y', 'rolling_window', 'apply
            'SplitMaker', 'LeaveOneOutSplitter', 'run_split', 'run_splits']
 
 # %% ../nbs/02_models.ipynb 4
-from typing import Dict, List, Tuple
-
-from pathlib import Path
-
+import abc
+import warnings
 import numpy as np
 import polars as pl
+from tqdm import tqdm
+import multiprocessing
+from typing import Type
+from pathlib import Path
+from functools import partial
+import matplotlib.pyplot as plt
+from typing import Dict, List, Tuple
+from .mads_olsen_support import *
+from .utils import split_analysis
+from sklearn.pipeline import make_pipeline
+from .data_sets import DataSetObject
+from scipy.ndimage import gaussian_filter1d
+from sklearn.linear_model import SGDClassifier
+from numpy.lib.stride_tricks import as_strided
+from sklearn.model_selection import LeaveOneOut
+from sklearn.preprocessing import StandardScaler
+from concurrent.futures import ProcessPoolExecutor
+from sklearn.metrics import roc_auc_score, roc_curve
 
 # %% ../nbs/02_models.ipynb 6
-from numpy.lib.stride_tricks import as_strided
-from .data_sets import DataSetObject
-
 def psg_to_sleep_wake(psg: pl.DataFrame) -> np.array:
     # map all positive classes to 1 (sleep)
     # retain all 0 (wake) and -1 (mask) classes
@@ -51,10 +64,6 @@ def rolling_window(arr, window_size):
     return arr_strided
 
 # %% ../nbs/02_models.ipynb 8
-import polars as pl
-import numpy as np
-from scipy.ndimage import gaussian_filter1d
-
 def apply_gausian_filter(df: pl.DataFrame, sigma: float = 1.0, overwrite: bool = False) -> pl.DataFrame:
     data_columns = df.columns[1:]  # Adjust this to match your data column indices
 
@@ -102,16 +111,7 @@ def fill_gaps_in_accelerometer_data(acc: pl.DataFrame, smooth: bool = False, fin
 
     return acc_resampled
 
-
-# %% ../nbs/02_models.ipynb 18
-import abc
-from sklearn.metrics import roc_auc_score, roc_curve
-from sklearn.preprocessing import StandardScaler
-from sklearn.linear_model import SGDClassifier
-from sklearn.pipeline import make_pipeline
-import numpy as np
-
-
+# %% ../nbs/02_models.ipynb 14
 class SleepWakeClassifier(abc.ABC):
     """
     """
@@ -127,8 +127,7 @@ class SleepWakeClassifier(abc.ABC):
     def predict_probabilities(self, sample_X: np.ndarray | pl.DataFrame) -> np.ndarray:
         pass
 
-
-# %% ../nbs/02_models.ipynb 20
+# %% ../nbs/02_models.ipynb 16
 class SGDLogisticRegression(SleepWakeClassifier):
     """Uses Sk-Learn's `SGDCLassifier` to train a logistic regression model. The SGD aspect allows for online learning, or custom training regimes through the `partial_fit` method.
      
@@ -227,16 +226,7 @@ class SGDLogisticRegression(SleepWakeClassifier):
         # ex: input_dim = 6 => (3, 2)
         return (self.input_dim // 2, self.input_dim - (self.input_dim // 2))
 
-# %% ../nbs/02_models.ipynb 22
-from functools import partial
-import multiprocessing
-from concurrent.futures import ProcessPoolExecutor
-import warnings
-
-from .mads_olsen_support import *
-from .utils import split_analysis
-
-
+# %% ../nbs/02_models.ipynb 18
 class MOResUNetPretrained(SleepWakeClassifier):
     tf_model = load_saved_keras()
     config = MO_PREPROCESSING_CONFIG
@@ -442,14 +432,7 @@ class MOResUNetPretrained(SleepWakeClassifier):
             print(f"Processing {i+1} of {len(mo_preprocessed_data)} ({id})... AUROC: {analysis['auc']}")
         return evaluations, mo_preprocessed_data
 
-
-
-# %% ../nbs/02_models.ipynb 24
-from typing import Type
-from tqdm import tqdm
-from sklearn.model_selection import LeaveOneOut
-
-
+# %% ../nbs/02_models.ipynb 20
 class SplitMaker:
     def split(self, ids: List[str]) -> Tuple[List[int], List[int]]:
         raise NotImplementedError
@@ -493,5 +476,3 @@ def run_splits(split_maker: SplitMaker, w: DataSetObject, swc_class: Type[SleepW
         # break
     
     return split_models, preprocessed_data, splits
-
-

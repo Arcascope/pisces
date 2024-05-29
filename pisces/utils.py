@@ -2,19 +2,24 @@
 
 # %% auto 0
 __all__ = ['WASA_THRESHOLD', 'BALANCE_WEIGHTS', 'determine_header_rows_and_delimiter', 'ActivityCountAlgorithm',
-           'build_activity_counts', 'build_ADS', 'build_activity_counts_te_Lindert_et_al', 'build_ActiGraph_official',
-           'plot_scores_CDF', 'plot_scores_PDF', 'constant_interp', 'avg_steps', 'add_rocs', 'pad_to_hat', 'mae_func',
-           'Constants', 'SleepMetricsCalculator', 'split_analysis']
+           'build_activity_counts', 'build_ADS', 'build_activity_counts_te_Lindert_et_al', 'plot_scores_CDF',
+           'plot_scores_PDF', 'constant_interp', 'avg_steps', 'add_rocs', 'pad_to_hat', 'mae_func', 'Constants',
+           'SleepMetricsCalculator', 'split_analysis']
 
 # %% ../nbs/00_utils.ipynb 4
 import csv
 import os
 import time
-from enum import Enum, auto
-from typing import Dict, List, Optional, Tuple, Union
-from pathlib import Path
-
+import warnings
 import numpy as np
+from pathlib import Path
+from enum import Enum, auto
+from functools import partial
+from matplotlib import pyplot as plt
+from scipy.signal import butter, filtfilt
+from sklearn.metrics import auc as auc_score
+from typing import Dict, List, Optional, Tuple, Callable
+from sklearn.metrics import roc_auc_score, roc_curve, cohen_kappa_score
 
 # %% ../nbs/00_utils.ipynb 6
 def determine_header_rows_and_delimiter(
@@ -147,12 +152,7 @@ def build_ADS(
     sums_in_bins[sums_in_bins <= 0.05 * max(sums_in_bins)] = 0.0
     return time_counts, sums_in_bins
 
-
-
-
 # %% ../nbs/00_utils.ipynb 10
-from scipy.signal import butter, filtfilt
-
 def build_activity_counts_te_Lindert_et_al(
     time_xyz, axis: int = 3, prefix: str = ""
 ) -> Tuple[np.ndarray, np.ndarray]:
@@ -220,20 +220,16 @@ def build_activity_counts_te_Lindert_et_al(
     return time_counts, counts
 
 # %% ../nbs/00_utils.ipynb 11
-from agcounts.extract import get_counts
+# from agcounts.extract import get_counts
 
-def build_ActiGraph_official(time_xyz, axis: int = 3) -> Tuple[np.ndarray, np.ndarray]:
-    freq = 50
-    counts = get_counts(time_xyz[:, 1:], freq=freq, epoch=15)[:, axis - 1]
-    times = np.linspace(time_xyz[0, 0], time_xyz[-1, 0], len(counts))
+# def build_ActiGraph_official(time_xyz, axis: int = 3) -> Tuple[np.ndarray, np.ndarray]:
+#     freq = 50
+#     counts = get_counts(time_xyz[:, 1:], freq=freq, epoch=15)[:, axis - 1]
+#     times = np.linspace(time_xyz[0, 0], time_xyz[-1, 0], len(counts))
 
-    return times, counts
+#     return times, counts
 
 # %% ../nbs/00_utils.ipynb 13
-from typing import List
-from matplotlib import pyplot as plt
-import numpy as np
-
 def plot_scores_CDF(scores: List[float], ax: plt.Axes = None):
     """Plot the cumulative dist function (CDF) of the scores."""
     # plt.figure(figsize=(20, 10))
@@ -272,7 +268,8 @@ def constant_interp(
 def avg_steps(
     xs: List[List[float]], ys: List[List[float]]
 ) -> Tuple[np.ndarray, np.ndarray]:
-    """Computes average of step functions.
+    """
+    Computes average of step functions.
 
     Each ys[j] is thought of as a right-continuous step function given by
 
@@ -334,12 +331,7 @@ def avg_steps(
 
     return all_xs, avg_curve
 
-
 # %% ../nbs/00_utils.ipynb 15
-from typing import List
-
-from sklearn.metrics import auc as auc_score
-
 def add_rocs(fprs: List[np.ndarray],
              tprs: List[np.ndarray],
              x_class: str = "SLEEP",
@@ -397,9 +389,6 @@ def add_rocs(fprs: List[np.ndarray],
         plt.show()
 
 # %% ../nbs/00_utils.ipynb 17
-import warnings
-
-
 def pad_to_hat(y: np.ndarray, y_hat: np.ndarray) -> np.ndarray:
     """Adds zeros to the end of y to match the length of y_hat.
 
@@ -413,9 +402,6 @@ def pad_to_hat(y: np.ndarray, y_hat: np.ndarray) -> np.ndarray:
     return y_padded
 
 # %% ../nbs/00_utils.ipynb 18
-from typing import Callable
-
-
 def mae_func(
     func: Callable[[np.ndarray], float],
     trues: List[np.ndarray],
@@ -453,10 +439,6 @@ def mae_func(
 
 
 # %% ../nbs/00_utils.ipynb 20
-from sklearn.metrics import roc_auc_score, roc_curve
-from functools import partial
-
-
 class Constants:
     # WAKE_THRESHOLD = 0.3  # These values were used for scikit-learn 0.20.3, See:
     # REM_THRESHOLD = 0.35  # https://scikit-learn.org/stable/whats_new.html#version-0-21-0
@@ -468,7 +450,6 @@ class Constants:
     SECONDS_PER_DAY = 3600 * 24
     SECONDS_PER_HOUR = 3600
     VERBOSE = True
-
 
 class SleepMetricsCalculator:
     @staticmethod
@@ -561,10 +542,7 @@ class SleepMetricsCalculator:
 
         return res
 
-
 # %% ../nbs/00_utils.ipynb 22
-from sklearn.metrics import roc_auc_score, roc_curve, cohen_kappa_score
-
 WASA_THRESHOLD = 0.93
 BALANCE_WEIGHTS = True
 

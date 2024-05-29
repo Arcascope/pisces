@@ -6,30 +6,26 @@ __all__ = ['FS', 'CHANNELS', 'DEPTH', 'N_OUT', 'N_CLASSES', 'MO_UNET_CONFIG', 'M
            'determine_depth']
 
 # %% ../nbs/03_mads_olsen_support.ipynb 4
-from typing import Dict, List, Tuple
-
-from pathlib import Path
-
+import sys
 import numpy as np
+import pandas as pd
+import polars as pl
+import pkg_resources
+import tensorflow as tf
+from keras import layers
+from pathlib import Path
+from functools import partial
+from keras.models import Model
+from dataclasses import dataclass
+from keras.regularizers import l2
+from typing import Dict, List, Tuple
+from scipy.signal import spectrogram
+from keras_cv.layers import StochasticDepth
 
 # %% ../nbs/03_mads_olsen_support.ipynb 5
 """
 This section is copied straight from https://github.com/MADSOLSEN/SleepStagePrediction, pulling just the functions needed for the classifier and modifying some of them to work here.
 """
-
-import sys
-from functools import partial
-
-import numpy as np
-import pandas as pd
-import polars as pl
-from scipy.signal import spectrogram
-
-from functools import partial
-
-import tensorflow as tf
-import pkg_resources
-
 def median(x, fs, window_size):
     if isinstance(x, pl.DataFrame):
         x = x.to_numpy()
@@ -206,12 +202,6 @@ MO_PREPROCESSING_CONFIG = {
 }
 
 # %% ../nbs/03_mads_olsen_support.ipynb 7
-from keras import layers
-from keras.models import Model
-from keras_cv.layers import StochasticDepth
-import numpy as np
-from keras.regularizers import l2
-
 def factory_ResUNet(input_shape,
             num_classes,
             num_outputs,
@@ -383,5 +373,3 @@ def determine_depth(temporal_shape, temporal_max_pool_size):
         temporal_shape /= round(temporal_max_pool_size)
     depth -= 1
     return depth
-
-
