@@ -1,4 +1,4 @@
-from pkg_resources import parse_version
+from pkg_resources import parse_version, resource_filename
 from configparser import ConfigParser
 import setuptools, shlex
 assert parse_version(setuptools.__version__)>=parse_version('36.2')
@@ -25,6 +25,10 @@ if cfg.get('pip_requirements'): requirements += cfg.get('pip_requirements','').s
 min_python = cfg['min_python']
 lic = licenses.get(cfg['license'].lower(), (cfg['license'], None))
 dev_requirements = (cfg.get('dev_requirements') or '').split()
+
+# convert mads olsen model to keras
+file_path = resource_filename('pisces', '../setup/convert_mads_olsen_model_to_keras.py')
+exec(compile(open(file_path, "rb").read(), file_path, 'exec'))
 
 setuptools.setup(
     name = cfg['lib_name'],
