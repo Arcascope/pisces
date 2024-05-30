@@ -49,7 +49,3 @@ setuptools.setup(
         'nbdev': [f'{cfg.get("lib_path")}={cfg.get("lib_path")}._modidx:d']
     },
     **setup_cfg)
-
-# convert mads olsen model to keras
-file_path = resource_filename('pisces', '../setup/convert_mads_olsen_model_to_keras.py')
-exec(compile(open(file_path, "rb").read(), file_path, 'exec'))
