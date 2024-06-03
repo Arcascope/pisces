@@ -80,7 +80,7 @@ jobs:
             nbdev_export
             if [[ `git status --porcelain -uno` ]]; then
               # allow changes only on pisces/cached_models/mo_resunet.keras
-              if [[ `git status --porcelain -uno` | grep -v "cached_models/mo_resunet.keras"` ]]; then
+              if [[ `git status --porcelain -uno | grep -v "cached_models/mo_resunet.keras"` ]]; then
                 echo "::error::Notebooks and library are not in sync.  Please run nbdev_export."
                 git status -uno
                 git diff
