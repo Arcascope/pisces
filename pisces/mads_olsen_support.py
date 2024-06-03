@@ -757,9 +757,15 @@ def pisces_setup():
 
     with importlib.resources.path('pisces.cached_models', 'mo_model-best.h5') as file_path:
         resunet.load_weights(filepath=str(file_path))
-    site_packages_dir = Path(site.getsitepackages()[0])
-    cached_models_dir = site_packages_dir / 'pisces' / 'cached_models'
-    model_file_path = cached_models_dir / 'mo_resunet.keras'
-    resunet.save(model_file_path)
 
-    print(f"Model saved as {model_file_path}")
+
+    site_packages_dirs = site.getsitepackages()
+
+    for dir in site_packages_dirs:
+        possible_path = os.path.join(dir, 'pisces')
+        if os.path.exists(possible_path):
+            site_packages_dir = Path(possible_path)
+            cached_models_dir = site_packages_dir / 'pisces' / 'cached_models'
+            model_file_path = cached_models_dir / 'mo_resunet.keras'
+            resunet.save(model_file_path)
+            print(f"Model saved as {model_file_path}")
