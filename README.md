@@ -5,10 +5,11 @@
 
 This package provides a framework for running machine learning
 experiments in the sleep classification space. The core of the package
-is `SleepWakeClassifier` class that formalizes an API for pre-processing
-raw sensor data into model-specified formats and scoring methods,
-automated data set and subject/feature discovery based on a light folder
-structure.
+is
+[`SleepWakeClassifier`](https://Arcascope.github.io/pisces/models.html#sleepwakeclassifier)
+class that formalizes an API for pre-processing raw sensor data into
+model-specified formats and scoring methods, automated data set and
+subject/feature discovery based on a light folder structure.
 
 Also included is [an example
 notebook](../analyses/stationary_vs_hybrid.ipynb) showing `pisces` being
@@ -80,10 +81,11 @@ walch = sets['walch_et_al']
 hybrid = sets['hybrid_motion']
 ```
 
-Now we have 2 `DataSetObject`s, `walch` and `hybrid`, that can be
-queried for their subjects and features. These were discovered because
-these are folders inside of `data_sets` that have a compatible
-structure.
+Now we have 2
+[`DataSetObject`](https://Arcascope.github.io/pisces/data_sets.html#datasetobject)s,
+`walch` and `hybrid`, that can be queried for their subjects and
+features. These were discovered because these are folders inside of
+`data_sets` that have a compatible structure.
 
 These two sets were discovered because of the presence of at least one
 subdirectory matching the glob expression `cleaned_*`. Every

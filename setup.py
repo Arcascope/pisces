@@ -46,7 +46,7 @@ setuptools.setup(
     zip_safe = False,
     entry_points = {
         'console_scripts': cfg.get('console_scripts','').split() + [
-            'pisces_setup = pisces.pisces_setup:pisces_setup',
+            'pisces_setup = pisces.mads_olsen_support:pisces_setup',
         ],
         'nbdev': [f'{cfg.get("lib_path")}={cfg.get("lib_path")}._modidx:d']
     },

@@ -21,46 +21,23 @@ from .utils import determine_header_rows_and_delimiter
 class SimplifiablePrefixTree:
     """
     A standard prefix tree with the ability to "simplify" itself by combining nodes with only one child.
-
     These also have the ability to "flatten" themselves, which means to convert all nodes at and below a certain depth into leaves on the most recent ancestor of that depth.
-
-    Attributes
-    ----------
-    key : str
-        The key of the current node in its parent's `.children` dictionary. If empty, the node is (likely) the root of the tree.
-    children : Dict[str, SimplifiablePrefixTree]
-        The children of the current node, stored in a dictionary with the keys being the children's keys.
-    is_end_of_word : bool
-        Whether the current node is the end of a word. Basically, is this a leaf node?
-    delimiter : str
-        The delimiter to use when splitting words into characters. If empty, the words are treated as sequences of characters.
-    print_spacer : str
-        The string to use to indent the printed tree.
-    
-    Methods
-    -------
-    chars_from(word: str) -> List[str]
-        Splits a word into characters, using the `delimiter` attribute as the delimiter.
-    insert(word: str) -> None
-        Inserts a word into the tree.
-    search(word: str) -> bool
-        Searches for a word in the tree.
-    simplified() -> SimplifiablePrefixTree
-        Returns a simplified copy of the tree. The original tree is not modified.
-    simplify() -> SimplifiablePrefixTree
-        Simplifies the tree in place.
-    reversed() -> SimplifiablePrefixTree
-        Returns a reversed copy of the tree, except with with `node.key` reversed versus the node in `self.children`. The original tree is not modified.
-    flattened(max_depth: int = 1) -> SimplifiablePrefixTree
-        Returns a Tree identical to `self` up to the given depth, but with all nodes at + below `max_depth` converted into leaves on the most recent acestor of lepth `max_depth - 1`.
-    _pushdown() -> List[SimplifiablePrefixTree]
-        Returns a list corresponding to the children of `self`, with `self.key` prefixed to each child's key.
-    print_tree(indent=0) -> str
-        Prints the tree, with indentation.
     """
     def __init__(self, delimiter: str = "", # The delimiter to use when splitting words into characters. If empty, the words are treated as sequences of characters.
                  key: str = "", # The key of the current node in its parent's `.children` dictionary. If empty, the node is (likely) the root of the tree.
                  ):
+        """
+        key : str
+            The key of the current node in its parent's `.children` dictionary. If empty, the node is (likely) the root of the tree.
+        children : Dict[str, SimplifiablePrefixTree]
+            The children of the current node, stored in a dictionary with the keys being the children's keys.
+        is_end_of_word : bool
+            Whether the current node is the end of a word. Basically, is this a leaf node?
+        delimiter : str
+            The delimiter to use when splitting words into characters. If empty, the words are treated as sequences of characters.
+        print_spacer : str
+            The string to use to indent the printed tree.
+        """
         self.key = key
         self.children: Dict[str, SimplifiablePrefixTree] = {}
         self.is_end_of_word = False
@@ -68,9 +45,15 @@ class SimplifiablePrefixTree:
         self.print_spacer = "++"
     
     def chars_from(self, word: str):
+        """
+        Splits a word into characters, using the `delimiter` attribute as the delimiter.
+        """
         return word.split(self.delimiter) if self.delimiter else word
 
     def insert(self, word: str):
+        """
+        Inserts a word into the tree. If the word is already in the tree, nothing happens.
+        """
         node = self
         for char in self.chars_from(word):
             if char not in node.children:
@@ -79,6 +62,9 @@ class SimplifiablePrefixTree:
         node.is_end_of_word = True
 
     def search(self, word: str) -> bool:
+        """
+        Searches for a word in the tree.
+        """
         node = self
         for char in self.chars_from(word):
             if char not in node.children:
@@ -87,10 +73,16 @@ class SimplifiablePrefixTree:
         return node.is_end_of_word
     
     def simplified(self) -> 'SimplifiablePrefixTree':
+        """
+        Returns a simplified copy of the tree. The original tree is not modified.
+        """
         self_copy = deepcopy(self)
         return self_copy.simplify()
     
     def simplify(self):
+        """
+        Simplifies the tree in place.
+        """
         if len(self.children) == 1 and not self.is_end_of_word:
             child_key = list(self.children.keys())[0]
             self.key += child_key
@@ -105,6 +97,9 @@ class SimplifiablePrefixTree:
         return self
     
     def reversed(self) -> 'SimplifiablePrefixTree':
+        """
+        Returns a reversed copy of the tree, except with with `node.key` reversed versus the node in `self.children`. The original tree is not modified.
+        """
         rev_self = SimplifiablePrefixTree(self.delimiter, key=self.key[::-1])
         rev_self.children = {k[::-1]: v.reversed() for k, v in self.children.items()}
         return rev_self
