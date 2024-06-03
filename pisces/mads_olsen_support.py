@@ -760,6 +760,7 @@ def pisces_setup():
 
 
     site_packages_dirs = site.getsitepackages()
+    site_packages_dirs.append(site.USER_SITE)  # Add the user site-packages directory
     print(site_packages_dirs)
 
     for dir in site_packages_dirs:
