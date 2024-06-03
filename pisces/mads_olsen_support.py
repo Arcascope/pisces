@@ -760,12 +760,28 @@ def pisces_setup():
 
 
     site_packages_dirs = site.getsitepackages()
+    print(site_packages_dirs)
 
     for dir in site_packages_dirs:
         possible_path = os.path.join(dir, 'pisces')
         if os.path.exists(possible_path):
             site_packages_dir = Path(possible_path)
+            print(f"Found package at {site_packages_dir}")
             cached_models_dir = site_packages_dir / 'pisces' / 'cached_models'
             model_file_path = cached_models_dir / 'mo_resunet.keras'
             resunet.save(model_file_path)
             print(f"Model saved as {model_file_path}")
+        else:
+            # It could be an editable install
+            possible_path = os.path.join(dir, 'pisces' + '.egg-link')
+            if os.path.exists(possible_path):
+                with open(possible_path, 'r') as f:
+                    editable_install_dir = f.readline().strip()
+                    print(f"Found editable package install at {editable_install_dir}")
+                    site_packages_dir = Path(editable_install_dir)
+                    cached_models_dir = site_packages_dir / 'pisces' / 'cached_models'
+                    model_file_path = cached_models_dir / 'mo_resunet.keras'
+                    resunet.save(model_file_path)
+                    print(f"Model saved as {model_file_path}")
+
+    return None
