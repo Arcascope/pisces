@@ -1,4 +1,4 @@
-name: CI
+name: New_CI
 on:
   workflow_dispatch:
     inputs:
@@ -75,9 +75,9 @@ jobs:
               echo -e "This error can also happen if you are using an older version of nbdev relative to what is in CI.  Please try to upgrade nbdev with the command `pip install -U nbdev`"
               false
             fi
-            nbdev_export
             echo "Finish pisces setup"
             pisces_setup
+            nbdev_export
             if [[ `git status --porcelain -uno` ]]; then
               echo "::error::Notebooks and library are not in sync.  Please run nbdev_export."
               git status -uno
