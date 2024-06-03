@@ -56,10 +56,8 @@ jobs:
             echo "Doing editable install..."
             if [ $TORCH_CPU ]; then
               test -f setup.py && pip install -e ".[dev]" --extra-index-url https://download.pytorch.org/whl/cpu/torch_stable.html
-              pisces_setup
             else
               test -f setup.py && pip install -e ".[dev]"
-              pisces_setup
             fi
             echo "Check we are starting with clean git checkout"
             if [[ `git status --porcelain -uno` ]]; then
@@ -78,6 +76,8 @@ jobs:
               false
             fi
             nbdev_export
+            echo "Finish pisces setup"
+            pisces_setup
             if [[ `git status --porcelain -uno` ]]; then
               echo "::error::Notebooks and library are not in sync.  Please run nbdev_export."
               git status -uno
