@@ -13,7 +13,6 @@ os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 import numpy as np
 import pandas as pd
 import polars as pl
-import importlib.resources
 import tensorflow as tf
 from keras import layers
 from pathlib import Path
@@ -23,6 +22,7 @@ from dataclasses import dataclass
 from keras.regularizers import l2
 from typing import Dict, List, Tuple
 from scipy.signal import spectrogram
+from importlib.resources import files
 from keras_cv.layers import StochasticDepth
 
 # %% ../nbs/03_mads_olsen_support.ipynb 5
@@ -755,34 +755,9 @@ def pisces_setup():
     }
     resunet = ResUNet(**model_params)
 
-    with importlib.resources.path('pisces.cached_models', 'mo_model-best.h5') as file_path:
-        resunet.load_weights(filepath=str(file_path))
-
-
-    site_packages_dirs = site.getsitepackages()
-    site_packages_dirs.append(site.USER_SITE)  # Add the user site-packages directory
-    print(site_packages_dirs)
-
-    for dir in site_packages_dirs:
-        possible_path = os.path.join(dir, 'pisces')
-        if os.path.exists(possible_path):
-            site_packages_dir = Path(possible_path)
-            print(f"Found package at {site_packages_dir}")
-            cached_models_dir = site_packages_dir / 'pisces' / 'cached_models'
-            model_file_path = cached_models_dir / 'mo_resunet.keras'
-            resunet.save(model_file_path)
-            print(f"Model saved as {model_file_path}")
-        else:
-            # It could be an editable install
-            possible_path = os.path.join(dir, 'pisces' + '.egg-link')
-            if os.path.exists(possible_path):
-                with open(possible_path, 'r') as f:
-                    editable_install_dir = f.readline().strip()
-                    print(f"Found editable package install at {editable_install_dir}")
-                    site_packages_dir = Path(editable_install_dir)
-                    cached_models_dir = site_packages_dir / 'pisces' / 'cached_models'
-                    model_file_path = cached_models_dir / 'mo_resunet.keras'
-                    resunet.save(model_file_path)
-                    print(f"Model saved as {model_file_path}")
+    cached_models_dir = files('pisces.cached_models')
+    resunet.load_weights(filepath=cached_models_dir.joinpath('mo_model-best.h5'))
+    resunet.save(filepath=cached_models_dir.joinpath('mo_resunet.keras'))
+    print(f"Model saved at {cached_models_dir.joinpath('mo_resunet.keras')}")
 
     return None
