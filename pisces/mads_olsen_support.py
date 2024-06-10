@@ -158,8 +158,8 @@ def cal_psd(x, fs, window, noverlap, nfft, f_min, f_max, f_sub=1):
     return S
 
 def load_saved_keras():
-    with importlib.resources.path('pisces.cached_models', 'mo_resunet.keras') as file_path:
-        return tf.keras.models.load_model(file_path, safe_mode=False)
+    saved_model_path = files('pisces.cached_models').joinpath('mo_resunet.keras')
+    return tf.keras.models.load_model(saved_model_path, safe_mode=False)
 
 # %% ../nbs/03_mads_olsen_support.ipynb 6
 FS = 32
