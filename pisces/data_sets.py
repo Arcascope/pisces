@@ -106,7 +106,7 @@ class SimplifiablePrefixTree:
     
     def flattened(self, max_depth: int = 1) -> 'SimplifiablePrefixTree':
         """
-        Returns a Tree identical to `self` up to the given depth, but with all nodes at + below `max_depth` converted into leaves on the most recent acestor of lepth `max_depth - 1`.
+        Returns a Tree identical to `self` up to the given depth, but with all nodes at + below `max_depth` converted into leaves on the most recent ancestor of depth `max_depth - 1`.
         """
         flat_self = SimplifiablePrefixTree(self.delimiter, key=self.key)
         if max_depth == 0:
