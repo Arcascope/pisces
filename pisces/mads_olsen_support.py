@@ -9,7 +9,6 @@ __all__ = ['FS', 'CHANNELS', 'DEPTH', 'N_OUT', 'N_CLASSES', 'MO_UNET_CONFIG', 'M
 import os
 import sys
 import site
-os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 import numpy as np
 import pandas as pd
 import polars as pl
@@ -23,6 +22,7 @@ from keras.regularizers import l2
 from typing import Dict, List, Tuple
 from scipy.signal import spectrogram
 from importlib.resources import files
+os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 from keras_cv.layers import StochasticDepth
 
 # %% ../nbs/03_mads_olsen_support.ipynb 5
