@@ -227,7 +227,7 @@ class IdExtractor(SimplifiablePrefixTree):
         return self.simplified().flattened(1).reversed()
     
 
-# %% ../nbs/01_data_sets.ipynb 11
+# %% ../nbs/01_data_sets.ipynb 12
 LOG_LEVEL = logging.INFO
 
 class DataSetObject:
@@ -402,7 +402,7 @@ class DataSetObject:
                 min_end = min([min_end, time.max()])
         return (max_start, min_end)
 
-# %% ../nbs/01_data_sets.ipynb 13
+# %% ../nbs/01_data_sets.ipynb 14
 def psg_to_sleep_wake(psg: pl.DataFrame) -> np.ndarray:
     """
     * map all positive classes to 1 (sleep)
@@ -444,7 +444,7 @@ def psg_to_WLDM(psg: pl.DataFrame, N4: bool = True) -> np.ndarray:
     """
     return vec_to_WLDM(psg[:, 1].to_numpy(), N4)
 
-# %% ../nbs/01_data_sets.ipynb 16
+# %% ../nbs/01_data_sets.ipynb 17
 class ModelOutputType(Enum):
     SLEEP_WAKE = auto()
     WAKE_LIGHT_DEEP_REM = auto()
@@ -503,7 +503,183 @@ class ModelInputSpectrogram(ModelInput):
         self.input_sampling_hz = float(input_sampling_hz)
         self.spectrogram_preprocessing_config = spectrogram_preprocessing_config
 
-# %% ../nbs/01_data_sets.ipynb 17
+# %% ../nbs/01_data_sets.ipynb 18
+def get_sample_weights(y: np.ndarray) -> np.ndarray:
+     """
+     Calculate sample weights based on the distribution of classes in the data.
+     Doesn't count masked values (-1) in the class distribution.
+     """
+     # Filter out -1 values
+     valid_y = y[y != -1]
+     # Calculate class counts for valid labels only
+     class_counts = np.bincount(valid_y)
+     class_weights = np.where(class_counts > 0, class_counts.sum() / class_counts, 0)
+     # Map valid class weights to corresponding samples in y
+     sample_weights = np.zeros_like(y, dtype=float)
+     for class_index, weight in enumerate(class_weights):
+          sample_weights[y == class_index] = weight
+     # Masked values (-1) in y will have a weight of 0
+     return sample_weights
+
+
+def mask_psg_from_accel(psg: np.ndarray, accel: np.ndarray, 
+                        psg_epoch: int = 30,
+                        accel_sample_rate: float | None = None,
+                        min_epoch_fraction_covered: float = 0.5
+                        ) -> np.ndarray:
+
+    acc_last_index = 0
+    acc_next_index = acc_last_index
+    acc_last_time = accel[acc_last_index, 0]
+    acc_next_time = acc_last_time
+
+    # at least this fraction of 1 epoch must be covered
+    # both in terms of time (no gap longer than 0.5 epochs)
+    # and in terms of expected number of samples in that time.
+    min_epoch_covered = min_epoch_fraction_covered * psg_epoch
+    if accel_sample_rate is None:
+        # median sample step size, if none provided
+        # median to not take into account gaps!
+        accel_sample_rate = np.median(np.diff(accel[:, 0]))
+    min_samples_per = min_epoch_covered / accel_sample_rate
+
+    psg_gap_indices = []
+
+    for (psg_index, psg_sample) in enumerate(psg):
+        epoch_ends = psg_sample[0] + psg_epoch
+
+        # find the last timestamp inside the epoch
+        while (acc_next_time <= epoch_ends and acc_next_index < len(accel)):
+            acc_next_time = accel[acc_next_index, 0]
+            acc_next_index += 1
+        
+        return data_sets
+
+    def find_overlapping_time_section(
+        self,
+        features: List[str], # List of features included in the calculation, typically a combination of input and output features
+        id: str, # Subject id to process
+        ) -> Tuple[int, int]:
+        '''
+        Find common time interval when there's data for all features
+        '''
+        max_start = None
+        min_end = None
+        for feature in features:
+            data = self.get_feature_data(feature, id)
+            time = data[:, 0]
+            if max_start is None:
+                max_start = time.min()
+            else:
+                max_start = max([max_start, time.min()])
+            if min_end is None:
+                min_end = time.max()
+            else:
+                min_end = min([min_end, time.max()])
+        return (max_start, min_end)
+
+# %% ../nbs/01_data_sets.ipynb 20
+def psg_to_sleep_wake(psg: pl.DataFrame) -> np.ndarray:
+    """
+    * map all positive classes to 1 (sleep)
+    * retain all 0 (wake) and -1 (mask) classes
+    """
+    return np.where(psg[:, 1] > 0, 1, psg[:, 1])
+
+def to_WLDM(x: float, N4: bool=True) -> int:
+    """
+    Map sleep stages to wake, light, deep, and REM sleep.
+    Retain masked values. If N4 stage is not present,
+    PSG=4 is mapped to REM. Otherwise it is mapped to deep sleep.
+    """
+    if x < 0:
+        return -1
+    if x == 0:
+        return 0
+    if x < 3:
+        return 1
+    rem_value = 5 if N4 else 4
+    if x < rem_value:
+        return 2
+    return 3
+
+vec_to_WLDM = np.vectorize(to_WLDM)
+
+def psg_to_WLDM(psg: pl.DataFrame, N4: bool = True) -> np.ndarray:
+    """
+    * map all positive classes as follows:
+    If N4 is True:
+        - 1, 2 => 1 (light sleep)
+        - 3, 4 => 2 (deep sleep)
+        - 5 => 3 (REM)
+    If N4 is False:
+        - 1, 2 => 1 (light sleep)
+        - 3 => 2 (deep sleep)
+        - 5 => 3 (REM)
+    * retain all 0 (wake) and -1 (mask) classes
+    """
+    return vec_to_WLDM(psg[:, 1].to_numpy(), N4)
+
+# %% ../nbs/01_data_sets.ipynb 23
+class ModelOutputType(Enum):
+    SLEEP_WAKE = auto()
+    WAKE_LIGHT_DEEP_REM = auto()
+
+class PSGType(Enum):
+    NO_N4 = auto()
+    HAS_N4 = auto()
+
+class ModelInput:
+    def __init__(self,
+                 input_features: List[str] | str,
+                 input_sampling_hz: int | float, # Sampling rate of the input data (1/s)
+                 ):
+        # input_features
+        if isinstance(input_features, str):
+            input_features = [input_features]
+        self.input_features = input_features
+        # input_sampling_hz
+        if not isinstance(input_sampling_hz, (int, float)):
+            raise ValueError("input_sampling_hz must be an int or a float")
+        else:
+            if input_sampling_hz <= 0:
+                raise ValueError("input_sampling_hz must be greater than 0")
+        self.input_sampling_hz = float(input_sampling_hz)
+
+class ModelInput1D(ModelInput):
+    def __init__(self,
+                 input_features: List[str] | str,
+                 input_sampling_hz: int | float, # Sampling rate of the input data (1/s)
+                 input_window_time: int | float, # Window size (in seconds) for the input data. Window will be centered around the time point for which the model is making a prediction
+                 ):
+        super().__init__(input_features, input_sampling_hz)
+        # input_window_time
+        if not isinstance(input_window_time, (int, float)):
+            raise ValueError("input_window_time must be an int or a float")
+        else:
+            if input_window_time <= 0:
+                raise ValueError("input_window_time must be greater than 0")
+
+        self.input_window_time = float(input_window_time)
+        # Number of samples for the input window of a single feature
+        self.input_window_samples = int(self.input_window_time * self.input_sampling_hz)
+        ## force it to be odd to have perfectly centered window
+        if self.input_window_samples % 2 == 0:
+            self.input_window_samples += 1
+        # Dimension of the input data for the model
+        self.model_input_dimension = int(len(input_features) * self. input_window_samples)
+
+class ModelInputSpectrogram(ModelInput):
+    def __init__(self,
+                 input_features: List[str] | str,
+                 input_sampling_hz: int | float, # Sampling rate of the input data (1/s)
+                 spectrogram_preprocessing_config: Dict=MO_PREPROCESSING_CONFIG, # Steps in the preprocessing pipeline for getting a spectrogram from acceleration
+                 ):
+        super().__init__(input_features, input_sampling_hz)
+        self.input_sampling_hz = float(input_sampling_hz)
+        self.spectrogram_preprocessing_config = spectrogram_preprocessing_config
+
+# %% ../nbs/01_data_sets.ipynb 24
 def get_sample_weights(y: np.ndarray) -> np.ndarray:
      """
      Calculate sample weights based on the distribution of classes in the data.
@@ -611,7 +787,7 @@ def fill_gaps_in_accelerometer_data(acc: pl.DataFrame, smooth: bool = False, fin
 
     return acc_resampled
 
-# %% ../nbs/01_data_sets.ipynb 18
+# %% ../nbs/01_data_sets.ipynb 25
 class DataProcessor:
     def __init__(self,
                  data_set: DataSetObject,
