@@ -498,10 +498,12 @@ class ModelInputSpectrogram(ModelInput):
                  input_features: List[str] | str,
                  input_sampling_hz: int | float, # Sampling rate of the input data (1/s)
                  spectrogram_preprocessing_config: Dict=MO_PREPROCESSING_CONFIG, # Steps in the preprocessing pipeline for getting a spectrogram from acceleration
+                 accelerometer_indexes_for_spectrogram: List[int]=[1, 2, 3], # Indexes of the accelerometer data to use to calculate a spectrogram
                  ):
         super().__init__(input_features, input_sampling_hz)
         self.input_sampling_hz = float(input_sampling_hz)
         self.spectrogram_preprocessing_config = spectrogram_preprocessing_config
+        self.accelerometer_indexes_for_spectrogram = accelerometer_indexes_for_spectrogram
 
 # %% ../nbs/01_data_sets.ipynb 20
 def psg_to_sleep_wake(psg: pl.DataFrame) -> np.ndarray:
@@ -736,6 +738,7 @@ class DataProcessor:
         elif self.is_spectrogram:
             self.input_sampling_hz = model_input.input_sampling_hz
             self.spectrogram_preprocessing_config = model_input.spectrogram_preprocessing_config
+            self.accelerometer_indexes_for_spectrogram = model_input.accelerometer_indexes_for_spectrogram
 
     @property
     def is_1D(self):
@@ -825,7 +828,8 @@ class DataProcessor:
         y = filtered_labels[:, 1].to_numpy()
         return X, y
     
-    def accelerometer_to_spectrogram(self, accelerometer: pl.DataFrame) -> np.ndarray:
+    def accelerometer_to_spectrogram(self, accelerometer: pl.DataFrame,
+                                     indexes_to_use: List[int]) -> np.ndarray:
         """
         Implementation by Mads Olsen at https://github.com/MADSOLSEN/SleepStagePrediction
         with minor modifications.
@@ -835,9 +839,7 @@ class DataProcessor:
         else:
             raise ValueError("accelerometer must be a polars DataFrame")
 
-        x_ = acc[:, 1]
-        y_ = acc[:, 2]
-        z_ = acc[:, 3]
+        processed_data = []
 
         for step in self.spectrogram_preprocessing_config["preprocessing"]:
             fn = eval(step["type"])  # convert string version to function in environment
@@ -846,12 +848,11 @@ class DataProcessor:
             )  # fill in the args given, which must be everything besides numerical input
 
             # apply
-            x_ = fn_args(x_)
-            y_ = fn_args(y_)
-            z_ = fn_args(z_)
+            for i in indexes_to_use:
+                data = acc[:, i]
+                processed_data.append(fn_args(data))
 
-        spec = x_ + y_ + z_
-        spec /= 3.0
+        spec = sum(processed_data) / len(processed_data)
 
         return spec
 
@@ -889,7 +890,8 @@ class DataProcessor:
         accelerometer = fill_gaps_in_accelerometer_data(accelerometer, smooth=False, 
                                                         final_sampling_rate_hz=self.input_sampling_hz)
         # Get spectrogram (mirrored)
-        spectrogram = self.accelerometer_to_spectrogram(accelerometer)
+        spectrogram = self.accelerometer_to_spectrogram(accelerometer, 
+                                                        self.accelerometer_indexes_for_spectrogram)
         X = self.mirror_spectrogram(spectrogram)
 
         # Get labels
