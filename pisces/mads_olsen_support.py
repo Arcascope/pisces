@@ -49,8 +49,9 @@ def median(x, fs, window_size):
 
         x_pd = pd.Series(x[:, idx])
         med_ = x_pd.rolling(window).median()
-        x_med[int(window / 2) : -int(window / 2)] = med_[window - 1 :]
+        # first window-1 values are nan
         x_med[: int(window / 2)] = med_[window - 1]
+        x_med[int(window / 2) : -int(window / 2)] = med_[window - 1 :]
         x_med[-int(window / 2) :] = med_[-1:]
 
         x_med[np.isnan(x_med)] = 0  # remove nan
@@ -92,9 +93,6 @@ def iqr_normalization_adaptive(x, fs, median_window, iqr_window):
 
         # find rolling median
         x_pd = pd.Series(x_)
-        med_ = x_pd.rolling(med_window).median()
-        x_med[int(med_window / 2) : -int(med_window / 2)] = med_[med_window - 1 :]
-        x_med[np.isnan(x_med)] = 0  # remove nan
 
         # find rolling quantiles
         x_iqr_upper = x_pd.rolling(iqr_window).quantile(iqr_upper)

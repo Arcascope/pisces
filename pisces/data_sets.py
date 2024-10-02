@@ -383,7 +383,7 @@ class DataSetObject:
         self,
         features: List[str], # List of features included in the calculation, typically a combination of input and output features
         id: str, # Subject id to process
-        ) -> Tuple[int, int]:
+        ) -> Tuple[int | None, int | None]:
         '''
         Find common time interval when there's data for all features
         '''
@@ -391,6 +391,8 @@ class DataSetObject:
         min_end = None
         for feature in features:
             data = self.get_feature_data(feature, id)
+            if data is None:
+                return (None, None)
             time = data[:, 0]
             if max_start is None:
                 max_start = time.min()
@@ -796,33 +798,37 @@ class DataProcessor:
     def get_1D_X_y(self, id: str) -> Tuple[np.ndarray, np.ndarray] | None:
         # Find overlapping time section
         all_features = self.input_features + [self.output_feature]
-        max_start, min_end = self.data_set.find_overlapping_time_section(all_features, id)
-        # Get labels
-        labels = self.get_labels(id, max_start, min_end, self.output_feature)
-        label_times = labels[:, 0]
-        epoch_start = label_times.min() + self.input_window_time / 2.0
-        epoch_end = label_times.max() - self.input_window_time / 2.0
-        filtered_labels = labels.filter(labels[:, 0] >= epoch_start)
-        filtered_labels = filtered_labels.filter(filtered_labels[:, 0] <= epoch_end)
-        epoch_times = filtered_labels[:, 0]
-        # Get input data
-        interpolation_timestamps = np.arange(max_start, 
-                                             min_end + 1.0/self.input_sampling_hz,
-                                             1.0/self.input_sampling_hz,)
-        # Interpolate all data to the same time points
-        interpolated_features = []
-        for feature in self.input_features:
-            data = self.data_set.get_feature_data(feature, id)
-            feature_times = data[:, 0]
-            for i in range(1, data.shape[1]):
-                feature_values = data[:, i]
-                X_feature = self.get_1D_X_for_feature(interpolation_timestamps, 
-                                                        epoch_times, feature_times, 
-                                                        feature_values)
-                interpolated_features.append(X_feature)
-        # Concatenate input features alongside the first dimension
-        X = np.concatenate(interpolated_features, axis=1)
-        y = filtered_labels[:, 1].to_numpy()
+        try:
+            max_start, min_end = self.data_set.find_overlapping_time_section(all_features, id)
+            # Get labels
+            labels = self.get_labels(id, max_start, min_end, self.output_feature)
+            label_times = labels[:, 0]
+            epoch_start = label_times.min() + self.input_window_time / 2.0
+            epoch_end = label_times.max() - self.input_window_time / 2.0
+            filtered_labels = labels.filter(labels[:, 0] >= epoch_start)
+            filtered_labels = filtered_labels.filter(filtered_labels[:, 0] <= epoch_end)
+            epoch_times = filtered_labels[:, 0]
+            # Get input data
+            interpolation_timestamps = np.arange(max_start, 
+                                                min_end + 1.0/self.input_sampling_hz,
+                                                1.0/self.input_sampling_hz,)
+            # Interpolate all data to the same time points
+            interpolated_features = []
+            for feature in self.input_features:
+                data = self.data_set.get_feature_data(feature, id)
+                feature_times = data[:, 0]
+                for i in range(1, data.shape[1]):
+                    feature_values = data[:, i]
+                    X_feature = self.get_1D_X_for_feature(interpolation_timestamps, 
+                                                            epoch_times, feature_times, 
+                                                            feature_values)
+                    interpolated_features.append(X_feature)
+            # Concatenate input features alongside the first dimension
+            X = np.concatenate(interpolated_features, axis=1)
+            y = filtered_labels[:, 1].to_numpy()
+        except Exception as e:
+            warnings.warn(f"Error processing data for {id}:\n{e}")
+            return (None, None)
         return X, y
     
     def accelerometer_to_spectrogram(self, accelerometer: pl.DataFrame) -> np.ndarray:
