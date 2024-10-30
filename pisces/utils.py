@@ -6,7 +6,7 @@
 __all__ = ['WASA_THRESHOLD', 'BALANCE_WEIGHTS', 'determine_header_rows_and_delimiter', 'build_ADS',
            'build_activity_counts_te_Lindert_et_al', 'ActivityCountAlgorithm', 'build_activity_counts',
            'plot_scores_CDF', 'plot_scores_PDF', 'constant_interp', 'avg_steps', 'add_rocs', 'pad_to_hat', 'mae_func',
-           'Constants', 'SleepMetricsCalculator', 'split_analysis']
+           'resample_accel_data', 'Constants', 'SleepMetricsCalculator', 'split_analysis']
 
 # %% ../nbs/00_utils.ipynb 4
 import csv
@@ -168,8 +168,12 @@ def build_activity_counts_te_Lindert_et_al(
 
         return epoch_data
     
+    # sort by time
+    sort_idx = np.argsort(time_xyz[:, 0])
+    time_xyz = time_xyz[sort_idx]
+    
     fs = 50
-    time = np.arange(np.amin(time_xyz[:, 0]), np.amax(time_xyz[:, 0]), 1.0 / fs)
+    time = np.arange(time_xyz[0, 0], time_xyz[-1, 0], 1.0 / fs)
     z_data = np.interp(time, time_xyz[:, 0], time_xyz[:, axis])
 
     cf_low = 3
@@ -194,7 +198,7 @@ def build_activity_counts_te_Lindert_et_al(
     counts = (counts - 18) * 3.07
     counts[counts < 0] = 0
 
-    time_counts = np.linspace(np.min(time_xyz[:, 0]), max(time_xyz[:, 0]), np.shape(counts)[0])
+    time_counts = np.linspace(time_xyz[0, 0], time_xyz[-1, 0], np.shape(counts)[0])
     time_counts = np.expand_dims(time_counts, axis=1)
     counts = np.expand_dims(counts, axis=1)
 
@@ -426,7 +430,38 @@ def mae_func(
     return sum(aes) / len(aes)
 
 
-# %% ../nbs/00_utils.ipynb 19
+# %% ../nbs/00_utils.ipynb 18
+from scipy.signal import resample_poly
+
+def resample_accel_data(accel_data: np.ndarray, original_fs: int, target_fs: int) -> np.ndarray:
+    # Calculate the greatest common divisor for up/down sampling rates
+    up = target_fs
+    down = original_fs
+    gcd = np.gcd(int(up), int(down))
+    up = int(up // gcd)
+    down = int(down // gcd)
+
+    accel_resampled_time = np.arange(accel_data[0, 0], accel_data[-1, 0], 1/original_fs)
+
+    accel_resampled = np.zeros((len(accel_resampled_time), accel_data.shape[1]))
+    accel_resampled[:, 0] = accel_resampled_time
+
+    for i in range(1, accel_data.shape[1]):
+        accel_resampled[:, i] = np.interp(accel_resampled_time, accel_data[:, 0], accel_data[:, i])
+    
+    # Resample data (excluding the time column)
+    resampled_data = resample_poly(accel_resampled[:, 1:], up, down, axis=0)
+    
+    # Recompute the time vector
+    duration = accel_data[-1, 0] - accel_data[0, 0]
+    num_samples = resampled_data.shape[0]
+    new_time = np.linspace(accel_resampled_time[0], accel_resampled_time[-1], num_samples)
+    
+    # Combine the new time vector with the resampled data
+    resampled_accel_data = np.column_stack((new_time, resampled_data))
+    return resampled_accel_data
+
+# %% ../nbs/00_utils.ipynb 20
 class Constants:
     # WAKE_THRESHOLD = 0.3  # These values were used for scikit-learn 0.20.3, See:
     # REM_THRESHOLD = 0.35  # https://scikit-learn.org/stable/whats_new.html#version-0-21-0
@@ -530,7 +565,7 @@ class SleepMetricsCalculator:
 
         return res
 
-# %% ../nbs/00_utils.ipynb 21
+# %% ../nbs/00_utils.ipynb 22
 WASA_THRESHOLD = 0.93
 BALANCE_WEIGHTS = True
 
