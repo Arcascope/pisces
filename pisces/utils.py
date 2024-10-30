@@ -14,6 +14,7 @@ import os
 import time
 import warnings
 import numpy as np
+import polars as pl
 from pathlib import Path
 from enum import Enum, auto
 from functools import partial
@@ -79,7 +80,7 @@ def determine_header_rows_and_delimiter(
 
 # %% ../nbs/00_utils.ipynb 8
 def build_ADS(
-    time_xyz: np.ndarray,
+    time_xyz: pl.DataFrame | np.ndarray,
     sampling_hz: float = 50.0,
     bin_size_seconds: float = 15,
     prefix: str = "",
@@ -96,13 +97,21 @@ def build_ADS(
         )
     try:
         assert (len(time_xyz.shape) == 2 and time_xyz.shape[1] == 4)
-    except AssertionError:
-        raise data_shape_error
+    except AssertionError as exc:
+        raise data_shape_error from exc
 
-    time_data_raw = time_xyz[:, 0].to_numpy()
-    x_accel = time_xyz[:, 1].to_numpy()
-    y_accel = time_xyz[:, 2].to_numpy()
-    z_accel = time_xyz[:, 3].to_numpy()
+    if isinstance(time_xyz, pl.DataFrame):
+        time_data_raw = time_xyz[:, 0].to_numpy()
+        x_accel = time_xyz[:, 1].to_numpy()
+        y_accel = time_xyz[:, 2].to_numpy()
+        z_accel = time_xyz[:, 3].to_numpy()
+    elif isinstance(time_xyz, np.ndarray):
+        time_data_raw = time_xyz[:, 0]
+        x_accel = time_xyz[:, 1]
+        y_accel = time_xyz[:, 2]
+        z_accel = time_xyz[:, 3]
+    else:
+        raise ValueError(f"Unsupported type for `time_xyz`: {type(time_xyz)}")
 
     # Interpolate to sampling Hz
     time_values = np.arange(
