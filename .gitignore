@@ -159,3 +159,5 @@ wearOS-sensor-analysis/*
 *.npy
 analyses/NHRC/fine_tuning/walch/*.png
 *.tfevents.*
+analyses/NHRC/*.png
+analyses/NHRC/*.csv
