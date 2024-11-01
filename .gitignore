@@ -161,3 +161,6 @@ analyses/NHRC/fine_tuning/walch/*.png
 *.tfevents.*
 analyses/NHRC/*.png
 analyses/NHRC/*.csv
+analyses/NHRC/evaluations/models/*.keras
+analyses/NHRC/evaluations/*.png
+pisces/cached_models/*.keras
