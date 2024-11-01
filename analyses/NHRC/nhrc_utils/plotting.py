@@ -10,6 +10,9 @@ from sklearn.metrics import auc, roc_curve
 from analyses.NHRC.nhrc_utils.analysis import ACCURACY_COLUMN, ID_COLUMN, THRESHOLD, WASA_COLUMN, compute_sample_weights
 
 COLOR_PALETTE = sns.color_palette("colorblind")
+rcParams['font.family'] = 'Helvetica'
+rcParams['font.size'] = 12  # Set a global font size
+
 
 def tri_plot_metrics(
         evaluations_df: List[tuple], 
@@ -32,15 +35,12 @@ def tri_plot_metrics(
         'wasa': evaluations_df[wasa_column]
     }
 
-    rcParams['font.family'] = 'Helvetica'
-    rcParams['font.size'] = 12  # Set a global font size
-
     metrics_dimensions = {
         'sw_accuracy': 'missed sleep (min)',
         'auc': 'AUC',
         'wasa': wasa_column}
     metrics_xlabels = {
-        'sw_accuracy': '⟵ minutes under / over estimated ⟶',
+        'sw_accuracy': '⟵ minutes over / under estimated ⟶',
         'auc': 'AUC',
         'wasa': wasa_column}
     metric_colors = {'sw_accuracy': COLOR_PALETTE[4], 'auc': COLOR_PALETTE[1], 'wasa': COLOR_PALETTE[2]}
@@ -61,6 +61,9 @@ def tri_plot_metrics(
         ax.set_xlabel(metrics_xlabels[metric])
         if metric != 'sw_accuracy':
             ax.set_xlim(0, 1)
+            ax.set_ylim(0, 20)
+        else:
+            ax.set_xlim(-30, 30)
             ax.set_ylim(0, 20)
 
         # Remove top and right spines
