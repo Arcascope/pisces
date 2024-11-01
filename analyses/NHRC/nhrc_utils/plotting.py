@@ -36,8 +36,11 @@ def tri_plot_metrics(
     rcParams['font.size'] = 12  # Set a global font size
 
     metrics_dimensions = {
-        # 'sw_accuracy': f'true sleep - pred sleep (min)',
-        'sw_accuracy': f'missed sleep (min)',
+        'sw_accuracy': 'missed sleep (min)',
+        'auc': 'AUC',
+        'wasa': wasa_column}
+    metrics_xlabels = {
+        'sw_accuracy': '⟵ minutes under / over estimated ⟶',
         'auc': 'AUC',
         'wasa': wasa_column}
     metric_colors = {'sw_accuracy': COLOR_PALETTE[4], 'auc': COLOR_PALETTE[1], 'wasa': COLOR_PALETTE[2]}
@@ -55,7 +58,7 @@ def tri_plot_metrics(
             ax=ax)
         ax.axvline(np.mean(metrics[metric]), color='red', linestyle='dashed', linewidth=2, label=f"Mean {metrics_dimensions[metric]}: {np.mean(metrics[metric]):.3f}")
         # ax.set_title(metrics_dimensions[metric])
-        ax.set_xlabel(metrics_dimensions[metric])
+        ax.set_xlabel(metrics_xlabels[metric])
         if metric != 'sw_accuracy':
             ax.set_xlim(0, 1)
             ax.set_ylim(0, 20)
@@ -77,7 +80,9 @@ def tri_plot_metrics(
     if save_dir is not None:
         if filename is None:
             filename = 'tri_plot_metrics.png'
-        fig.savefig(save_dir.joinpath(filename), dpi=600, bbox_inches='tight')
+        fig.savefig(save_dir.joinpath(filename),
+                    # dpi=300,
+                    bbox_inches='tight')
 
 def add_spectrogram(ax, specgram):
     ax.imshow(specgram.T, aspect='auto', origin='lower', vmax=20, vmin=-20)
