@@ -40,7 +40,7 @@ def tri_plot_metrics(
         'auc': 'AUC',
         'wasa': wasa_column}
     metrics_xlabels = {
-        'sw_accuracy': '⟵ minutes over / under estimated ⟶',
+        'sw_accuracy': '$\\leftarrow$' + 'minutes over / under estimated sleep' + '$\\rightarrow$',
         'auc': 'AUC',
         'wasa': wasa_column}
     metric_colors = {'sw_accuracy': COLOR_PALETTE[4], 'auc': COLOR_PALETTE[1], 'wasa': COLOR_PALETTE[2]}
