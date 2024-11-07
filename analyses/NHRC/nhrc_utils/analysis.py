@@ -107,7 +107,7 @@ def compute_mae_for_sleep_time(y_true: tf.Tensor | np.ndarray, y_pred: tf.Tensor
     # mae = tf.abs(SCALAR * (true_sleep_time - pred_sleep_time))
     mae = SCALAR * (true_sleep_time - pred_sleep_time)
 
-    print(f"True sleep time: {true_sleep_time} minutes, predicted {pred_sleep_time} minutes (%E: {mae / true_sleep_time:.2f})")
+    # print(f"True sleep time: {true_sleep_time} minutes, predicted {pred_sleep_time} minutes (%E: {mae / true_sleep_time:.2f})")
     
     
     return mae
@@ -145,7 +145,7 @@ def find_best_threshold(y_true, y_pred, weights, sleep_accuracy, tol: bool = 1e-
         if abs(accuracy - sleep_accuracy) < tol:
             break
     best_threshold = (threshold_max + threshold_min) / 2
-    print(f"Threshold: {best_threshold}, Accuracy: {accuracy}")
+    # print(f"Threshold: {best_threshold}, Accuracy: {accuracy}")
 
     return best_threshold
 
@@ -214,7 +214,7 @@ def mo_predict_logits(data: tf.Tensor):
     return mo_keras.predict(data)
 
 def prepare_data(preprocessed_data: dict):
-    keys = list(preprocessed_data.keys())
+    keys = sorted(list(preprocessed_data.keys()))
     xyz_specgram_input = np.array([
         preprocessed_data[k]['spectrogram']
         for k in keys
