@@ -68,7 +68,7 @@ def compute_sample_weights(labels: np.ndarray, verbose: bool = False) -> np.ndar
         classes=np.array([0, 1]),
         y=labels[mask_weights].flatten()
     )
-    class_weights = {0: class_weight_array[0], 1: class_weight_array[1]}
+    class_weights = {i: class_weight_array[i] for i in range(2)}
     if verbose:
         print("Class weights:\n", json.dumps(class_weights, indent=2)) # pretty print
     class_weights |= {-1: 0.0}
@@ -150,16 +150,48 @@ def find_best_threshold(y_true, y_pred, weights, sleep_accuracy, tol: bool = 1e-
 
     return best_threshold
 
-def auroc_balaccuracy_wasa(split_name, binary_pred_proba, test_sample_weights, test_labels_masked, sleep_accuracy, verbose: bool = False):
+from collections import Counter
+def staging_acc(stages_true, stages_pred, weights):
+    # mask out the indices where y_true == -1
+    include_sel = weights > 0 & (stages_true >= 0)
+    stages_true = stages_true[include_sel]
+    stages_pred = stages_pred[include_sel]
+
+    N_STAGES = 4
+
+    # calculate the number of epochs in each stage
+    n_epochs = len(stages_true)
+    n_stages = len(np.unique(stages_true))
+    n_epochs_per_stage = np.zeros(N_STAGES)
+    for i in range(n_stages):
+        n_epochs_per_stage[i] = np.sum(stages_true == i)
+
+    # calculate the number of epochs correctly predicted in each stage
+    n_correct_per_stage = np.zeros(N_STAGES)
+    for i in range(n_stages):
+        n_correct_per_stage[i] = np.sum((stages_true == i) & (stages_pred == i))
+
+    # calculate the accuracy for each stage
+    stage_acc = n_correct_per_stage / n_epochs_per_stage
+
+    # compute weighted average of the accuracy
+    # my_weights = n_epochs / (n_epochs_per_stage)
+    my_weights = np.array([0.0, 0.0, 0.0, 1.0])
+    stage_acc = stage_acc * my_weights / np.sum(my_weights)
+
+    return stage_acc.sum()
+
+def auroc_balaccuracy_wasa(split_name, binary_pred_proba, test_sample_weights, test_labels_masked, sleep_accuracy, staging_pred_proba = None, verbose: bool = False):
     if isinstance(sleep_accuracy, list):
         return [
             auroc_balaccuracy_wasa(
-                f"{split_name}_{int(sleep_accuracy[i] * 100)}",
-                binary_pred_proba,
-                test_sample_weights,
-                test_labels_masked,
-                sleep_accuracy[i],
-                verbose
+                split_name=f"{split_name}_{int(sleep_accuracy[i] * 100)}",
+                binary_pred_proba=binary_pred_proba,
+                test_sample_weights=test_sample_weights,
+                test_labels_masked=test_labels_masked,
+                sleep_accuracy=sleep_accuracy[i],
+                staging_pred_proba=staging_pred_proba,
+                verbose=verbose
             )
             for i in range(len(sleep_accuracy))
         ]
@@ -168,8 +200,14 @@ def auroc_balaccuracy_wasa(split_name, binary_pred_proba, test_sample_weights, t
     flat_weights = test_sample_weights.reshape(-1,)
 
     # # compute AUROC
-    fpr, tpr, thresholds = roc_curve(flat_test_labels, binary_pred_proba, sample_weight=flat_weights)
-    roc_auc = auc(fpr, tpr)
+    # fpr, tpr, thresholds = roc_curve(flat_test_labels, binary_pred_proba, sample_weight=flat_weights)
+    # roc_auc = auc(fpr, tpr)
+    roc_auc = staging_acc(
+        flat_test_labels,
+        np.argmax(staging_pred_proba, axis=-1),
+        flat_weights)
+
+    flat_test_labels = np.where(flat_test_labels > 0, 1, flat_test_labels)
 
     # # compute WASA
     wasa_threshold = find_best_threshold(
@@ -214,7 +252,19 @@ mo_keras = load_saved_keras()
 def mo_predict_logits(data: tf.Tensor):
     return mo_keras.predict(data)
 
-def prepare_data(preprocessed_data: dict):
+def stages_map(input) -> np.ndarray:
+    changed = np.zeros_like(input)
+    changed[input < 3] = input[input < 3]
+    # N4 -> N3
+    changed[input == 3] = 2
+    changed[input == 4] = 2
+    changed[input >= 5] = 3
+
+    return changed
+
+
+
+def prepare_data(preprocessed_data: dict, keep_stages: bool = False) -> PreparedData:
     keys = sorted(list(preprocessed_data.keys()))
     xyz_specgram_input = np.array([
         preprocessed_data[k]['spectrogram']
@@ -230,11 +280,13 @@ def prepare_data(preprocessed_data: dict):
     
     mo_predictions = mo_predict_logits(specgram_input)
 
-    full_labels = np.array([
+    full_labels = stages_map(np.array([
         preprocessed_data[k]['psg'][:, 1]
         for k in keys
-    ])
-    labels = np.where(full_labels > 0, 1, full_labels)
+    ]))
+    binary_labels = np.where(full_labels > 0, 1, full_labels)
+    labels = binary_labels \
+        if keep_stages else full_labels
 
     # in original setup, specgrams were average of x,y,z
     # specgrams = np.mean(xyz_specgram_input, axis=-1)
@@ -246,7 +298,7 @@ def prepare_data(preprocessed_data: dict):
     ])
     activity = np.pad(activity, ((0, 0), (LR_PRE_PAD, LR_POST_PAD)), mode='constant', constant_values=0)
     weights = np.array([
-        compute_sample_weights(labels[i])
+        compute_sample_weights(binary_labels[i])
         for i in range(labels.shape[0])
     ])
     return PreparedData(
@@ -275,7 +327,7 @@ def compute_evaluations_df(
 
     evaluations_df = pd.DataFrame(columns=DF_COLUMNS)
 
-    for test_idx in range(len(keys)):
+    for test_idx, key in enumerate(keys):
         # extract inputs
         stationary_weights = stationary_data_bundle.sample_weights[test_idx].numpy()
         stationary_labels = stationary_data_bundle.true_labels[test_idx].numpy()
@@ -308,6 +360,8 @@ def compute_evaluations_df(
                 hybrid_lr_input)
         
         eval_dict = {
+            "stationary_wldm": stationary_wldm_predictions,
+            "hybrid_wldm": hybrid_wldm_predictions,
             "stationary_naive": stationary_naive,
             "stationary_finetuning": stationary_cnn,
             "stationary_lr": stationary_lr,
@@ -319,16 +373,17 @@ def compute_evaluations_df(
         for model in model_types:
             for scenario in SCENARIOS:
                 evals[scenario][model] = auroc_balaccuracy_wasa(
-                    keys[test_idx], 
+                    key, 
                     eval_dict[f'{scenario}_{model}'],
                     stationary_weights,
                     stationary_labels_masked,
-                    sleep_accuracy=WASA_SLEEP_ACCURACY)
+                    sleep_accuracy=WASA_SLEEP_ACCURACY,
+                    staging_pred_proba=eval_dict[f'{scenario}_wldm'])
 
         # now append each evaluation to the dataframe, labeled correctly
         evaluations_df = pd.concat([evaluations_df,
                                     pd.DataFrame([
-                [keys[test_idx],
+                [key,
                 scenario,
                 model,
                 *evals[scenario][model][i],
