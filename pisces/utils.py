@@ -112,6 +112,10 @@ def build_ADS(
         raise ValueError(f"Unsupported type for `time_xyz`: {type(time_xyz)}")
 
     # Interpolate to sampling Hz
+    time_values = time_data_raw
+    x_data = x_accel
+    y_data = y_accel
+    z_data = z_accel
     if resample_hz is not None:
         time_values = np.arange(
             np.amin(time_data_raw), np.amax(time_data_raw), 1 / resample_hz
@@ -120,10 +124,6 @@ def build_ADS(
         x_data = np.interp(time_values, time_data_raw, x_accel)
         y_data = np.interp(time_values, time_data_raw, y_accel)
         z_data = np.interp(time_values, time_data_raw, z_accel)
-    else:
-        x_data = x_accel
-        y_data = y_accel
-        z_data = z_accel
 
     # Calculate "amplitude" = timeseries of 2-norm of (x, y, z)
     amplitude = np.linalg.norm(np.array([x_data, y_data, z_data]), axis = 0)
