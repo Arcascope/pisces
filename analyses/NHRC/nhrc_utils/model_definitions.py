@@ -71,7 +71,8 @@ def build_finetuning_model(input_shape):
 def cnn_pred_proba(cnn, data):
     return expit(
         cnn.predict(
-            data.reshape(1, 1024, 4)
+            data.reshape(1, 1024, 4),
+            verbose=0
         )).reshape(-1,)
 
 def naive_pred_proba(data):
@@ -115,7 +116,8 @@ def build_lr_cnn(kernel_size: int = LR_KERNEL_SIZE):
 def lr_cnn_pred_proba(lr_cnn, data: tf.Tensor):
     return expit(
         lr_cnn.predict(
-            tf.reshape(data, (1, LR_INPUT_LENGTH, 1))
+            tf.reshape(data, (1, LR_INPUT_LENGTH, 1)),
+            verbose=0
         )).reshape(-1,)
 
 

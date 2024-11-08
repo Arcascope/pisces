@@ -165,3 +165,4 @@ analyses/NHRC/evaluations/models/*.keras
 analyses/NHRC/evaluations/*.png
 pisces/cached_models/*.keras
 analyses/NHRC/debug_plots/*.png
+analyses/NHRC/debug_plots/*/*.png

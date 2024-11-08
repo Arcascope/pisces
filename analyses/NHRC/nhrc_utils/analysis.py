@@ -1,3 +1,4 @@
+from typing import List
 import json
 from dataclasses import dataclass
 from pathlib import Path
@@ -10,7 +11,7 @@ from sklearn.utils import class_weight
 import numpy as np
 import tensorflow as tf
 
-from analyses.NHRC.nhrc_utils.model_definitions import LR_POST_PAD, LR_PRE_PAD, EXTRA_LOWER, LR_LOWER
+from analyses.NHRC.nhrc_utils.model_definitions import LR_POST_PAD, LR_PRE_PAD, EXTRA_LOWER, LR_LOWER, cnn_pred_proba, lr_cnn_pred_proba, naive_pred_proba
 from pisces.models import load_saved_keras
 
 ID_COLUMN = 'test_id'
@@ -105,7 +106,7 @@ def compute_mae_for_sleep_time(y_true: tf.Tensor | np.ndarray, y_pred: tf.Tensor
     pred_sleep_time = np.sum(y_pred == 1)
     # Compute Mean Absolute Error (MAE) for total sleep time
     # mae = tf.abs(SCALAR * (true_sleep_time - pred_sleep_time))
-    mae = SCALAR * (true_sleep_time - pred_sleep_time)
+    mae = SCALAR * (pred_sleep_time - true_sleep_time)
 
     # print(f"True sleep time: {true_sleep_time} minutes, predicted {pred_sleep_time} minutes (%E: {mae / true_sleep_time:.2f})")
     
@@ -255,3 +256,88 @@ def prepare_data(preprocessed_data: dict):
         true_labels=tf.convert_to_tensor(labels, dtype=tf.float32),
         sample_weights=tf.convert_to_tensor(weights, dtype=tf.float32)
     )
+
+
+
+
+def compute_evaluations_df(
+        keys: List[str],
+        stationary_data_bundle,
+        hybrid_data_bundle,
+        lr_predictors: List[tf.Module],
+        cnn_predictors: List[tf.Module]):
+    model_types = ['naive', 'finetuning', 'lr']
+
+    evals = {s: 
+        {m: [] for m in model_types} 
+        for s in SCENARIOS
+    }
+
+    evaluations_df = pd.DataFrame(columns=DF_COLUMNS)
+
+    for test_idx in range(len(keys)):
+        # extract inputs
+        stationary_weights = stationary_data_bundle.sample_weights[test_idx].numpy()
+        stationary_labels = stationary_data_bundle.true_labels[test_idx].numpy()
+        stationary_labels_masked = np.where(stationary_weights, stationary_labels, 0)
+        stationary_wldm_predictions = stationary_data_bundle.mo_predictions[test_idx].numpy()
+        stationary_lr_input = stationary_data_bundle.activity[test_idx].numpy()
+
+        hybrid_wldm_predictions = hybrid_data_bundle.mo_predictions[test_idx].numpy()
+        hybrid_lr_input = hybrid_data_bundle.activity[test_idx].numpy()
+
+        # z-normalize input data
+        stationary_lr_input = (stationary_lr_input - np.mean(stationary_lr_input)) / np.std(stationary_lr_input)
+        hybrid_lr_input = (hybrid_lr_input - np.mean(hybrid_lr_input)) / np.std(hybrid_lr_input)
+
+
+        # process inputs into predictions
+        stationary_naive = naive_pred_proba(stationary_wldm_predictions)
+        stationary_lr = lr_cnn_pred_proba(
+                lr_predictors[test_idx], 
+                stationary_lr_input)
+        stationary_cnn = cnn_pred_proba(
+                cnn_predictors[test_idx], 
+                stationary_wldm_predictions)
+        hybrid_naive = naive_pred_proba(hybrid_wldm_predictions)
+        hybrid_cnn = cnn_pred_proba(
+                cnn_predictors[test_idx],
+                hybrid_wldm_predictions)
+        hybrid_lr = lr_cnn_pred_proba(
+                lr_predictors[test_idx],
+                hybrid_lr_input)
+        
+        eval_dict = {
+            "stationary_naive": stationary_naive,
+            "stationary_finetuning": stationary_cnn,
+            "stationary_lr": stationary_lr,
+            "hybrid_naive": hybrid_naive,
+            "hybrid_finetuning": hybrid_cnn,
+            "hybrid_lr": hybrid_lr
+        }
+
+        for model in model_types:
+            for scenario in SCENARIOS:
+                evals[scenario][model] = auroc_balaccuracy_wasa(
+                    keys[test_idx], 
+                    eval_dict[f'{scenario}_{model}'],
+                    stationary_weights,
+                    stationary_labels_masked,
+                    sleep_accuracy=WASA_SLEEP_ACCURACY)
+
+        # now append each evaluation to the dataframe, labeled correctly
+        evaluations_df = pd.concat([evaluations_df,
+                                    pd.DataFrame([
+                [keys[test_idx],
+                scenario,
+                model,
+                *evals[scenario][model][i],
+                int(100 * WASA_SLEEP_ACCURACY[i]),
+                ]
+                for scenario in SCENARIOS for model in model_types
+                for i in range(len(WASA_SLEEP_ACCURACY))
+            ], columns=DF_COLUMNS
+        )], ignore_index=True)
+    
+    return evaluations_df
+

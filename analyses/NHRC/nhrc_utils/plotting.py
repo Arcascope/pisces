@@ -36,11 +36,11 @@ def tri_plot_metrics(
     }
 
     metrics_dimensions = {
-        'sw_accuracy': 'missed sleep (min)',
+        'sw_accuracy': '|pred - true| (minutes)',
         'auc': 'AUC',
         'wasa': wasa_column}
     metrics_xlabels = {
-        'sw_accuracy': '$\\leftarrow$' + 'minutes over / under estimated sleep' + '$\\rightarrow$',
+        'sw_accuracy': 'minutes predicted - estimated sleep',
         'auc': 'AUC',
         'wasa': wasa_column}
     metric_colors = {'sw_accuracy': COLOR_PALETTE[4], 'auc': COLOR_PALETTE[1], 'wasa': COLOR_PALETTE[2]}
@@ -56,7 +56,8 @@ def tri_plot_metrics(
             kde=True,
             color=metric_colors[metric],
             ax=ax)
-        ax.axvline(np.mean(metrics[metric]), color='red', linestyle='dashed', linewidth=2, label=f"Mean {metrics_dimensions[metric]}: {np.mean(metrics[metric]):.3f}")
+        metric_mean = np.mean(abs(metrics[metric]))
+        ax.axvline(metric_mean, color='red', linestyle='dashed', linewidth=2, label=f"Mean {metrics_dimensions[metric]}: {metric_mean:.3f}")
         # ax.set_title(metrics_dimensions[metric])
         ax.set_xlabel(metrics_xlabels[metric])
         if metric != 'sw_accuracy':
