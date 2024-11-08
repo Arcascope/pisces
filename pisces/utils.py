@@ -79,7 +79,7 @@ def determine_header_rows_and_delimiter(
 # %% ../nbs/00_utils.ipynb 8
 def build_ADS(
     time_xyz: pl.DataFrame | np.ndarray,
-    sampling_hz: float = 50.0,
+    resample_hz: float | None = None,
     bin_size_seconds: float = 15,
     prefix: str = "",
 ) -> Tuple[np.ndarray, np.ndarray]:
@@ -88,7 +88,7 @@ def build_ADS(
     Parameters
     ---
      - `time_xyz`: numpy array with shape (N_samples, 4) where the 4 coordinates are: [time, x, y, z] 
-     - `sampling_hz`: `float` sampling frequency of thetime_xyz 
+     - `resample_hz`: `float` sampling frequency of thetime_xyz 
     """
     data_shape_error = ValueError(
             f"`time_xyz` must have shape (N_samples, 4) but has shape {time_xyz.shape}"
@@ -112,13 +112,18 @@ def build_ADS(
         raise ValueError(f"Unsupported type for `time_xyz`: {type(time_xyz)}")
 
     # Interpolate to sampling Hz
-    time_values = np.arange(
-        np.amin(time_data_raw), np.amax(time_data_raw), 1 / sampling_hz
-    )
-    # Must do each coordinate separately
-    x_data = np.interp(time_values, time_data_raw, x_accel)
-    y_data = np.interp(time_values, time_data_raw, y_accel)
-    z_data = np.interp(time_values, time_data_raw, z_accel)
+    if resample_hz is not None:
+        time_values = np.arange(
+            np.amin(time_data_raw), np.amax(time_data_raw), 1 / resample_hz
+        )
+        # Must do each coordinate separately
+        x_data = np.interp(time_values, time_data_raw, x_accel)
+        y_data = np.interp(time_values, time_data_raw, y_accel)
+        z_data = np.interp(time_values, time_data_raw, z_accel)
+    else:
+        x_data = x_accel
+        y_data = y_accel
+        z_data = z_accel
 
     # Calculate "amplitude" = timeseries of 2-norm of (x, y, z)
     amplitude = np.linalg.norm(np.array([x_data, y_data, z_data]), axis = 0)
