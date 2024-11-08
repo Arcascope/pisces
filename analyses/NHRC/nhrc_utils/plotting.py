@@ -36,11 +36,11 @@ def tri_plot_metrics(
     }
 
     metrics_dimensions = {
-        'sw_accuracy': '|pred - true| (minutes)',
+        'sw_accuracy': 'abs(pred - true) sleep, minutes',
         'auc': 'AUC',
         'wasa': wasa_column}
     metrics_xlabels = {
-        'sw_accuracy': 'minutes predicted - estimated sleep',
+        'sw_accuracy': 'minutes predicted - true sleep',
         'auc': 'AUC',
         'wasa': wasa_column}
     metric_colors = {'sw_accuracy': COLOR_PALETTE[4], 'auc': COLOR_PALETTE[1], 'wasa': COLOR_PALETTE[2]}
