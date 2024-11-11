@@ -161,6 +161,7 @@ def plot_single_person(static_predictions,
         1, 0.5), fontsize=8, frameon=False)
     plt.suptitle(title, fontsize=8)
     plt.tight_layout()
+
     plt.savefig(f"debug/{run_mode}_{name}.png", dpi=200)
 
 
@@ -290,7 +291,7 @@ def create_histogram(run_mode="naive"):
         'sleep_accuracy': COLOR_PALETTE[4], 'tst_error': COLOR_PALETTE[1], 'wake_accuracy': COLOR_PALETTE[2]}
 
     # After the loop, create histograms
-    fig, axs = plt.subplots(3, 3, figsize=(7, 7))
+    fig, axs = plt.subplots(3, 3, figsize=(9, 7))
 
     static_sleep_accuracies = [x.sleep_accuracy for x in static_performs]
     static_wake_accuracies = [x.wake_accuracy for x in static_performs]
@@ -350,9 +351,16 @@ def create_histogram(run_mode="naive"):
         ax.set_xlim(-50 if ax in axs[:, 2] else 0,
                     50 if ax in axs[:, 2] else 1)
 
-    # Set specific labels
-    for ax, label in zip(axs[:, 0], ['Count'] * 3):
-        ax.set_ylabel(label)
+    # Add row labels to the left of the leftmost plots
+    row_labels = ["Static data\nevaluated with\nstatic threshold",
+                  "Hybrid data\nevaluated with\nstatic threshold",
+                  "Hybrid data\nevaluated with\nhybrid threshold"]
+    for ax, label in zip(axs[:, 0], row_labels):
+        ax.set_ylabel(label, rotation=0, size='x-large',
+                      labelpad=80, ha='center')
+    # Uncomment to change y-label to "Count" instead of the experiment conditions
+    # for ax, label in zip(axs[:, 0], ['Count'] * 3):
+    #     ax.set_ylabel(label)
     for ax, label in zip(axs[2, :], ['Sleep accuracy', 'Wake accuracy', 'TST error (minutes)']):
         ax.set_xlabel(label)
 
@@ -367,8 +375,12 @@ def create_histogram(run_mode="naive"):
         abs_mean_value = np.mean(np.abs(np.array(data)))
 
         # Add text showing the mean_value above the line
-        axs[row, col].text(mean_value, axs[row, col].get_ylim()[
-                           1], f'Mean: {mean_value:.2f}', color='red', ha='center', fontsize=8)
+        if mean_value == abs_mean_value:
+            axs[row, col].text(mean_value, axs[row, col].get_ylim()[
+                1], f'Mean: {mean_value:.2f}', color='red', ha='center', fontsize=8)
+        else:
+            axs[row, col].text(mean_value, axs[row, col].get_ylim()[
+                1], f'Mean: {mean_value:.2f} (Abs. Mean: {abs_mean_value:.2f})', color='red', ha='center', fontsize=8)
         if col == 2:
             percentage_above = np.sum(np.abs(data) > 30) / len(data) * 100
             axs[row, col].text(
@@ -376,8 +388,19 @@ def create_histogram(run_mode="naive"):
 
     plt.tight_layout()
     plt.savefig(
-        f"{run_mode}_{acc_hz}_hists_WASA{int(target_sleep_accuracy * 100)}.png")
-    plt.show()
+        f"{run_mode}_{acc_hz}_hists_WASA{int(target_sleep_accuracy * 100)}.png", dpi=200)
+    # plt.show()
+    plt.close()
+
+    # Do a statistical test to determine if the distributions are different
+    from scipy.stats import ttest_ind
+    static_sleep_accuracies = np.array(static_sleep_accuracies)
+    hybrid_sleep_accuracies_static_thresh = np.array(
+        hybrid_sleep_accuracies_static_thresh)
+    hybrid_sleep_choose_best = np.array(hybrid_sleep_choose_best)
+
+    print("Statistical test result:")
+    print(ttest_ind(static_sleep_accuracies, hybrid_sleep_accuracies_static_thresh))
 
     end_run = time.time()
     print(f"Total time to make triplots: {end_run - start_run} seconds")

@@ -1,4 +1,4 @@
 
 
-ACC_HZ = "dyn"  # "50" "dyn"
-TARGET_SLEEP = 0.93
+ACC_HZ = "50"  # "50" "dyn" "32"
+TARGET_SLEEP = 0.95
