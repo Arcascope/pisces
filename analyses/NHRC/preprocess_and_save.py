@@ -1,0 +1,241 @@
+import numpy as np
+import pandas as pd
+import os
+import matplotlib.pyplot as plt
+import pisces.data_sets as pds
+import time
+from pisces.utils import build_ADS, resample_accel_data
+from pisces.data_sets import (
+    DataSetObject,
+    ModelInputSpectrogram,
+    ModelOutputType,
+    DataProcessor,
+    PSGType
+)
+from typing import Dict, List
+from pathlib import Path
+from analyses.NHRC.nhrc_utils.model_definitions import LR_ACTIVITY_INPUTS
+
+
+plt.rcParams['font.family'] = 'Arial'
+
+# use "dyn" for resampling basd on avg Hz per recording
+# use a number for fixed resampling
+acc_Hz_str = "50"
+
+FIXED_LABEL_LENGTH = 1024
+FIXED_SPECGRAM_SHAPE = (15360, 32)
+
+ACC_DIFF_GAP = 10  # seconds
+ACC_RAW_HZ = 50
+ACC_RAW_DT = 1/ACC_RAW_HZ
+ACC_INPUT_HZ = 32
+ACTIVITY_DT = 15
+ACTIVITY_HZ = 1/ACTIVITY_DT
+PSG_DT = 30
+PSG_HZ = 1/PSG_DT
+SECONDS_PER_KERNEL = 5 * 60
+ACTIVITY_KERNEL_WIDTH = SECONDS_PER_KERNEL * ACTIVITY_HZ
+ACTIVITY_KERNEL_WIDTH += 1 - (ACTIVITY_KERNEL_WIDTH % 2)  # Ensure it is odd
+
+
+def clean_and_save_accelerometer_data():
+    '''Used to convert raw acceleration from PhysioNet into CSV format'''
+    input_dir = Path(
+        ('/Users/ojwalch/Documents/eric-pisces/datasets/walch_et_al/'
+         'cleaned_accelerometer'))
+    output_dir = Path(
+        ('/Users/ojwalch/Documents/eric-pisces/datasets/walch_et_al/'
+         'processed_accelerometer'))
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    for file in input_dir.glob('*_acceleration.txt'):
+        df = pd.read_csv(file, delim_whitespace=True,
+                         header=None, names=['Timestamp', 'x', 'y', 'z'])
+        df = df[df['Timestamp'] >= 0]
+        output_file = output_dir / f"{file.stem.split('_')[0]}.csv"
+        df.to_csv(output_file, index=False)
+
+
+def process_data(dataset: pds.DataSetObject,
+                 processor,
+                 subject_id) -> Dict[str, np.ndarray]:
+
+    accel_data = dataset.get_feature_data(
+        'accelerometer', subject_id).to_numpy()
+    psg_data = dataset.get_feature_data('psg', subject_id).to_numpy()
+
+    # Sort based on time (axis 0)
+    accel_data = accel_data[accel_data[:, 0].argsort()]
+    psg_data = psg_data[psg_data[:, 0].argsort()]
+
+    # Convert activity and PSG time to int
+    psg_data[:, 0] = np.round(psg_data[:, 0])
+
+    # Trim data to common time range
+    start_time = max(accel_data[0, 0], psg_data[0, 0])
+    end_time = min(accel_data[-1, 0], psg_data[-1, 0])
+
+    accel_data = accel_data[(accel_data[:, 0] >= start_time)
+                            & (accel_data[:, 0] <= end_time)]
+    psg_data = psg_data[(psg_data[:, 0] >= start_time)
+                        & (psg_data[:, 0] <= end_time)]
+
+    # Find gaps in accelerometer data
+    time_diff = np.diff(accel_data[:, 0])
+    avg_time_hz = int(1/np.median(time_diff))
+    gap_indices = np.where(time_diff > ACC_DIFF_GAP)[0]
+
+    # Mask PSG labels during accelerometer gaps
+    pre_mask_sleeps = np.sum(psg_data[:, 1] > 0)
+    pre_mask_wakes = np.sum(psg_data[:, 1] == 0)
+    wakes_masked = 0
+
+    print("Pre-mask:\n\tSleeps", pre_mask_sleeps, "\n\tWakes", pre_mask_wakes)
+    for gap_index in gap_indices:
+        gap_start = accel_data[gap_index, 0] + ACC_DIFF_GAP
+        gap_end = accel_data[gap_index + 1, 0]
+        mask_indices = np.where(
+            (psg_data[:, 0] + PSG_DT >= gap_start) &
+            (psg_data[:, 0] <= gap_end))[0]
+        wake_counts = np.sum((psg_data[mask_indices, 1].astype(int)) == 0)
+        wakes_masked += wake_counts
+        psg_data[mask_indices, 1:] = -1
+
+    post_mask_sleeps = np.sum(psg_data[:, 1] > 0)
+    post_mask_wakes = np.sum(psg_data[:, 1] == 0)
+    print("Post-mask:\n\tSleeps", post_mask_sleeps, "\n\tWakes",
+          post_mask_wakes, "\n\tWakes masked", wakes_masked)
+
+    # Convert accelerometer data to spectrograms
+
+    sample_rate = 50
+    if acc_Hz_str == "dyn":
+        int_hz = int(avg_time_hz)
+        print("dynamic rate:", int_hz)
+        sample_rate = int_hz
+    else:
+        sample_rate = int(acc_Hz_str)
+        print("fixed rate:", sample_rate)
+    accel_data_resampled = resample_accel_data(
+        accel_data, original_fs=sample_rate, target_fs=ACC_INPUT_HZ)
+
+    # compute spectrogram with resampled data
+    spectrograms = processor.accelerometer_to_spectrogram(
+        accel_data_resampled)
+    padded_spectrograms = np.zeros(FIXED_SPECGRAM_SHAPE)
+    padded_spectrograms[:spectrograms.shape[0],
+                        ...] = spectrograms[:FIXED_SPECGRAM_SHAPE[0], ...]
+
+    # Compute activity with resampled data
+    activity_time, ads = build_ADS(accel_data)
+    activity_data = np.column_stack((activity_time, ads))
+
+    # Pad PSG data to 1024 samples
+    psg_data = pad_or_truncate(psg_data, int(FIXED_LABEL_LENGTH))
+
+    # Pad activity data to 2 * 1024 samples
+    activity_data = pad_or_truncate(activity_data, int(LR_ACTIVITY_INPUTS))
+
+    return {"spectrogram": padded_spectrograms,
+            "activity": activity_data,
+            "psg": psg_data}
+
+
+def process_data_set(data_set: pds.DataSetObject,
+                     ids_to_exclude: List[str],
+                     processor) -> Dict[str, Dict[str, np.ndarray]]:
+    data = {}
+    for subject_id in data_set.ids:
+        if subject_id in ids_to_exclude:
+            continue
+        print(f"Processing {subject_id}")
+        data[subject_id] = process_data(
+            data_set,
+            processor,
+            subject_id)
+    return data
+
+
+def pad_or_truncate(data,
+                    desired_length,
+                    pad_value: float = -1.0):
+    current_length = data.shape[0]
+    if current_length < desired_length:
+        padding = desired_length - current_length
+        pad_width = ((0, padding), (0, 0))
+        data = np.pad(data, pad_width, mode='constant',
+                      constant_values=pad_value)
+    else:
+        data = data[:desired_length, :]
+    return data
+
+
+def do_preprocessing():
+    # clean_and_save_accelerometer_data()
+
+    start_run = time.time()
+    data_location = Path('/Users/ojwalch/Documents/eric-pisces/datasets')
+    print("data_location: ", data_location)
+
+    sets = DataSetObject.find_data_sets(data_location)
+    walch = sets['walch_et_al']
+    walch.parse_data_sets()
+    print(f"Found {len(walch.ids)} subjects")
+
+    hybrid = sets['hybrid_motion']
+    hybrid.parse_data_sets()
+    print(f"Found {len(hybrid.ids)} subjects")
+
+    subjects_to_exclude_walch = [
+        "7749105",
+        "5383425",
+        "8258170"
+    ]
+
+    subjects_to_exclude_hybrid = subjects_to_exclude_walch
+
+    input_features = ['accelerometer']
+    model_input = ModelInputSpectrogram(input_features, 32)
+    output_type = ModelOutputType.WAKE_LIGHT_DEEP_REM
+    data_processor_walch = DataProcessor(walch,
+                                         model_input,
+                                         output_type=output_type,
+                                         psg_type=PSGType.HAS_N4)
+
+    # Process the datasets
+    preprocessed_data_walch = process_data_set(
+        walch, subjects_to_exclude_walch, data_processor_walch)
+    preprocessed_data_hybrid = process_data_set(
+        hybrid, subjects_to_exclude_hybrid, data_processor_walch)
+
+    CWD = Path(os.getcwd())
+    save_path = CWD.joinpath("pre_processed_data")
+
+    hybrid_name = "hybrid"
+    stationary_name = "stationary"
+
+    hybrid_path = save_path.joinpath(hybrid_name)
+    os.makedirs(hybrid_path, exist_ok=True)
+
+    walch_path = save_path.joinpath(stationary_name)
+    os.makedirs(walch_path, exist_ok=True)
+
+    save_preprocessing_to = walch_path.joinpath(
+        f"{stationary_name}_preprocessed_data_{acc_Hz_str}.npy")
+    print(f"Saving to {save_preprocessing_to}...")
+    with open(save_preprocessing_to, 'wb') as f:
+        np.save(f, preprocessed_data_walch)
+
+    save_preprocessing_to = hybrid_path.joinpath(
+        f"{hybrid_name}_preprocessed_data_{acc_Hz_str}.npy")
+    print(f"Saving to {save_preprocessing_to}...")
+    with open(save_preprocessing_to, 'wb') as f:
+        np.save(f, preprocessed_data_hybrid)
+
+    end_run = time.time()
+    print(f"Preprocessing took {end_run - start_run} seconds")
+
+
+if __name__ == "__main__":
+    do_preprocessing()
