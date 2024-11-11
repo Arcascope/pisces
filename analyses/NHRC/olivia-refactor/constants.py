@@ -1,3 +1,4 @@
 
 
 ACC_HZ = "50"
+TARGET_SLEEP = 0.95

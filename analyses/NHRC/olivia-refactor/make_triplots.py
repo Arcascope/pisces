@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import time
 from analyses.NHRC.nhrc_utils.analysis import prepare_data
-from constants import ACC_HZ as acc_hz
+from constants import ACC_HZ as acc_hz, TARGET_SLEEP
 
 plt.rcParams['font.family'] = 'Arial'
 COLOR_PALETTE = sns.color_palette("colorblind")
@@ -219,9 +219,9 @@ def create_histogram(run_mode="naive"):
     hybrid_data_bundle = prepare_data(hybrid_preprocessed_data)
 
     # Holders for outputs
-    static_perform = []
-    hybrid_static_thresh_perform = []
-    hybrid_best_thresh_perform = []
+    static_performs = []
+    hybrid_static_thresh_performs = []
+    hybrid_best_thresh_performs = []
 
     for i, key in enumerate(static_keys):
         print(f"Comparing {key}")
@@ -245,7 +245,7 @@ def create_histogram(run_mode="naive"):
         true_labels = static_data_bundle.true_labels[i, :].numpy()
 
         true_labels[true_labels > 1] = 1
-        target_sleep_accuracy = 0.93
+        target_sleep_accuracy = TARGET_SLEEP
 
         static_threshold = threshold_from_binary_search(
             true_labels, static_predictions, target_sleep_accuracy)
@@ -280,9 +280,9 @@ def create_histogram(run_mode="naive"):
                            title=summary_string)
 
         # Append values to arrays
-        static_perform.append(static_perform)
-        hybrid_static_thresh_perform.append(hybrid_static_thresh_perform)
-        hybrid_best_thresh_perform.append(hybrid_best_thresh_perform)
+        static_performs.append(static_perform)
+        hybrid_static_thresh_performs.append(hybrid_static_thresh_perform)
+        hybrid_best_thresh_performs.append(hybrid_best_thresh_perform)
 
         plt.close()
 
@@ -292,9 +292,9 @@ def create_histogram(run_mode="naive"):
     # After the loop, create histograms
     fig, axs = plt.subplots(3, 3, figsize=(7, 7))
 
-    static_sleep_accuracies = [x.sleep_accuracy for x in static_perform]
-    static_wake_accuracies = [x.wake_accuracy for x in static_perform]
-    static_tst_errors = [x.tst_error for x in static_perform]
+    static_sleep_accuracies = [x.sleep_accuracy for x in static_performs]
+    static_wake_accuracies = [x.wake_accuracy for x in static_performs]
+    static_tst_errors = [x.tst_error for x in static_performs]
 
     axs[0, 0].hist(static_sleep_accuracies, bins=np.linspace(0, 1, 21),
                    color=metric_colors['sleep_accuracy'], alpha=0.7,
@@ -307,11 +307,11 @@ def create_histogram(run_mode="naive"):
                    edgecolor=np.array(metric_colors['tst_error']) * 0.8)
 
     hybrid_sleep_accuracies_static_thresh = [
-        x.sleep_accuracy for x in hybrid_static_thresh_perform]
+        x.sleep_accuracy for x in hybrid_static_thresh_performs]
     hybrid_wake_accuracies_static_thresh = [
-        x.wake_accuracy for x in hybrid_static_thresh_perform]
+        x.wake_accuracy for x in hybrid_static_thresh_performs]
     hybrid_tst_errors_static_thresh = [
-        x.tst_error for x in hybrid_static_thresh_perform]
+        x.tst_error for x in hybrid_static_thresh_performs]
 
     axs[1, 0].hist(hybrid_sleep_accuracies_static_thresh, bins=np.linspace(0, 1, 21),
                    color=metric_colors['sleep_accuracy'], alpha=0.7,
@@ -324,11 +324,11 @@ def create_histogram(run_mode="naive"):
                    edgecolor=np.array(metric_colors['tst_error']) * 0.8)
 
     hybrid_sleep_choose_best = [
-        x.sleep_accuracy for x in hybrid_best_thresh_perform]
+        x.sleep_accuracy for x in hybrid_best_thresh_performs]
     hybrid_wake_choose_best = [
-        x.wake_accuracy for x in hybrid_best_thresh_perform]
+        x.wake_accuracy for x in hybrid_best_thresh_performs]
     hybrid_tst_choose_best = [
-        x.tst_error for x in hybrid_best_thresh_perform]
+        x.tst_error for x in hybrid_best_thresh_performs]
 
     axs[2, 0].hist(hybrid_sleep_choose_best, bins=np.linspace(0, 1, 21),
                    color=metric_colors['sleep_accuracy'], alpha=0.7,
@@ -374,12 +374,12 @@ def create_histogram(run_mode="naive"):
                 -20, axs[row, col].get_ylim()[1] - 2, f'% >30 min:\n{percentage_above:.2f}%', color='gray', ha='center', fontsize=8)
 
     plt.tight_layout()
-    plt.savefig(f"{run_mode}_hists.png")
+    plt.savefig(f"{run_mode}_hists_WASA{int(target_sleep_accuracy * 100)}.png")
     plt.show()
 
     end_run = time.time()
-    print(f"Total time: {end_run - start_run}")
-    print("Done with everything")
+    print(f"Total time to make triplots: {end_run - start_run} seconds")
+    print("Done with triplots")
 
 
 if __name__ == "__main__":
