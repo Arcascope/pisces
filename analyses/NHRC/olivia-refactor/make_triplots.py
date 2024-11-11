@@ -171,7 +171,7 @@ def get_logreg_data(static_data_bundle, hybrid_data_bundle, i):
     static_activity_data[static_activity_data < 0] = 0
     hybrid_activity_data[hybrid_activity_data < 0] = 0
 
-    # Convolve with a blur kernel of length 41
+    # Convolve with a blur kernel
     kernel_width = 61
     start_ind = int(kernel_width / 2)
     static_predictions = np.convolve(
@@ -232,9 +232,9 @@ def create_histogram(run_mode="naive"):
 
         if run_mode == "finetune":
             static_predictions = 1 - np.squeeze(
-                np.load(f"{key}_cnn_pred_static.npy"))
+                np.load(f"saved_outputs/{key}_cnn_pred_static_{acc_hz}.npy"))
             hybrid_predictions = 1 - np.squeeze(
-                np.load(f"{key}_cnn_pred_hybrid.npy"))
+                np.load(f"saved_outputs/{key}_cnn_pred_hybrid_{acc_hz}.npy"))
 
         if run_mode == "naive":
             static_predictions = static_data_bundle.mo_predictions[i, :, 0].numpy(
@@ -296,7 +296,8 @@ def create_histogram(run_mode="naive"):
     static_wake_accuracies = [x.wake_accuracy for x in static_performs]
     static_tst_errors = [x.tst_error for x in static_performs]
 
-    axs[0, 0].hist(static_sleep_accuracies, bins=np.linspace(0.05, 1, 21),
+    sasa_linspace = np.linspace(0, 1, 27)
+    axs[0, 0].hist(static_sleep_accuracies, bins=sasa_linspace,
                    color=metric_colors['sleep_accuracy'], alpha=0.7,
                    edgecolor=np.array(metric_colors['sleep_accuracy']) * 0.8)
     axs[0, 1].hist(static_wake_accuracies, bins=np.linspace(0, 1, 21),
@@ -313,7 +314,7 @@ def create_histogram(run_mode="naive"):
     hybrid_tst_errors_static_thresh = [
         x.tst_error for x in hybrid_static_thresh_performs]
 
-    axs[1, 0].hist(hybrid_sleep_accuracies_static_thresh, bins=np.linspace(0.05, 1, 21),
+    axs[1, 0].hist(hybrid_sleep_accuracies_static_thresh, bins=sasa_linspace,
                    color=metric_colors['sleep_accuracy'], alpha=0.7,
                    edgecolor=np.array(metric_colors['sleep_accuracy']) * 0.8)
     axs[1, 1].hist(hybrid_wake_accuracies_static_thresh, bins=np.linspace(0, 1, 21),
@@ -330,7 +331,7 @@ def create_histogram(run_mode="naive"):
     hybrid_tst_choose_best = [
         x.tst_error for x in hybrid_best_thresh_performs]
 
-    axs[2, 0].hist(hybrid_sleep_choose_best, bins=np.linspace(0.05, 1, 21),
+    axs[2, 0].hist(hybrid_sleep_choose_best, bins=sasa_linspace,
                    color=metric_colors['sleep_accuracy'], alpha=0.7,
                    edgecolor=np.array(metric_colors['sleep_accuracy']) * 0.8)
     axs[2, 1].hist(hybrid_wake_choose_best, bins=np.linspace(0, 1, 21),
@@ -374,7 +375,8 @@ def create_histogram(run_mode="naive"):
                 -20, axs[row, col].get_ylim()[1] - 2, f'% >30 min:\n{percentage_above:.2f}%', color='gray', ha='center', fontsize=8)
 
     plt.tight_layout()
-    plt.savefig(f"{run_mode}_hists_WASA{int(target_sleep_accuracy * 100)}.png")
+    plt.savefig(
+        f"{run_mode}_{acc_hz}_hists_WASA{int(target_sleep_accuracy * 100)}.png")
     plt.show()
 
     end_run = time.time()

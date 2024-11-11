@@ -181,8 +181,9 @@ def train_cnn(static_keys, static_data_bundle, hybrid_data_bundle):
         test_prediction_raw = cnn.predict(test_data)
         test_prediction_raw = test_prediction_raw / scalar
         test_pred = expit(test_prediction_raw).reshape(-1,)
-        test_pred_path = (static_keys[k_test[0]]) + "_cnn_pred_static.npy"
-        np.save(test_pred_path, test_pred)
+        test_pred_path = (static_keys[k_test[0]]) + \
+            f"_cnn_pred_static_{acc_hz}.npy"
+        np.save("saved_outputs/" + test_pred_path, test_pred)
 
         # Repeat for hybrid data
         # Evaluate the model on the test data
@@ -193,8 +194,9 @@ def train_cnn(static_keys, static_data_bundle, hybrid_data_bundle):
         test_prediction_raw = cnn.predict(test_data)
         test_prediction_raw = test_prediction_raw / scalar
         test_pred = expit(test_prediction_raw).reshape(-1,)
-        test_pred_path = (static_keys[k_test[0]]) + "_cnn_pred_hybrid.npy"
-        np.save(test_pred_path, test_pred)
+        test_pred_path = (static_keys[k_test[0]]) + \
+            f"_cnn_pred_hybrid_{acc_hz}.npy"
+        np.save("saved_outputs/" + test_pred_path, test_pred)
 
         # save the trained model weights
         cnn.save(cnn_path)
