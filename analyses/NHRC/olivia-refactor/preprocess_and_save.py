@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import pisces.data_sets as pds
 import time
 from pisces.utils import build_ADS, resample_accel_data
+from constants import ACC_HZ as acc_Hz_str
 from pisces.data_sets import (
     DataSetObject,
     ModelInputSpectrogram,
@@ -21,7 +22,6 @@ plt.rcParams['font.family'] = 'Arial'
 
 # use "dyn" for resampling basd on avg Hz per recording
 # use a number for fixed resampling
-acc_Hz_str = "50"
 
 FIXED_LABEL_LENGTH = 1024
 FIXED_SPECGRAM_SHAPE = (15360, 32)
