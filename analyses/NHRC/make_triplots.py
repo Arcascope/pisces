@@ -55,7 +55,6 @@ def threshold_from_binary_search(labels, wake_probabilities,
             ):
                 threshold_for_sleep = threshold_for_sleep + threshold_delta
                 threshold_delta = threshold_delta / 2
-                # print("Decreasing threshold...")
 
             if (
                 fraction_sleep_scored_as_sleep
@@ -63,7 +62,6 @@ def threshold_from_binary_search(labels, wake_probabilities,
             ):
                 threshold_for_sleep = threshold_for_sleep - threshold_delta
                 threshold_delta = threshold_delta / 2
-                # print("Increasing threshold...")
 
         fraction_sleep_scored_as_sleep, _, _ = apply_threshold(
             labels, wake_probabilities, threshold_for_sleep)
@@ -87,7 +85,7 @@ def plot_single_person(static_predictions,
                        target_sleep_accuracy):
 
     # Make a 2x1 plot
-    fig, axs = plt.subplots(2, 1, figsize=(7, 4))
+    fig, axs = plt.subplots(2, 1)
 
     x = np.arange(len(static_predictions))
 
@@ -95,47 +93,71 @@ def plot_single_person(static_predictions,
     static_predictions[masked_indices] = np.nan
     hybrid_predictions[masked_indices] = np.nan
 
-    axs[0].plot(x,
-                static_predictions, color=COLOR_PALETTE[3], label="Static")
-    axs[0].plot(x,
-                hybrid_predictions, color=COLOR_PALETTE[6], label="Hybrid")
+    max_index = len(true_labels)
+
+    axs[0].plot(x[:max_index],
+                static_predictions[:max_index], color=COLOR_PALETTE[3], label="Static")
+    axs[0].plot(x[:max_index],
+                hybrid_predictions[:max_index], color=COLOR_PALETTE[6], label="Hybrid")
+    axs[0].plot(x[:max_index], np.ones_like(x[:max_index]) * static_threshold,
+                '--', color=COLOR_PALETTE[2],
+                label=f"Threshold for\n{int(100*target_sleep_accuracy)}% sleep accuracy\nin static data")
+    axs[0].plot(x[:max_index], np.ones_like(x[:max_index]) * hybrid_threshold,
+                '--', color=COLOR_PALETTE[5],
+                label=f"Threshold for\n{int(100*target_sleep_accuracy)}% sleep accuracy\nin hybrid data")
     axs[0].set_xlabel("Epoch")
     axs[0].set_ylabel("Wake probability")
-    axs[0].plot(x, np.ones_like(x) * static_threshold,
-                'g--', label="Threshold for {target_sleep_accuracy} sleep accuracy in static data")
-    axs[0].plot(x, np.ones_like(x) * hybrid_threshold,
-                'c--', label="Threshold for {target_sleep_accuracy} sleep accuracy in hybrid data")
+    axs[0].legend(loc='center left', bbox_to_anchor=(
+        1, 0.5), fontsize=8, frameon=False)
 
     static_predicted_labels = np.ones_like(static_predictions)
-    static_predicted_labels[static_predictions > static_threshold] = 1
+    static_predicted_labels[static_predictions > static_threshold] = 0
     static_predicted_labels[true_labels == -1] = np.nan
 
     hybrid_labels_using_static_threshold = np.ones_like(hybrid_predictions)
     hybrid_labels_using_static_threshold[hybrid_predictions >
-                                         static_threshold] = 1
+                                         static_threshold] = 0
     hybrid_labels_using_static_threshold[true_labels == -1] = np.nan
 
     hybrid_labels = np.ones_like(hybrid_predictions)
-    hybrid_labels[hybrid_predictions > hybrid_threshold] = 1
+    hybrid_labels[hybrid_predictions > hybrid_threshold] = 0
     hybrid_labels[true_labels == -1] = np.nan
 
     true_labels[true_labels == -1] = np.nan
-    axs[1].step(true_labels, 'k', label="True labels")
-    axs[1].step(static_predicted_labels + 2, 'k', label="Static predictions")
-    axs[1].step(hybrid_labels_using_static_threshold +
-                2, 'k', label="Hybrid predictions using static threshold")
-    axs[1].step(hybrid_labels + 2, 'k',
-                label="Hybrid prediction using tuned threshold")
 
-    plt.legend()
+    x = x[:max_index]
+    axs[1].step(x, true_labels + 6, 'k', label="True labels")
+    axs[1].step(x, static_predicted_labels + 4,
+                color=COLOR_PALETTE[2], label="Static predictions")
+    axs[1].step(x, hybrid_labels_using_static_threshold +
+                2, color=COLOR_PALETTE[9], label="Hybrid predictions\nusing static\nthreshold")
+    axs[1].step(x, hybrid_labels,
+                color=COLOR_PALETTE[5],
+                label="Hybrid predictions\nusing tuned\nthreshold")
+    axs[1].set_xlabel("Epoch")
+    axs[1].spines['left'].set_visible(False)
+
+    # Hide y-axis for axs[1]
+    axs[1].set_yticks([])
+
+    # Turn off the top and right spines
+    for ax in axs:
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+
+    # Move legend to the right of the plot and make font small
+    axs[1].legend(loc='center left', bbox_to_anchor=(
+        1, 0.5), fontsize=8, frameon=False)
+
     # Include hybrid and static sleep and wake accuracies in the title
     static_performance_string = f"Stationary Sleep Accuracy: {static_sleep_accuracy:.2f}, Wake Accuracy: {static_wake_accuracy:.2f}, TST Error: {static_tst_error} min"
     hybrid_performance_string = f"Hybrid Sleep Accuracy w/ Stationary Threshold: {hybrid_sleep_accuracy_static_thresh:.2f}, Wake Accuracy: {hybrid_wake_accuracy_static_thresh:.2f}, TST Error: {hybrid_tst_error_static_thresh} min"
     hybrid_performance_string_best_thresh = f"Hybrid Sleep Accuracy: {hybrid_sleep_accuracy_choose_best_threshold:.2f}, Wake Accuracy: {hybrid_wake_accuracy_choose_best_threshold:.2f}, TST Error: {hybrid_tst_error_choose_best_threshold} min"
-    plt.title(
-        f"{static_keys[i]}\n{static_performance_string}\n{hybrid_performance_string}\n{hybrid_performance_string_best_thresh}")
+    plt.suptitle(
+        f"{name}\n{static_performance_string}\n{hybrid_performance_string}\n{hybrid_performance_string_best_thresh}", fontsize=8)
 
-    plt.savefig(name + ".png")
+    plt.tight_layout()
+    plt.savefig(name + ".png", dpi=200)
 
 
 if __name__ == "__main__":
@@ -173,8 +195,8 @@ if __name__ == "__main__":
 
     for i, key in enumerate(static_keys):
         print(f"Comparing {key}")
-        static_predictions = static_data_bundle.mo_predictions[i, :, 0]
-        hybrid_predictions = hybrid_data_bundle.mo_predictions[i, :, 0]
+        static_predictions = static_data_bundle.mo_predictions[i, :, 0].numpy()
+        hybrid_predictions = hybrid_data_bundle.mo_predictions[i, :, 0].numpy()
         true_labels = static_data_bundle.true_labels[i, :].numpy()
 
         true_labels[true_labels > 1] = 1
@@ -292,6 +314,10 @@ if __name__ == "__main__":
         axs[row, col].axvline(mean_value, color='red',
                               linestyle='dashed', linewidth=1)
         abs_mean_value = np.mean(np.abs(np.array(data)))
+
+        # Add text showing the mean_value above the line
+        axs[row, col].text(mean_value, axs[row, col].get_ylim()[
+                           1], f'Mean: {mean_value:.2f}', color='red', ha='center', fontsize=8)
         if col == 2:
             percentage_above = np.sum(np.abs(data) > 30) / len(data) * 100
             axs[row, col].text(
