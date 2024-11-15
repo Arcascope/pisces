@@ -7,7 +7,7 @@ import seaborn as sns
 from scipy.special import softmax
 from sklearn.metrics import auc, roc_curve
 
-from analyses.NHRC.nhrc_utils.analysis import ACCURACY_COLUMN, ID_COLUMN, THRESHOLD, WASA_COLUMN, compute_sample_weights
+from examples.NHRC.nhrc_utils.analysis import ACCURACY_COLUMN, ID_COLUMN, THRESHOLD, WASA_COLUMN, compute_sample_weights
 
 COLOR_PALETTE = sns.color_palette("colorblind")
 rcParams['font.family'] = 'Helvetica'

@@ -15,7 +15,7 @@ from pisces.data_sets import (
 )
 from typing import Dict, List
 from pathlib import Path
-from analyses.NHRC.nhrc_utils.model_definitions import LR_ACTIVITY_INPUTS
+from examples.NHRC.nhrc_utils.model_definitions import LR_ACTIVITY_INPUTS
 
 
 plt.rcParams['font.family'] = 'Arial'
@@ -54,7 +54,7 @@ def clean_and_save_accelerometer_data():
 
 
 def process_data(dataset: pds.DataSetObject,
-                 processor,
+                 processor: DataProcessor,
                  subject_id) -> Dict[str, np.ndarray]:
 
     accel_data = dataset.get_feature_data(
@@ -140,7 +140,7 @@ def process_data(dataset: pds.DataSetObject,
 
 def process_data_set(data_set: pds.DataSetObject,
                      ids_to_exclude: List[str],
-                     processor) -> Dict[str, Dict[str, np.ndarray]]:
+                     processor: DataProcessor) -> Dict[str, Dict[str, np.ndarray]]:
     data = {}
     for subject_id in data_set.ids:
         if subject_id in ids_to_exclude:

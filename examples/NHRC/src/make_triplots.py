@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 import time
-from analyses.NHRC.nhrc_utils.analysis import prepare_data
+from examples.NHRC.nhrc_utils.analysis import prepare_data
 from constants import ACC_HZ as acc_hz, TARGET_SLEEP
 
 plt.rcParams['font.family'] = 'Arial'

@@ -1,20 +1,51 @@
+"""
+This module contains functions for training and fine-tuning machine learning models using TensorFlow and Keras.
+It includes functions for training logistic regression and convolutional neural network (CNN) models on both 
+static and hybrid datasets. The module also provides utility functions for data preparation and reshaping.
 
-from analyses.NHRC.nhrc_utils.model_definitions import FINETUNING_INPUT_SHAPE, build_finetuning_model, EXTRA_LAYERS_NAME
-from analyses.NHRC.nhrc_utils.model_definitions import LR_CNN_NAME,  LABEL_SHAPE, LR_INPUT_SHAPE, WeightedModel, build_lr_cnn
+Functions:
+- train_logreg(static_keys, static_data_bundle, hybrid_data_bundle): Trains logistic regression models using 
+    leave-one-out cross-validation and saves the trained models and predictions.
+- finetuning_gather_reshape(data_bundle, train_idx_tensor, input_shape, output_shape): Gathers and reshapes 
+    data for fine-tuning models.
+- train_cnn(static_keys, static_data_bundle, hybrid_data_bundle): Trains CNN models using leave-one-out 
+    cross-validation and saves the trained models and predictions.
+- load_and_train(): Loads preprocessed data, prepares it for training, and trains the models.
+
+Dependencies:
+- datetime
+- time
+- os
+- numpy
+- tensorflow
+- pisces.models
+- tqdm
+- tensorflow.keras.callbacks
+- sklearn.calibration
+- keras
+- constants
+- examples.NHRC.nhrc_utils.analysis
+- examples.NHRC.nhrc_utils.model_definitions
+"""
+
+import datetime
+import time
+import os
+
 import numpy as np
 import tensorflow as tf
-import pisces.models as pm
-import datetime
-from analyses.NHRC.nhrc_utils.analysis import make_lr_filename, make_finetuning_filename
-from analyses.NHRC.nhrc_utils.model_definitions import LR_INPUT_LENGTH
-from analyses.NHRC.nhrc_utils.analysis import prepare_data
 from tqdm import tqdm
 from tensorflow.keras.callbacks import TensorBoard
 from sklearn.calibration import expit
-import time
-from constants import ACC_HZ as acc_hz
-import os
 import keras
+
+from constants import ACC_HZ as acc_hz
+import pisces.models as pm
+from examples.NHRC.nhrc_utils.analysis import make_lr_filename, make_finetuning_filename
+from examples.NHRC.nhrc_utils.model_definitions import LR_INPUT_LENGTH
+from examples.NHRC.nhrc_utils.analysis import prepare_data
+from examples.NHRC.nhrc_utils.model_definitions import FINETUNING_INPUT_SHAPE, build_finetuning_model, EXTRA_LAYERS_NAME
+from examples.NHRC.nhrc_utils.model_definitions import LR_CNN_NAME,  LABEL_SHAPE, LR_INPUT_SHAPE, WeightedModel, build_lr_cnn
 
 
 # This is producing weird results for me
