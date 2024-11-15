@@ -152,7 +152,7 @@ checklink/cookies.txt
 .quarto
 
 # User custom
-data_sets/*
+data/*
 .pisces/*
 .venv/*
 wearOS-sensor-analysis/*

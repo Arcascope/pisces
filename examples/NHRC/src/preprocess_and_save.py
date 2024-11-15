@@ -35,7 +35,7 @@ SECONDS_PER_KERNEL = 5 * 60
 ACTIVITY_KERNEL_WIDTH = SECONDS_PER_KERNEL * ACTIVITY_HZ
 ACTIVITY_KERNEL_WIDTH += 1 - (ACTIVITY_KERNEL_WIDTH % 2)  # Ensure it is odd
 # DATA_LOCATION = Path('/Users/ojwalch/Documents/eric-pisces/datasets')
-DATA_LOCATION = Path('/Users/eric/Engineering/Work/pisces/data_sets')
+DATA_LOCATION = Path('/Users/eric/Engineering/Work/pisces/data')
 
 
 def clean_and_save_accelerometer_data():

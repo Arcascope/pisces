@@ -12,7 +12,7 @@ import numpy as np
 import tensorflow as tf
 
 from examples.NHRC.nhrc_utils.model_definitions import LR_POST_PAD, LR_PRE_PAD, EXTRA_LOWER, LR_LOWER, cnn_pred_proba, lr_cnn_pred_proba, naive_pred_proba
-from pisces.models import load_saved_keras
+from pisces.mads_olsen_support import load_saved_keras
 
 ID_COLUMN = 'test_id'
 THRESHOLD = 'threshold'
