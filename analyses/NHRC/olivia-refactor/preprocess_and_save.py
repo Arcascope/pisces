@@ -20,9 +20,6 @@ from analyses.NHRC.nhrc_utils.model_definitions import LR_ACTIVITY_INPUTS
 
 plt.rcParams['font.family'] = 'Arial'
 
-# use "dyn" for resampling basd on avg Hz per recording
-# use a number for fixed resampling
-
 FIXED_LABEL_LENGTH = 1024
 FIXED_SPECGRAM_SHAPE = (15360, 32)
 
@@ -37,16 +34,15 @@ PSG_HZ = 1/PSG_DT
 SECONDS_PER_KERNEL = 5 * 60
 ACTIVITY_KERNEL_WIDTH = SECONDS_PER_KERNEL * ACTIVITY_HZ
 ACTIVITY_KERNEL_WIDTH += 1 - (ACTIVITY_KERNEL_WIDTH % 2)  # Ensure it is odd
+# DATA_LOCATION = Path('/Users/ojwalch/Documents/eric-pisces/datasets')
+DATA_LOCATION = Path('/Users/eric/Engineering/Work/pisces/data_sets')
 
 
 def clean_and_save_accelerometer_data():
     '''Used to convert raw acceleration from PhysioNet into CSV format'''
-    input_dir = Path(
-        ('/Users/ojwalch/Documents/eric-pisces/datasets/walch_et_al/'
-         'cleaned_accelerometer'))
-    output_dir = Path(
-        ('/Users/ojwalch/Documents/eric-pisces/datasets/walch_et_al/'
-         'processed_accelerometer'))
+    walch_et_al_dir = DATA_LOCATION.joinpath('walch_et_al')
+    input_dir = walch_et_al_dir.joinpath('cleaned_accelerometer')
+    output_dir = walch_et_al_dir.joinpath('processed_accelerometer')
     output_dir.mkdir(parents=True, exist_ok=True)
 
     for file in input_dir.glob('*_acceleration.txt'):
@@ -175,11 +171,9 @@ def do_preprocessing():
     # clean_and_save_accelerometer_data()
 
     start_run = time.time()
-    # data_location = Path('/Users/ojwalch/Documents/eric-pisces/datasets')
-    data_location = Path('/Users/eric/Engineering/Work/pisces/data_sets')
-    print("data_location: ", data_location)
+    print("data_location: ", DATA_LOCATION)
 
-    sets = DataSetObject.find_data_sets(data_location)
+    sets = DataSetObject.find_data_sets(DATA_LOCATION)
     walch = sets['walch_et_al']
     walch.parse_data_sets()
     print(f"Found {len(walch.ids)} subjects")
