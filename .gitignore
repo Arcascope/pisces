@@ -157,14 +157,7 @@ data_sets/*
 .venv/*
 wearOS-sensor-analysis/*
 *.npy
-analyses/NHRC/fine_tuning/walch/*.png
 *.tfevents.*
-analyses/NHRC/*.png
-analyses/NHRC/*.csv
-analyses/NHRC/evaluations/models/*.keras
-analyses/NHRC/evaluations/*.png
 pisces/cached_models/*.keras
-analyses/NHRC/debug_plots/*.png
 *.png
-deep_sleep_acc_AUC.png
 examples/NHRC/evaluations/models/*.keras
