@@ -4,7 +4,7 @@
 __all__ = ['WASA_THRESHOLD', 'BALANCE_WEIGHTS', 'determine_header_rows_and_delimiter', 'build_ADS',
            'build_activity_counts_te_Lindert_et_al', 'ActivityCountAlgorithm', 'build_activity_counts',
            'plot_scores_CDF', 'plot_scores_PDF', 'constant_interp', 'avg_steps', 'add_rocs', 'pad_to_hat', 'mae_func',
-           'Constants', 'SleepMetricsCalculator', 'split_analysis']
+           'resample_accel_data', 'Constants', 'SleepMetricsCalculator', 'split_analysis']
 
 # %% ../nbs/00_utils.ipynb 4
 import csv
@@ -12,6 +12,7 @@ import os
 import time
 import warnings
 import numpy as np
+import polars as pl
 from pathlib import Path
 from enum import Enum, auto
 from functools import partial
@@ -77,8 +78,8 @@ def determine_header_rows_and_delimiter(
 
 # %% ../nbs/00_utils.ipynb 8
 def build_ADS(
-    time_xyz: np.ndarray,
-    sampling_hz: float = 50.0,
+    time_xyz: pl.DataFrame | np.ndarray,
+    resample_hz: float | None = None,
     bin_size_seconds: float = 15,
     prefix: str = "",
 ) -> Tuple[np.ndarray, np.ndarray]:
@@ -87,29 +88,42 @@ def build_ADS(
     Parameters
     ---
      - `time_xyz`: numpy array with shape (N_samples, 4) where the 4 coordinates are: [time, x, y, z] 
-     - `sampling_hz`: `float` sampling frequency of thetime_xyz 
+     - `resample_hz`: `float` sampling frequency of thetime_xyz 
     """
     data_shape_error = ValueError(
             f"`time_xyz` must have shape (N_samples, 4) but has shape {time_xyz.shape}"
         )
     try:
         assert (len(time_xyz.shape) == 2 and time_xyz.shape[1] == 4)
-    except AssertionError:
-        raise data_shape_error
+    except AssertionError as exc:
+        raise data_shape_error from exc
 
-    time_data_raw = time_xyz[:, 0].to_numpy()
-    x_accel = time_xyz[:, 1].to_numpy()
-    y_accel = time_xyz[:, 2].to_numpy()
-    z_accel = time_xyz[:, 3].to_numpy()
+    if isinstance(time_xyz, pl.DataFrame):
+        time_data_raw = time_xyz[:, 0].to_numpy()
+        x_accel = time_xyz[:, 1].to_numpy()
+        y_accel = time_xyz[:, 2].to_numpy()
+        z_accel = time_xyz[:, 3].to_numpy()
+    elif isinstance(time_xyz, np.ndarray):
+        time_data_raw = time_xyz[:, 0]
+        x_accel = time_xyz[:, 1]
+        y_accel = time_xyz[:, 2]
+        z_accel = time_xyz[:, 3]
+    else:
+        raise ValueError(f"Unsupported type for `time_xyz`: {type(time_xyz)}")
 
     # Interpolate to sampling Hz
-    time_values = np.arange(
-        np.amin(time_data_raw), np.amax(time_data_raw), 1 / sampling_hz
-    )
-    # Must do each coordinate separately
-    x_data = np.interp(time_values, time_data_raw, x_accel)
-    y_data = np.interp(time_values, time_data_raw, y_accel)
-    z_data = np.interp(time_values, time_data_raw, z_accel)
+    time_values = time_data_raw
+    x_data = x_accel
+    y_data = y_accel
+    z_data = z_accel
+    if resample_hz is not None:
+        time_values = np.arange(
+            np.amin(time_data_raw), np.amax(time_data_raw), 1 / resample_hz
+        )
+        # Must do each coordinate separately
+        x_data = np.interp(time_values, time_data_raw, x_accel)
+        y_data = np.interp(time_values, time_data_raw, y_accel)
+        z_data = np.interp(time_values, time_data_raw, z_accel)
 
     # Calculate "amplitude" = timeseries of 2-norm of (x, y, z)
     amplitude = np.linalg.norm(np.array([x_data, y_data, z_data]), axis = 0)
@@ -166,8 +180,12 @@ def build_activity_counts_te_Lindert_et_al(
 
         return epoch_data
     
+    # sort by time
+    sort_idx = np.argsort(time_xyz[:, 0])
+    time_xyz = time_xyz[sort_idx]
+    
     fs = 50
-    time = np.arange(np.amin(time_xyz[:, 0]), np.amax(time_xyz[:, 0]), 1.0 / fs)
+    time = np.arange(time_xyz[0, 0], time_xyz[-1, 0], 1.0 / fs)
     z_data = np.interp(time, time_xyz[:, 0], time_xyz[:, axis])
 
     cf_low = 3
@@ -192,7 +210,7 @@ def build_activity_counts_te_Lindert_et_al(
     counts = (counts - 18) * 3.07
     counts[counts < 0] = 0
 
-    time_counts = np.linspace(np.min(time_xyz[:, 0]), max(time_xyz[:, 0]), np.shape(counts)[0])
+    time_counts = np.linspace(time_xyz[0, 0], time_xyz[-1, 0], np.shape(counts)[0])
     time_counts = np.expand_dims(time_counts, axis=1)
     counts = np.expand_dims(counts, axis=1)
 
@@ -424,7 +442,38 @@ def mae_func(
     return sum(aes) / len(aes)
 
 
-# %% ../nbs/00_utils.ipynb 19
+# %% ../nbs/00_utils.ipynb 18
+from scipy.signal import resample_poly
+
+def resample_accel_data(accel_data: np.ndarray, original_fs: int, target_fs: int) -> np.ndarray:
+    # Calculate the greatest common divisor for up/down sampling rates
+    up = target_fs
+    down = original_fs
+    gcd = np.gcd(int(up), int(down))
+    up = int(up // gcd)
+    down = int(down // gcd)
+
+    accel_resampled_time = np.arange(accel_data[0, 0], accel_data[-1, 0], 1/original_fs)
+
+    accel_resampled = np.zeros((len(accel_resampled_time), accel_data.shape[1]))
+    accel_resampled[:, 0] = accel_resampled_time
+
+    for i in range(1, accel_data.shape[1]):
+        accel_resampled[:, i] = np.interp(accel_resampled_time, accel_data[:, 0], accel_data[:, i])
+    
+    # Resample data (excluding the time column)
+    resampled_data = resample_poly(accel_resampled[:, 1:], up, down, axis=0)
+    
+    # Recompute the time vector
+    duration = accel_data[-1, 0] - accel_data[0, 0]
+    num_samples = resampled_data.shape[0]
+    new_time = np.linspace(accel_resampled_time[0], accel_resampled_time[-1], num_samples)
+    
+    # Combine the new time vector with the resampled data
+    resampled_accel_data = np.column_stack((new_time, resampled_data))
+    return resampled_accel_data
+
+# %% ../nbs/00_utils.ipynb 20
 class Constants:
     # WAKE_THRESHOLD = 0.3  # These values were used for scikit-learn 0.20.3, See:
     # REM_THRESHOLD = 0.35  # https://scikit-learn.org/stable/whats_new.html#version-0-21-0
@@ -528,7 +577,7 @@ class SleepMetricsCalculator:
 
         return res
 
-# %% ../nbs/00_utils.ipynb 21
+# %% ../nbs/00_utils.ipynb 22
 WASA_THRESHOLD = 0.93
 BALANCE_WEIGHTS = True
 

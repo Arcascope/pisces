@@ -109,11 +109,17 @@ def train_pipeline(classifier: SleepWakeClassifier,
     else:
         # we know that examples_X and examples_y are both truthy, hence non-empty lists
         assert (len(examples_X) == len(examples_y))
+    
+    examples_y = [
+        y.reshape(1, -1, ) if len(y.shape) == 1 or y.shape[1] == 1 else y 
+        for y in examples_y
+    ]
 
 
     Xs = np.concatenate(examples_X, axis=0)
     ys = np.concatenate(examples_y, axis=0)
     print(f"Training on {len(Xs)} examples")
+    print(f"Training on labels with shape {ys.shape}")
 
     selector = ys >= 0
 
@@ -226,38 +232,42 @@ class MOResUNetPretrained(SleepWakeClassifier):
             data_processor (DataProcessor, optional): The data processor to use.
             model (keras.Model, optional): The TensorFlow model to use. Defaults to None, in which case the model is loaded from disk.
         """
+        self.initial_lr = initial_lr
         if data_processor is not None:
             if not isinstance(data_processor.model_input, ModelInputSpectrogram):
                 raise ValueError("Model input must be set to Spectrogram on the data processor")
 
-        if model is None and not lazy_model_loading:
-            tf_model = load_saved_keras()
-        else:
-            tf_model = model
-
-
         super().__init__(
-            model=tf_model,
+            model=None,
             data_processor=data_processor,
         )
 
-        if self.model is not None:
-            self.model.compile(
-                optimizer=keras.optimizers.RMSprop(learning_rate=initial_lr), 
-                loss=keras.losses.SparseCategoricalCrossentropy(),
-                metrics=[keras.metrics.SparseCategoricalAccuracy()],
-                weighted_metrics=[])
-        
+        self.model = model
+        if model is None and not lazy_model_loading:
+            self.load_model(force=True)
+
         # set up training params using the named step format of a pipeline.fit **kwargs
         self.training_params = {
             f'{self.model_pipeline_name}__validation_split': validation_split,
             f'{self.model_pipeline_name}__epochs': epochs,
             f'{self.model_pipeline_name}__batch_size': batch_size
         }
-
+            
+    def load_model(self, force: bool=True) -> None:
+        if self.model is not None and not force:
+            return
+        self.model = load_saved_keras()
         self.pipeline = Pipeline([
             (self.model_pipeline_name, self.model)
         ])
+        if self.model is not None:
+            self.model.compile(
+                optimizer=keras.optimizers.RMSprop(learning_rate=self.initial_lr),
+                loss=keras.losses.SparseCategoricalCrossentropy(),
+                metrics=[keras.metrics.SparseCategoricalAccuracy()],
+                weighted_metrics=[])
+        else:
+            raise ValueError("Model could not be loaded.")
 
     def prepare_set_for_training(self, 
                                  ids: List[str],
@@ -309,55 +319,18 @@ class MOResUNetPretrained(SleepWakeClassifier):
         return np.argmax(self.predict_probabilities(sample_X), axis=1)
 
     def predict_probabilities(self, sample_X: np.ndarray | pl.DataFrame) -> np.ndarray:
+        return softmax(self.predict_logits(sample_X), axis=1)
+    
+    def predict_logits(self, sample_X: np.ndarray | pl.DataFrame) -> np.ndarray:
         if isinstance(sample_X, pl.DataFrame):
             sample_X = sample_X.to_numpy()
-        return softmax(self._evaluate_tf_model(sample_X)[0], axis=1)
+        return self._evaluate_tf_model(sample_X)
 
     def _evaluate_tf_model(self, inputs: np.ndarray) -> np.ndarray:
         inputs = inputs.astype(np.float32)
         preds = self.model.predict(inputs)
         return preds
 
-    def evaluate_data_set(self, 
-                          exclude: List[str] = [], 
-                          max_workers: int = None) -> Tuple[Dict[str, dict], list]:
-        data_set = self.data_processor.data_set
-        filtered_ids = [id for id in data_set.ids if id not in exclude]
-        # Prepare the data
-        print("Preprocessing data...")
-        mo_preprocessed_data = [
-            (d, i) 
-            for (d, i) in zip(
-                self.prepare_set_for_training(filtered_ids, max_workers=max_workers),
-                filtered_ids) 
-            if d is not None
-        ]
-
-        print("Evaluating data set...")
-        evaluations: Dict[str, dict] = {}
-        for _, ((X, y_true), id) in tqdm(enumerate(mo_preprocessed_data)):
-            y_prob = self.predict_probabilities(X)
-            m = keras.metrics.SparseCategoricalAccuracy()
-            # Remove masked values
-            selector = y_true >= 0
-            y_true_filtered = y_true[selector]
-            y_prob_filtered = y_prob[selector]
-            # Calculate sample weights
-            unique, counts = np.unique(y_true_filtered, return_counts=True)
-            class_weights = dict(zip(unique, counts))
-            inv_class_weights = {k: 1.0 / v for k, v in class_weights.items()}
-            min_weight = min(inv_class_weights.values())
-            normalized_weights = {k: v / min_weight for k, v in inv_class_weights.items()}
-            sample_weights = np.array([normalized_weights[class_id] for class_id in y_true_filtered])
-            # Sparse categorical accuracy
-            y_true_reshaped = y_true_filtered.reshape(-1, 1)
-            m.update_state(y_true_reshaped, y_prob_filtered, sample_weight=sample_weights)
-            accuracy = m.result().numpy()
-            evaluations[id] = {
-                'sparse_categorical_accuracy': accuracy,
-            }
-
-        return evaluations, mo_preprocessed_data
 
 # %% ../nbs/02_models.ipynb 17
 class SplitMaker:
@@ -370,15 +343,17 @@ class LeaveOneOutSplitter(SplitMaker):
         return loo.split(ids)
 
 
-def run_split(train_indices, 
-              preprocessed_data_set: List[Tuple[np.ndarray, np.ndarray]], 
+def run_split(train_indices,
+              preprocessed_data_set: List[Tuple[np.ndarray, np.ndarray]],
               swc: SleepWakeClassifier,
-              epochs: int) -> SleepWakeClassifier:
+              epochs: int) -> Tuple[SleepWakeClassifier, List[float]]:
     training_pairs = [
-        [preprocessed_data_set[i][0][0], preprocessed_data_set[i][0][1].reshape(1, -1)]
+        # [preprocessed_data_set[i][0], preprocessed_data_set[i][1].reshape(1, -1)]
+        [preprocessed_data_set[i][0], preprocessed_data_set[i][1]]
         for i in train_indices
-        if preprocessed_data_set[i][0] is not None
+        if preprocessed_data_set.get(i) is not None
     ]
+    print(f"Training on labels with shape {training_pairs[0][1].shape}")
     if isinstance(swc, MOResUNetPretrained):
         extra_params = {
             f'{swc.model_pipeline_name}__epochs': epochs,

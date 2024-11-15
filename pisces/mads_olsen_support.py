@@ -2,8 +2,8 @@
 
 # %% auto 0
 __all__ = ['FS', 'CHANNELS', 'DEPTH', 'N_OUT', 'N_CLASSES', 'MO_UNET_CONFIG', 'MO_PREPROCESSING_CONFIG', 'median', 'clip_by_iqr',
-           'iqr_normalization_adaptive', 'cal_psd', 'load_saved_keras', 'factory_ResUNet', 'conv_block',
-           'determine_depth', 'pisces_setup']
+           'iqr_normalization_adaptive', 'cal_psd', 'load_saved_keras', 'mo_accelerometer_to_spectrogram',
+           'factory_ResUNet', 'conv_block', 'determine_depth', 'pisces_setup']
 
 # %% ../nbs/03_mads_olsen_support.ipynb 4
 import os
@@ -49,8 +49,9 @@ def median(x, fs, window_size):
 
         x_pd = pd.Series(x[:, idx])
         med_ = x_pd.rolling(window).median()
-        x_med[int(window / 2) : -int(window / 2)] = med_[window - 1 :]
+        # first window-1 values are nan
         x_med[: int(window / 2)] = med_[window - 1]
+        x_med[int(window / 2) : -int(window / 2)] = med_[window - 1 :]
         x_med[-int(window / 2) :] = med_[-1:]
 
         x_med[np.isnan(x_med)] = 0  # remove nan
@@ -86,15 +87,11 @@ def iqr_normalization_adaptive(x, fs, median_window, iqr_window):
         )
 
         # preallocation
-        x_med = np.ones((x.shape)) * np.median(x_)
         x_iqr_up = np.ones((x.shape)) * np.quantile(x_, iqr_upper)
         x_iqr_lo = np.ones((x.shape)) * np.quantile(x_, iqr_lower)
 
         # find rolling median
         x_pd = pd.Series(x_)
-        med_ = x_pd.rolling(med_window).median()
-        x_med[int(med_window / 2) : -int(med_window / 2)] = med_[med_window - 1 :]
-        x_med[np.isnan(x_med)] = 0  # remove nan
 
         # find rolling quantiles
         x_iqr_upper = x_pd.rolling(iqr_window).quantile(iqr_upper)
@@ -201,6 +198,39 @@ MO_PREPROCESSING_CONFIG = {
         },
     ]
 }
+
+
+def mo_accelerometer_to_spectrogram(self, accelerometer: pl.DataFrame | np.ndarray) -> np.ndarray:
+    """
+    Implementation by Mads Olsen at https://github.com/MADSOLSEN/SleepStagePrediction
+    with minor modifications.
+    """
+    if isinstance(accelerometer, pl.DataFrame):
+        acc = accelerometer.to_numpy()
+    elif isinstance(accelerometer, np.ndarray):
+        acc = accelerometer
+    else:
+        raise ValueError("accelerometer must be a numpy array or polars DataFrame")
+
+    x_ = acc[:, 1]
+    y_ = acc[:, 2]
+    z_ = acc[:, 3]
+
+    for step in MO_PREPROCESSING_CONFIG:
+        fn = eval(step["type"])  # convert string version to function in environment
+        fn_args = partial(
+            fn, **step["args"]
+        )  # fill in the args given, which must be everything besides numerical input
+
+        # apply
+        x_ = fn_args(x_)
+        y_ = fn_args(y_)
+        z_ = fn_args(z_)
+
+    spec = x_ + y_ + z_
+    spec /= 3.0
+
+    return spec
 
 # %% ../nbs/03_mads_olsen_support.ipynb 7
 def factory_ResUNet(input_shape,
