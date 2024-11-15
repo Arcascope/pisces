@@ -13,6 +13,8 @@ from tensorflow.keras.callbacks import TensorBoard
 from sklearn.calibration import expit
 import time
 from constants import ACC_HZ as acc_hz
+import os
+import keras
 
 
 # This is producing weird results for me
@@ -60,7 +62,7 @@ def train_logreg(static_keys, static_data_bundle, hybrid_data_bundle):
         lr_cnn = build_lr_cnn()
         weighted_lr_cnn = WeightedModel(lr_cnn)
         weighted_lr_cnn.compile(
-            optimizer=tf.keras.optimizers.AdamW(learning_rate=1e-3),
+            optimizer=keras.optimizers.AdamW(learning_rate=1e-3),
         )
 
         dataset = tf.data.Dataset.from_tensor_slices(
@@ -147,8 +149,8 @@ def train_cnn(static_keys, static_data_bundle, hybrid_data_bundle):
         cnn = build_finetuning_model(FINETUNING_INPUT_SHAPE[1:])
 
         cnn.compile(
-            loss=tf.keras.losses.BinaryCrossentropy(from_logits=True),
-            optimizer=tf.keras.optimizers.AdamW(learning_rate=5e-4),
+            loss=keras.losses.BinaryCrossentropy(from_logits=True),
+            optimizer=keras.optimizers.AdamW(learning_rate=5e-4),
         )
 
         # gives weight 0 to -1 "mask" intervals, 1 to the rest
@@ -183,7 +185,8 @@ def train_cnn(static_keys, static_data_bundle, hybrid_data_bundle):
         test_pred = expit(test_prediction_raw).reshape(-1,)
         test_pred_path = (static_keys[k_test[0]]) + \
             f"_cnn_pred_static_{acc_hz}.npy"
-        np.save("saved_outputs/" + test_pred_path, test_pred)
+        os.makedirs("./saved_outputs", exist_ok=True)
+        np.save("./saved_outputs/" + test_pred_path, test_pred)
 
         # Repeat for hybrid data
         # Evaluate the model on the test data

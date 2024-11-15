@@ -175,7 +175,8 @@ def do_preprocessing():
     # clean_and_save_accelerometer_data()
 
     start_run = time.time()
-    data_location = Path('/Users/ojwalch/Documents/eric-pisces/datasets')
+    # data_location = Path('/Users/ojwalch/Documents/eric-pisces/datasets')
+    data_location = Path('/Users/eric/Engineering/Work/pisces/data_sets')
     print("data_location: ", data_location)
 
     sets = DataSetObject.find_data_sets(data_location)

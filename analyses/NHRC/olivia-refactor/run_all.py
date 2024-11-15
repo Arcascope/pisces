@@ -7,8 +7,8 @@ if __name__ == "__main__":
     start_time = time.time()
 
     # do_preprocessing()
-    # load_and_train()
-    # create_histogram("naive")
+    load_and_train()
+    create_histogram("naive")
     create_histogram("lr")
     create_histogram("finetune")
     end_time = time.time()

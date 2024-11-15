@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -162,6 +163,7 @@ def plot_single_person(static_predictions,
     plt.suptitle(title, fontsize=8)
     plt.tight_layout()
 
+    os.makedirs("debug", exist_ok=True)
     plt.savefig(f"debug/{run_mode}_{name}.png", dpi=200)
 
 
@@ -226,6 +228,8 @@ def create_histogram(run_mode="naive"):
 
     for i, key in enumerate(static_keys):
         print(f"Comparing {key}")
+        static_predictions: np.ndarray
+        hybrid_predictions: np.ndarray
 
         if run_mode == "lr":
             static_predictions, hybrid_predictions = get_logreg_data(
