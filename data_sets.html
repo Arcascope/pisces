@@ -1,0 +1,1225 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.5.57">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>Data sets – pisces</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="site_libs/quarto-nav/headroom.min.js"></script>
+<script src="site_libs/clipboard/clipboard.min.js"></script>
+<script src="site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="site_libs/quarto-search/fuse.min.js"></script>
+<script src="site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="./">
+<script src="site_libs/quarto-html/quarto.js"></script>
+<script src="site_libs/quarto-html/popper.min.js"></script>
+<script src="site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="site_libs/quarto-html/anchor.min.js"></script>
+<link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="site_libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+<script id="quarto-search-options" type="application/json">{
+  "location": "navbar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "end",
+  "type": "overlay",
+  "limit": 50,
+  "keyboard-shortcut": [
+    "f",
+    "/",
+    "s"
+  ],
+  "show-item-context": false,
+  "language": {
+    "search-no-results-text": "No results",
+    "search-matching-documents-text": "matching documents",
+    "search-copy-link-title": "Copy link to search",
+    "search-hide-matches-text": "Hide additional matches",
+    "search-more-match-text": "more match in this document",
+    "search-more-matches-text": "more matches in this document",
+    "search-clear-button-title": "Clear",
+    "search-text-placeholder": "",
+    "search-detached-cancel-button-title": "Cancel",
+    "search-submit-button-title": "Submit",
+    "search-label": "Search"
+  }
+}</script>
+
+
+<link rel="stylesheet" href="styles.css">
+<meta property="og:title" content="Data sets – pisces">
+<meta property="og:description" content="Pipeline for sleep classification and evaluation">
+<meta property="og:site_name" content="pisces">
+<meta name="twitter:title" content="Data sets – pisces">
+<meta name="twitter:description" content="Pipeline for sleep classification and evaluation">
+<meta name="twitter:card" content="summary">
+</head>
+
+<body class="nav-sidebar floating nav-fixed">
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top">
+    <nav class="navbar navbar-expand-lg " data-bs-theme="dark">
+      <div class="navbar-container container-fluid">
+      <div class="navbar-brand-container mx-auto">
+    <a class="navbar-brand" href="./index.html">
+    <span class="navbar-title">pisces</span>
+    </a>
+  </div>
+        <div class="quarto-navbar-tools tools-end">
+</div>
+          <div id="quarto-search" class="" title="Search"></div>
+      </div> <!-- /container-fluid -->
+    </nav>
+  <nav class="quarto-secondary-nav">
+    <div class="container-fluid d-flex">
+      <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+        <i class="bi bi-layout-text-sidebar-reverse"></i>
+      </button>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./data_sets.html">Data sets</a></li></ol></nav>
+        <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
+        </a>
+    </div>
+  </nav>
+</header>
+<!-- content -->
+<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
+<!-- sidebar -->
+  <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation floating overflow-auto">
+    <div class="sidebar-menu-container"> 
+    <ul class="list-unstyled mt-1">
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">pisces</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./utils.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Utils</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./data_sets.html" class="sidebar-item-text sidebar-link active">
+ <span class="menu-text">Data sets</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./models.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Data sets and models</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./mads_olsen_support.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Support code for Mads Olsen’s group’s model</span></a>
+  </div>
+</li>
+    </ul>
+    </div>
+</nav>
+<div id="quarto-sidebar-glass" class="quarto-sidebar-collapse-item" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item"></div>
+<!-- margin-sidebar -->
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+        <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">On this page</h2>
+   
+  <ul>
+  <li><a href="#data-set-discovery-using-prefix-trees" id="toc-data-set-discovery-using-prefix-trees" class="nav-link active" data-scroll-target="#data-set-discovery-using-prefix-trees">Data set discovery using Prefix Trees</a>
+  <ul class="collapse">
+  <li><a href="#idextractor" id="toc-idextractor" class="nav-link" data-scroll-target="#idextractor">IdExtractor</a></li>
+  <li><a href="#simplifiableprefixtree" id="toc-simplifiableprefixtree" class="nav-link" data-scroll-target="#simplifiableprefixtree">SimplifiablePrefixTree</a></li>
+  <li><a href="#datasetobject" id="toc-datasetobject" class="nav-link" data-scroll-target="#datasetobject">DataSetObject</a></li>
+  <li><a href="#psg_to_wldm" id="toc-psg_to_wldm" class="nav-link" data-scroll-target="#psg_to_wldm">psg_to_WLDM</a></li>
+  <li><a href="#to_wldm" id="toc-to_wldm" class="nav-link" data-scroll-target="#to_wldm">to_WLDM</a></li>
+  <li><a href="#psg_to_sleep_wake" id="toc-psg_to_sleep_wake" class="nav-link" data-scroll-target="#psg_to_sleep_wake">psg_to_sleep_wake</a></li>
+  <li><a href="#modelinputspectrogram" id="toc-modelinputspectrogram" class="nav-link" data-scroll-target="#modelinputspectrogram">ModelInputSpectrogram</a></li>
+  <li><a href="#modelinput1d" id="toc-modelinput1d" class="nav-link" data-scroll-target="#modelinput1d">ModelInput1D</a></li>
+  <li><a href="#modelinput" id="toc-modelinput" class="nav-link" data-scroll-target="#modelinput">ModelInput</a></li>
+  <li><a href="#psgtype" id="toc-psgtype" class="nav-link" data-scroll-target="#psgtype">PSGType</a></li>
+  <li><a href="#modeloutputtype" id="toc-modeloutputtype" class="nav-link" data-scroll-target="#modeloutputtype">ModelOutputType</a></li>
+  <li><a href="#psg_to_wldm-1" id="toc-psg_to_wldm-1" class="nav-link" data-scroll-target="#psg_to_wldm-1">psg_to_WLDM</a></li>
+  <li><a href="#to_wldm-1" id="toc-to_wldm-1" class="nav-link" data-scroll-target="#to_wldm-1">to_WLDM</a></li>
+  <li><a href="#psg_to_sleep_wake-1" id="toc-psg_to_sleep_wake-1" class="nav-link" data-scroll-target="#psg_to_sleep_wake-1">psg_to_sleep_wake</a></li>
+  <li><a href="#modelinputspectrogram-1" id="toc-modelinputspectrogram-1" class="nav-link" data-scroll-target="#modelinputspectrogram-1">ModelInputSpectrogram</a></li>
+  <li><a href="#modelinput1d-1" id="toc-modelinput1d-1" class="nav-link" data-scroll-target="#modelinput1d-1">ModelInput1D</a></li>
+  <li><a href="#modelinput-1" id="toc-modelinput-1" class="nav-link" data-scroll-target="#modelinput-1">ModelInput</a></li>
+  <li><a href="#psgtype-1" id="toc-psgtype-1" class="nav-link" data-scroll-target="#psgtype-1">PSGType</a></li>
+  <li><a href="#modeloutputtype-1" id="toc-modeloutputtype-1" class="nav-link" data-scroll-target="#modeloutputtype-1">ModelOutputType</a></li>
+  <li><a href="#fill_gaps_in_accelerometer_data" id="toc-fill_gaps_in_accelerometer_data" class="nav-link" data-scroll-target="#fill_gaps_in_accelerometer_data">fill_gaps_in_accelerometer_data</a></li>
+  <li><a href="#apply_gausian_filter" id="toc-apply_gausian_filter" class="nav-link" data-scroll-target="#apply_gausian_filter">apply_gausian_filter</a></li>
+  <li><a href="#mask_psg_from_accel" id="toc-mask_psg_from_accel" class="nav-link" data-scroll-target="#mask_psg_from_accel">mask_psg_from_accel</a></li>
+  <li><a href="#get_sample_weights" id="toc-get_sample_weights" class="nav-link" data-scroll-target="#get_sample_weights">get_sample_weights</a></li>
+  <li><a href="#dataprocessor" id="toc-dataprocessor" class="nav-link" data-scroll-target="#dataprocessor">DataProcessor</a></li>
+  </ul></li>
+  </ul>
+<div class="toc-actions"><ul><li><a href="https://github.com/Arcascope/pisces/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></nav>
+    </div>
+<!-- main -->
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">Data sets</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<!-- WARNING: THIS FILE WAS AUTOGENERATED! DO NOT EDIT! -->
+<section id="data-set-discovery-using-prefix-trees" class="level2">
+<h2 class="anchored" data-anchor-id="data-set-discovery-using-prefix-trees">Data set discovery using Prefix Trees</h2>
+<p>Data sets are discovered based on being folders within the provided data set root directory which contain subdirectories that start with <code>cleaned_</code>.</p>
+<p>Once the data sets are discovered, we take the <code>cleaned_&lt;feature&gt;</code> subdirectories and use the <code>&lt;feature&gt;</code> as the feature name.</p>
+<p>Then we take the files within the <code>cleaned_&lt;feature&gt;</code> subdirectories and discover the ids that data set has for that feature. These do not need to be the same across features, hence all of our data getters might also return <code>None</code>.</p>
+<p>Automagic ID discovery is done using a prefix tree, which is a data structure that allows for efficient searching of strings based on their prefixes.</p>
+<hr>
+<p><a href="https://github.com/Arcascope/pisces/blob/main/pisces/data_sets.py#L166" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="idextractor" class="level3">
+<h3 class="anchored" data-anchor-id="idextractor">IdExtractor</h3>
+<blockquote class="blockquote">
+<pre><code> IdExtractor (delimiter:str='', key:str='')</code></pre>
+</blockquote>
+<p>*Class extending the prefix trees that incorporates the algorithm for extracting IDs from a list of file names. The algorithm is somewhat oblique, so it’s better to just use the <code>extract_ids</code> method versus trying to use the prfix trees directly at the call site.</p>
+<p>The algorithm is based on the assumption that the IDs are the same across all file names, but that the file names may have different suffixes. The algorithm reverses the file names, inserts them into the tree, and then simplifes and flattens that tree in order to find the IDs as leaves of that simplified tree.</p>
+<ol type="1">
+<li>Insert the file name string into the tree, but with each string <strong>reversed</strong>.</li>
+<li>Simplify the tree, combining nodes with only one child.</li>
+<li>There may be unexpected suffix matches for these IDs, so we flatten the tree to depth 1, meaning all children of the root are combined to make leaves.</li>
+<li>The leaves are the IDs we want to extract. However, we must reverse these leaf keys to get the original IDs, since we reversed the file names in step 1.</li>
+</ol>
+<p>TODO: * If we want to find IDs for files with differing prefixes instead, we should instead insert the file names NOT reversed and then NOT reverse in the last step.</p>
+<ul>
+<li>To handle IDs that appear in the middle of file names, we can use both methods to come up with a list of potential IDs based on prefix and suffix, then figure out the “intersection” of those lists. (Maybe using another prefix tree?)*</li>
+</ul>
+<hr>
+<p><a href="https://github.com/Arcascope/pisces/blob/main/pisces/data_sets.py#L28" target="_blank" style="float:right; font-size:smaller">source</a></p>
+</section>
+<section id="simplifiableprefixtree" class="level3">
+<h3 class="anchored" data-anchor-id="simplifiableprefixtree">SimplifiablePrefixTree</h3>
+<blockquote class="blockquote">
+<pre><code> SimplifiablePrefixTree (delimiter:str='', key:str='')</code></pre>
+</blockquote>
+<p><em>A standard prefix tree with the ability to “simplify” itself by combining nodes with only one child. These also have the ability to “flatten” themselves, which means to convert all nodes at and below a certain depth into leaves on the most recent ancestor of that depth.</em></p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 6%">
+<col style="width: 25%">
+<col style="width: 34%">
+<col style="width: 34%">
+</colgroup>
+<thead>
+<tr class="header">
+<th></th>
+<th><strong>Type</strong></th>
+<th><strong>Default</strong></th>
+<th><strong>Details</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>delimiter</td>
+<td>str</td>
+<td></td>
+<td>The delimiter to use when splitting words into characters. If empty, the words are treated as sequences of characters.</td>
+</tr>
+<tr class="even">
+<td>key</td>
+<td>str</td>
+<td></td>
+<td>The key of the current node in its parent’s <code>.children</code> dictionary. If empty, the node is (likely) the root of the tree.</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<p><a href="https://github.com/Arcascope/pisces/blob/main/pisces/data_sets.py#L233" target="_blank" style="float:right; font-size:smaller">source</a></p>
+</section>
+<section id="datasetobject" class="level3">
+<h3 class="anchored" data-anchor-id="datasetobject">DataSetObject</h3>
+<blockquote class="blockquote">
+<pre><code> DataSetObject (name:str, path:pathlib.Path)</code></pre>
+</blockquote>
+<p><em>Initialize self. See help(type(self)) for accurate signature.</em></p>
+<hr>
+<p><a href="https://github.com/Arcascope/pisces/blob/main/pisces/data_sets.py#L535" target="_blank" style="float:right; font-size:smaller">source</a></p>
+</section>
+<section id="psg_to_wldm" class="level3">
+<h3 class="anchored" data-anchor-id="psg_to_wldm">psg_to_WLDM</h3>
+<blockquote class="blockquote">
+<pre><code> psg_to_WLDM (psg:polars.dataframe.frame.DataFrame, N4:bool=True)</code></pre>
+</blockquote>
+<p>** map all positive classes as follows: If N4 is True: - 1, 2 =&gt; 1 (light sleep) - 3, 4 =&gt; 2 (deep sleep) - 5 =&gt; 3 (REM) If N4 is False: - 1, 2 =&gt; 1 (light sleep) - 3 =&gt; 2 (deep sleep) - 4 =&gt; 3 (REM) * retain all 0 (wake) and -1 (mask) classes*</p>
+<hr>
+<p><a href="https://github.com/Arcascope/pisces/blob/main/pisces/data_sets.py#L516" target="_blank" style="float:right; font-size:smaller">source</a></p>
+</section>
+<section id="to_wldm" class="level3">
+<h3 class="anchored" data-anchor-id="to_wldm">to_WLDM</h3>
+<blockquote class="blockquote">
+<pre><code> to_WLDM (x:float, N4:bool=True)</code></pre>
+</blockquote>
+<p><em>Map sleep stages to wake, light, deep, and REM sleep. Retain masked values. If N4 stage is not present, PSG=4 is mapped to REM. Otherwise it is mapped to deep sleep.</em></p>
+<hr>
+<p><a href="https://github.com/Arcascope/pisces/blob/main/pisces/data_sets.py#L509" target="_blank" style="float:right; font-size:smaller">source</a></p>
+</section>
+<section id="psg_to_sleep_wake" class="level3">
+<h3 class="anchored" data-anchor-id="psg_to_sleep_wake">psg_to_sleep_wake</h3>
+<blockquote class="blockquote">
+<pre><code> psg_to_sleep_wake (psg:polars.dataframe.frame.DataFrame)</code></pre>
+</blockquote>
+<p>** map all positive classes to 1 (sleep) * retain all 0 (wake) and -1 (mask) classes*</p>
+<hr>
+<p><a href="https://github.com/Arcascope/pisces/blob/main/pisces/data_sets.py#L599" target="_blank" style="float:right; font-size:smaller">source</a></p>
+</section>
+<section id="modelinputspectrogram" class="level3">
+<h3 class="anchored" data-anchor-id="modelinputspectrogram">ModelInputSpectrogram</h3>
+<blockquote class="blockquote">
+<pre><code> ModelInputSpectrogram (input_features:Union[List[str],str],
+                        input_sampling_hz:int|float, spectrogram_preproces
+                        sing_config:Dict={'preprocessing': [{'args':
+                        {'window_size': 30, 'fs': 32}, 'type': 'median'},
+                        {'args': {'iqr_window': 300, 'median_window': 300,
+                        'fs': 32}, 'type': 'iqr_normalization_adaptive'},
+                        {'args': {'threshold': 20, 'fs': 32}, 'type':
+                        'clip_by_iqr'}, {'args': {'fs': 32, 'nfft': 512,
+                        'f_max': 6, 'f_min': 0, 'f_sub': 3, 'window': 320,
+                        'noverlap': 256}, 'type': 'cal_psd'}]})</code></pre>
+</blockquote>
+<p><em>Initialize self. See help(type(self)) for accurate signature.</em></p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 6%">
+<col style="width: 25%">
+<col style="width: 34%">
+<col style="width: 34%">
+</colgroup>
+<thead>
+<tr class="header">
+<th></th>
+<th><strong>Type</strong></th>
+<th><strong>Default</strong></th>
+<th><strong>Details</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>input_features</td>
+<td>Union</td>
+<td></td>
+<td></td>
+</tr>
+<tr class="even">
+<td>input_sampling_hz</td>
+<td>int | float</td>
+<td></td>
+<td>Sampling rate of the input data (1/s)</td>
+</tr>
+<tr class="odd">
+<td>spectrogram_preprocessing_config</td>
+<td>Dict</td>
+<td>{‘preprocessing’: [{‘args’: {‘window_size’: 30, ‘fs’: 32}, ‘type’: ‘median’}, {‘args’: {‘iqr_window’: 300, ‘median_window’: 300, ‘fs’: 32}, ‘type’: ‘iqr_normalization_adaptive’}, {‘args’: {‘threshold’: 20, ‘fs’: 32}, ‘type’: ‘clip_by_iqr’}, {‘args’: {‘fs’: 32, ‘nfft’: 512, ‘f_max’: 6, ‘f_min’: 0, ‘f_sub’: 3, ‘window’: 320, ‘noverlap’: 256}, ‘type’: ‘cal_psd’}]}</td>
+<td>Steps in the preprocessing pipeline for getting a spectrogram from acceleration</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<p><a href="https://github.com/Arcascope/pisces/blob/main/pisces/data_sets.py#L576" target="_blank" style="float:right; font-size:smaller">source</a></p>
+</section>
+<section id="modelinput1d" class="level3">
+<h3 class="anchored" data-anchor-id="modelinput1d">ModelInput1D</h3>
+<blockquote class="blockquote">
+<pre><code> ModelInput1D (input_features:Union[List[str],str],
+               input_sampling_hz:int|float, input_window_time:int|float)</code></pre>
+</blockquote>
+<p><em>Initialize self. See help(type(self)) for accurate signature.</em></p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 9%">
+<col style="width: 38%">
+<col style="width: 52%">
+</colgroup>
+<thead>
+<tr class="header">
+<th></th>
+<th><strong>Type</strong></th>
+<th><strong>Details</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>input_features</td>
+<td>Union</td>
+<td></td>
+</tr>
+<tr class="even">
+<td>input_sampling_hz</td>
+<td>int | float</td>
+<td>Sampling rate of the input data (1/s)</td>
+</tr>
+<tr class="odd">
+<td>input_window_time</td>
+<td>int | float</td>
+<td>Window size (in seconds) for the input data. Window will be centered around the time point for which the model is making a prediction</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<p><a href="https://github.com/Arcascope/pisces/blob/main/pisces/data_sets.py#L559" target="_blank" style="float:right; font-size:smaller">source</a></p>
+</section>
+<section id="modelinput" class="level3">
+<h3 class="anchored" data-anchor-id="modelinput">ModelInput</h3>
+<blockquote class="blockquote">
+<pre><code> ModelInput (input_features:Union[List[str],str],
+             input_sampling_hz:int|float)</code></pre>
+</blockquote>
+<p><em>Initialize self. See help(type(self)) for accurate signature.</em></p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 9%">
+<col style="width: 38%">
+<col style="width: 52%">
+</colgroup>
+<thead>
+<tr class="header">
+<th></th>
+<th><strong>Type</strong></th>
+<th><strong>Details</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>input_features</td>
+<td>Union</td>
+<td></td>
+</tr>
+<tr class="even">
+<td>input_sampling_hz</td>
+<td>int | float</td>
+<td>Sampling rate of the input data (1/s)</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<p><a href="https://github.com/Arcascope/pisces/blob/main/pisces/data_sets.py#L555" target="_blank" style="float:right; font-size:smaller">source</a></p>
+</section>
+<section id="psgtype" class="level3">
+<h3 class="anchored" data-anchor-id="psgtype">PSGType</h3>
+<blockquote class="blockquote">
+<pre><code> PSGType (value, names=None, module=None, qualname=None, type=None,
+          start=1)</code></pre>
+</blockquote>
+<p><em>An enumeration.</em></p>
+<hr>
+<p><a href="https://github.com/Arcascope/pisces/blob/main/pisces/data_sets.py#L551" target="_blank" style="float:right; font-size:smaller">source</a></p>
+</section>
+<section id="modeloutputtype" class="level3">
+<h3 class="anchored" data-anchor-id="modeloutputtype">ModelOutputType</h3>
+<blockquote class="blockquote">
+<pre><code> ModelOutputType (value, names=None, module=None, qualname=None,
+                  type=None, start=1)</code></pre>
+</blockquote>
+<p><em>An enumeration.</em></p>
+<hr>
+<p><a href="https://github.com/Arcascope/pisces/blob/main/pisces/data_sets.py#L535" target="_blank" style="float:right; font-size:smaller">source</a></p>
+</section>
+<section id="psg_to_wldm-1" class="level3">
+<h3 class="anchored" data-anchor-id="psg_to_wldm-1">psg_to_WLDM</h3>
+<blockquote class="blockquote">
+<pre><code> psg_to_WLDM (psg:polars.dataframe.frame.DataFrame, N4:bool=True)</code></pre>
+</blockquote>
+<p>** map all positive classes as follows: If N4 is True: - 1, 2 =&gt; 1 (light sleep) - 3, 4 =&gt; 2 (deep sleep) - 5 =&gt; 3 (REM) If N4 is False: - 1, 2 =&gt; 1 (light sleep) - 3 =&gt; 2 (deep sleep) - 5 =&gt; 3 (REM) * retain all 0 (wake) and -1 (mask) classes*</p>
+<hr>
+<p><a href="https://github.com/Arcascope/pisces/blob/main/pisces/data_sets.py#L516" target="_blank" style="float:right; font-size:smaller">source</a></p>
+</section>
+<section id="to_wldm-1" class="level3">
+<h3 class="anchored" data-anchor-id="to_wldm-1">to_WLDM</h3>
+<blockquote class="blockquote">
+<pre><code> to_WLDM (x:float, N4:bool=True)</code></pre>
+</blockquote>
+<p><em>Map sleep stages to wake, light, deep, and REM sleep. Retain masked values. If N4 stage is not present, PSG=4 is mapped to REM. Otherwise it is mapped to deep sleep.</em></p>
+<hr>
+<p><a href="https://github.com/Arcascope/pisces/blob/main/pisces/data_sets.py#L509" target="_blank" style="float:right; font-size:smaller">source</a></p>
+</section>
+<section id="psg_to_sleep_wake-1" class="level3">
+<h3 class="anchored" data-anchor-id="psg_to_sleep_wake-1">psg_to_sleep_wake</h3>
+<blockquote class="blockquote">
+<pre><code> psg_to_sleep_wake (psg:polars.dataframe.frame.DataFrame)</code></pre>
+</blockquote>
+<p>** map all positive classes to 1 (sleep) * retain all 0 (wake) and -1 (mask) classes*</p>
+<hr>
+<p><a href="https://github.com/Arcascope/pisces/blob/main/pisces/data_sets.py#L599" target="_blank" style="float:right; font-size:smaller">source</a></p>
+</section>
+<section id="modelinputspectrogram-1" class="level3">
+<h3 class="anchored" data-anchor-id="modelinputspectrogram-1">ModelInputSpectrogram</h3>
+<blockquote class="blockquote">
+<pre><code> ModelInputSpectrogram (input_features:Union[List[str],str],
+                        input_sampling_hz:int|float, spectrogram_preproces
+                        sing_config:Dict={'preprocessing': [{'args':
+                        {'window_size': 30, 'fs': 32}, 'type': 'median'},
+                        {'args': {'iqr_window': 300, 'median_window': 300,
+                        'fs': 32}, 'type': 'iqr_normalization_adaptive'},
+                        {'args': {'threshold': 20, 'fs': 32}, 'type':
+                        'clip_by_iqr'}, {'args': {'fs': 32, 'nfft': 512,
+                        'f_max': 6, 'f_min': 0, 'f_sub': 3, 'window': 320,
+                        'noverlap': 256}, 'type': 'cal_psd'}]})</code></pre>
+</blockquote>
+<p><em>Initialize self. See help(type(self)) for accurate signature.</em></p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 6%">
+<col style="width: 25%">
+<col style="width: 34%">
+<col style="width: 34%">
+</colgroup>
+<thead>
+<tr class="header">
+<th></th>
+<th><strong>Type</strong></th>
+<th><strong>Default</strong></th>
+<th><strong>Details</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>input_features</td>
+<td>Union</td>
+<td></td>
+<td></td>
+</tr>
+<tr class="even">
+<td>input_sampling_hz</td>
+<td>int | float</td>
+<td></td>
+<td>Sampling rate of the input data (1/s)</td>
+</tr>
+<tr class="odd">
+<td>spectrogram_preprocessing_config</td>
+<td>Dict</td>
+<td>{‘preprocessing’: [{‘args’: {‘window_size’: 30, ‘fs’: 32}, ‘type’: ‘median’}, {‘args’: {‘iqr_window’: 300, ‘median_window’: 300, ‘fs’: 32}, ‘type’: ‘iqr_normalization_adaptive’}, {‘args’: {‘threshold’: 20, ‘fs’: 32}, ‘type’: ‘clip_by_iqr’}, {‘args’: {‘fs’: 32, ‘nfft’: 512, ‘f_max’: 6, ‘f_min’: 0, ‘f_sub’: 3, ‘window’: 320, ‘noverlap’: 256}, ‘type’: ‘cal_psd’}]}</td>
+<td>Steps in the preprocessing pipeline for getting a spectrogram from acceleration</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<p><a href="https://github.com/Arcascope/pisces/blob/main/pisces/data_sets.py#L576" target="_blank" style="float:right; font-size:smaller">source</a></p>
+</section>
+<section id="modelinput1d-1" class="level3">
+<h3 class="anchored" data-anchor-id="modelinput1d-1">ModelInput1D</h3>
+<blockquote class="blockquote">
+<pre><code> ModelInput1D (input_features:Union[List[str],str],
+               input_sampling_hz:int|float, input_window_time:int|float)</code></pre>
+</blockquote>
+<p><em>Initialize self. See help(type(self)) for accurate signature.</em></p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 9%">
+<col style="width: 38%">
+<col style="width: 52%">
+</colgroup>
+<thead>
+<tr class="header">
+<th></th>
+<th><strong>Type</strong></th>
+<th><strong>Details</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>input_features</td>
+<td>Union</td>
+<td></td>
+</tr>
+<tr class="even">
+<td>input_sampling_hz</td>
+<td>int | float</td>
+<td>Sampling rate of the input data (1/s)</td>
+</tr>
+<tr class="odd">
+<td>input_window_time</td>
+<td>int | float</td>
+<td>Window size (in seconds) for the input data. Window will be centered around the time point for which the model is making a prediction</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<p><a href="https://github.com/Arcascope/pisces/blob/main/pisces/data_sets.py#L559" target="_blank" style="float:right; font-size:smaller">source</a></p>
+</section>
+<section id="modelinput-1" class="level3">
+<h3 class="anchored" data-anchor-id="modelinput-1">ModelInput</h3>
+<blockquote class="blockquote">
+<pre><code> ModelInput (input_features:Union[List[str],str],
+             input_sampling_hz:int|float)</code></pre>
+</blockquote>
+<p><em>Initialize self. See help(type(self)) for accurate signature.</em></p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 9%">
+<col style="width: 38%">
+<col style="width: 52%">
+</colgroup>
+<thead>
+<tr class="header">
+<th></th>
+<th><strong>Type</strong></th>
+<th><strong>Details</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>input_features</td>
+<td>Union</td>
+<td></td>
+</tr>
+<tr class="even">
+<td>input_sampling_hz</td>
+<td>int | float</td>
+<td>Sampling rate of the input data (1/s)</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<p><a href="https://github.com/Arcascope/pisces/blob/main/pisces/data_sets.py#L555" target="_blank" style="float:right; font-size:smaller">source</a></p>
+</section>
+<section id="psgtype-1" class="level3">
+<h3 class="anchored" data-anchor-id="psgtype-1">PSGType</h3>
+<blockquote class="blockquote">
+<pre><code> PSGType (value, names=None, module=None, qualname=None, type=None,
+          start=1)</code></pre>
+</blockquote>
+<p><em>An enumeration.</em></p>
+<hr>
+<p><a href="https://github.com/Arcascope/pisces/blob/main/pisces/data_sets.py#L551" target="_blank" style="float:right; font-size:smaller">source</a></p>
+</section>
+<section id="modeloutputtype-1" class="level3">
+<h3 class="anchored" data-anchor-id="modeloutputtype-1">ModelOutputType</h3>
+<blockquote class="blockquote">
+<pre><code> ModelOutputType (value, names=None, module=None, qualname=None,
+                  type=None, start=1)</code></pre>
+</blockquote>
+<p><em>An enumeration.</em></p>
+<hr>
+<p><a href="https://github.com/Arcascope/pisces/blob/main/pisces/data_sets.py#L685" target="_blank" style="float:right; font-size:smaller">source</a></p>
+</section>
+<section id="fill_gaps_in_accelerometer_data" class="level3">
+<h3 class="anchored" data-anchor-id="fill_gaps_in_accelerometer_data">fill_gaps_in_accelerometer_data</h3>
+<blockquote class="blockquote">
+<pre><code> fill_gaps_in_accelerometer_data (acc:polars.dataframe.frame.DataFrame,
+                                  smooth:bool=False,
+                                  final_sampling_rate_hz:int|None=None)</code></pre>
+</blockquote>
+<hr>
+<p><a href="https://github.com/Arcascope/pisces/blob/main/pisces/data_sets.py#L674" target="_blank" style="float:right; font-size:smaller">source</a></p>
+</section>
+<section id="apply_gausian_filter" class="level3">
+<h3 class="anchored" data-anchor-id="apply_gausian_filter">apply_gausian_filter</h3>
+<blockquote class="blockquote">
+<pre><code> apply_gausian_filter (df:polars.dataframe.frame.DataFrame,
+                       sigma:float=1.0, overwrite:bool=False)</code></pre>
+</blockquote>
+<hr>
+<p><a href="https://github.com/Arcascope/pisces/blob/main/pisces/data_sets.py#L628" target="_blank" style="float:right; font-size:smaller">source</a></p>
+</section>
+<section id="mask_psg_from_accel" class="level3">
+<h3 class="anchored" data-anchor-id="mask_psg_from_accel">mask_psg_from_accel</h3>
+<blockquote class="blockquote">
+<pre><code> mask_psg_from_accel (psg:numpy.ndarray, accel:numpy.ndarray,
+                      psg_epoch:int=30, accel_sample_rate:float|None=None,
+                      min_epoch_fraction_covered:float=0.5)</code></pre>
+</blockquote>
+<hr>
+<p><a href="https://github.com/Arcascope/pisces/blob/main/pisces/data_sets.py#L610" target="_blank" style="float:right; font-size:smaller">source</a></p>
+</section>
+<section id="get_sample_weights" class="level3">
+<h3 class="anchored" data-anchor-id="get_sample_weights">get_sample_weights</h3>
+<blockquote class="blockquote">
+<pre><code> get_sample_weights (y:numpy.ndarray)</code></pre>
+</blockquote>
+<p><em>Calculate sample weights based on the distribution of classes in the data. Doesn’t count masked values (-1) in the class distribution.</em></p>
+<hr>
+<p><a href="https://github.com/Arcascope/pisces/blob/main/pisces/data_sets.py#L718" target="_blank" style="float:right; font-size:smaller">source</a></p>
+</section>
+<section id="dataprocessor" class="level3">
+<h3 class="anchored" data-anchor-id="dataprocessor">DataProcessor</h3>
+<blockquote class="blockquote">
+<pre><code> DataProcessor (data_set:__main__.DataSetObject,
+                model_input:__main__.ModelInput, output_feature:str='psg',
+                output_type:__main__.ModelOutputType=&lt;ModelOutputType.WAKE
+                _LIGHT_DEEP_REM: 2&gt;,
+                psg_type:__main__.PSGType=&lt;PSGType.NO_N4: 1&gt;)</code></pre>
+</blockquote>
+<p><em>Initialize self. See help(type(self)) for accurate signature.</em></p>
+<div id="cell-27" class="cell" data-execution_count="20">
+<div class="sourceCode cell-code" id="cb25"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="co"># not exported</span></span>
+<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> _create_mock_data():</span>
+<span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a>    np.random.seed(<span class="dv">42</span>) <span class="co"># by Deep Thought</span></span>
+<span id="cb25-4"><a href="#cb25-4" aria-hidden="true" tabindex="-1"></a>    mock_data_location <span class="op">=</span> <span class="st">"../mock_data_sets"</span></span>
+<span id="cb25-5"><a href="#cb25-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="kw">not</span> os.path.exists(mock_data_location):</span>
+<span id="cb25-6"><a href="#cb25-6" aria-hidden="true" tabindex="-1"></a>        os.makedirs(mock_data_location)</span>
+<span id="cb25-7"><a href="#cb25-7" aria-hidden="true" tabindex="-1"></a>    total_time_hrs <span class="op">=</span> <span class="fl">1.0</span></span>
+<span id="cb25-8"><a href="#cb25-8" aria-hidden="true" tabindex="-1"></a>    total_subjects <span class="op">=</span> <span class="dv">3</span></span>
+<span id="cb25-9"><a href="#cb25-9" aria-hidden="true" tabindex="-1"></a>    total_data_sets <span class="op">=</span> <span class="dv">2</span></span>
+<span id="cb25-10"><a href="#cb25-10" aria-hidden="true" tabindex="-1"></a>    accelerometer_sampling_hz <span class="op">=</span> <span class="fl">1.0</span> </span>
+<span id="cb25-11"><a href="#cb25-11" aria-hidden="true" tabindex="-1"></a>    activity_dt_seconds <span class="op">=</span> <span class="fl">15.0</span></span>
+<span id="cb25-12"><a href="#cb25-12" aria-hidden="true" tabindex="-1"></a>    max_activity <span class="op">=</span> <span class="dv">50</span></span>
+<span id="cb25-13"><a href="#cb25-13" aria-hidden="true" tabindex="-1"></a>    psg_dt_seconds <span class="op">=</span> <span class="fl">30.0</span></span>
+<span id="cb25-14"><a href="#cb25-14" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> data_set <span class="kw">in</span> <span class="bu">range</span>(total_data_sets):</span>
+<span id="cb25-15"><a href="#cb25-15" aria-hidden="true" tabindex="-1"></a>        data_set_path <span class="op">=</span> <span class="ss">f"</span><span class="sc">{</span>mock_data_location<span class="sc">}</span><span class="ss">/data_set_</span><span class="sc">{</span>data_set<span class="sc">}</span><span class="ss">"</span></span>
+<span id="cb25-16"><a href="#cb25-16" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="kw">not</span> os.path.exists(data_set_path):</span>
+<span id="cb25-17"><a href="#cb25-17" aria-hidden="true" tabindex="-1"></a>            os.makedirs(data_set_path)</span>
+<span id="cb25-18"><a href="#cb25-18" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Accelerometer data</span></span>
+<span id="cb25-19"><a href="#cb25-19" aria-hidden="true" tabindex="-1"></a>        accelerometer_path <span class="op">=</span> <span class="ss">f"</span><span class="sc">{</span>data_set_path<span class="sc">}</span><span class="ss">/cleaned_accelerometer"</span></span>
+<span id="cb25-20"><a href="#cb25-20" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="kw">not</span> os.path.exists(accelerometer_path):</span>
+<span id="cb25-21"><a href="#cb25-21" aria-hidden="true" tabindex="-1"></a>            os.makedirs(accelerometer_path)</span>
+<span id="cb25-22"><a href="#cb25-22" aria-hidden="true" tabindex="-1"></a>        accelerometer_time <span class="op">=</span> np.arange(<span class="dv">0</span>, total_time_hrs <span class="op">*</span> <span class="dv">3600</span>, <span class="fl">1.0</span> <span class="op">/</span> accelerometer_sampling_hz)</span>
+<span id="cb25-23"><a href="#cb25-23" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(total_subjects):</span>
+<span id="cb25-24"><a href="#cb25-24" aria-hidden="true" tabindex="-1"></a>            accelerometer_data <span class="op">=</span> np.random.randn(<span class="bu">len</span>(accelerometer_time), <span class="dv">3</span>)</span>
+<span id="cb25-25"><a href="#cb25-25" aria-hidden="true" tabindex="-1"></a>            accelerometer <span class="op">=</span> pl.DataFrame({</span>
+<span id="cb25-26"><a href="#cb25-26" aria-hidden="true" tabindex="-1"></a>                <span class="st">'timestamp'</span>: accelerometer_time,</span>
+<span id="cb25-27"><a href="#cb25-27" aria-hidden="true" tabindex="-1"></a>                <span class="st">'x'</span>: accelerometer_data[:, <span class="dv">0</span>],</span>
+<span id="cb25-28"><a href="#cb25-28" aria-hidden="true" tabindex="-1"></a>                <span class="st">'y'</span>: accelerometer_data[:, <span class="dv">1</span>],</span>
+<span id="cb25-29"><a href="#cb25-29" aria-hidden="true" tabindex="-1"></a>                <span class="st">'z'</span>: accelerometer_data[:, <span class="dv">2</span>],</span>
+<span id="cb25-30"><a href="#cb25-30" aria-hidden="true" tabindex="-1"></a>            })</span>
+<span id="cb25-31"><a href="#cb25-31" aria-hidden="true" tabindex="-1"></a>            subject_path <span class="op">=</span> <span class="ss">f"</span><span class="sc">{</span>accelerometer_path<span class="sc">}</span><span class="ss">/id00</span><span class="sc">{</span>i<span class="sc">}</span><span class="ss">_cleaned_motion.out"</span></span>
+<span id="cb25-32"><a href="#cb25-32" aria-hidden="true" tabindex="-1"></a>            accelerometer.write_csv(subject_path, include_header<span class="op">=</span><span class="va">False</span>, separator<span class="op">=</span><span class="st">' '</span>)</span>
+<span id="cb25-33"><a href="#cb25-33" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Activity data</span></span>
+<span id="cb25-34"><a href="#cb25-34" aria-hidden="true" tabindex="-1"></a>        activity_path <span class="op">=</span> <span class="ss">f"</span><span class="sc">{</span>data_set_path<span class="sc">}</span><span class="ss">/cleaned_activity"</span></span>
+<span id="cb25-35"><a href="#cb25-35" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="kw">not</span> os.path.exists(activity_path):</span>
+<span id="cb25-36"><a href="#cb25-36" aria-hidden="true" tabindex="-1"></a>            os.makedirs(activity_path)</span>
+<span id="cb25-37"><a href="#cb25-37" aria-hidden="true" tabindex="-1"></a>        activity_time <span class="op">=</span> np.arange(<span class="dv">0</span>, total_time_hrs <span class="op">*</span> <span class="dv">3600</span>, activity_dt_seconds)</span>
+<span id="cb25-38"><a href="#cb25-38" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(total_subjects):</span>
+<span id="cb25-39"><a href="#cb25-39" aria-hidden="true" tabindex="-1"></a>            activity_data <span class="op">=</span> np.random.randint(<span class="dv">0</span>, max_activity, <span class="bu">len</span>(activity_time))</span>
+<span id="cb25-40"><a href="#cb25-40" aria-hidden="true" tabindex="-1"></a>            activity <span class="op">=</span> pl.DataFrame({</span>
+<span id="cb25-41"><a href="#cb25-41" aria-hidden="true" tabindex="-1"></a>                <span class="st">'timestamp'</span>: activity_time,</span>
+<span id="cb25-42"><a href="#cb25-42" aria-hidden="true" tabindex="-1"></a>                <span class="st">'activity'</span>: activity_data,</span>
+<span id="cb25-43"><a href="#cb25-43" aria-hidden="true" tabindex="-1"></a>            })</span>
+<span id="cb25-44"><a href="#cb25-44" aria-hidden="true" tabindex="-1"></a>            subject_path <span class="op">=</span> <span class="ss">f"</span><span class="sc">{</span>activity_path<span class="sc">}</span><span class="ss">/id00</span><span class="sc">{</span>i<span class="sc">}</span><span class="ss">_cleaned_counts.out"</span></span>
+<span id="cb25-45"><a href="#cb25-45" aria-hidden="true" tabindex="-1"></a>            activity.write_csv(subject_path, include_header<span class="op">=</span><span class="va">False</span>, separator<span class="op">=</span><span class="st">' '</span>)</span>
+<span id="cb25-46"><a href="#cb25-46" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Heart rate data</span></span>
+<span id="cb25-47"><a href="#cb25-47" aria-hidden="true" tabindex="-1"></a>        hr_path <span class="op">=</span> <span class="ss">f"</span><span class="sc">{</span>data_set_path<span class="sc">}</span><span class="ss">/cleaned_heartrate"</span></span>
+<span id="cb25-48"><a href="#cb25-48" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="kw">not</span> os.path.exists(hr_path):</span>
+<span id="cb25-49"><a href="#cb25-49" aria-hidden="true" tabindex="-1"></a>            os.makedirs(hr_path)</span>
+<span id="cb25-50"><a href="#cb25-50" aria-hidden="true" tabindex="-1"></a>        <span class="co">## Irregular sampling rate</span></span>
+<span id="cb25-51"><a href="#cb25-51" aria-hidden="true" tabindex="-1"></a>        hr_time <span class="op">=</span> np.random.choice(accelerometer_time, <span class="bu">len</span>(activity_time), replace<span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb25-52"><a href="#cb25-52" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(total_subjects):</span>
+<span id="cb25-53"><a href="#cb25-53" aria-hidden="true" tabindex="-1"></a>            hr_data <span class="op">=</span> np.random.randint(<span class="dv">60</span>, <span class="dv">120</span>, <span class="bu">len</span>(activity_time))</span>
+<span id="cb25-54"><a href="#cb25-54" aria-hidden="true" tabindex="-1"></a>            hr <span class="op">=</span> pl.DataFrame({</span>
+<span id="cb25-55"><a href="#cb25-55" aria-hidden="true" tabindex="-1"></a>                <span class="st">'timestamp'</span>: hr_time,</span>
+<span id="cb25-56"><a href="#cb25-56" aria-hidden="true" tabindex="-1"></a>                <span class="st">'hr'</span>: hr_data,</span>
+<span id="cb25-57"><a href="#cb25-57" aria-hidden="true" tabindex="-1"></a>            })</span>
+<span id="cb25-58"><a href="#cb25-58" aria-hidden="true" tabindex="-1"></a>            subject_path <span class="op">=</span> <span class="ss">f"</span><span class="sc">{</span>hr_path<span class="sc">}</span><span class="ss">/id00</span><span class="sc">{</span>i<span class="sc">}</span><span class="ss">_cleaned_hr.out"</span></span>
+<span id="cb25-59"><a href="#cb25-59" aria-hidden="true" tabindex="-1"></a>            hr.write_csv(subject_path, include_header<span class="op">=</span><span class="va">False</span>, separator<span class="op">=</span><span class="st">' '</span>)</span>
+<span id="cb25-60"><a href="#cb25-60" aria-hidden="true" tabindex="-1"></a>        <span class="co"># PSG data</span></span>
+<span id="cb25-61"><a href="#cb25-61" aria-hidden="true" tabindex="-1"></a>        psg_path <span class="op">=</span> <span class="ss">f"</span><span class="sc">{</span>data_set_path<span class="sc">}</span><span class="ss">/cleaned_psg"</span></span>
+<span id="cb25-62"><a href="#cb25-62" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="kw">not</span> os.path.exists(psg_path):</span>
+<span id="cb25-63"><a href="#cb25-63" aria-hidden="true" tabindex="-1"></a>            os.makedirs(psg_path)</span>
+<span id="cb25-64"><a href="#cb25-64" aria-hidden="true" tabindex="-1"></a>        psg_time <span class="op">=</span> np.arange(<span class="dv">0</span>, total_time_hrs <span class="op">*</span> <span class="dv">3600</span>, psg_dt_seconds)</span>
+<span id="cb25-65"><a href="#cb25-65" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(total_subjects):</span>
+<span id="cb25-66"><a href="#cb25-66" aria-hidden="true" tabindex="-1"></a>            psg_data <span class="op">=</span> np.random.randint(<span class="op">-</span><span class="dv">1</span>, <span class="dv">5</span>, <span class="bu">len</span>(psg_time))</span>
+<span id="cb25-67"><a href="#cb25-67" aria-hidden="true" tabindex="-1"></a>            psg <span class="op">=</span> pl.DataFrame({</span>
+<span id="cb25-68"><a href="#cb25-68" aria-hidden="true" tabindex="-1"></a>                <span class="st">'timestamp'</span>: psg_time,</span>
+<span id="cb25-69"><a href="#cb25-69" aria-hidden="true" tabindex="-1"></a>                <span class="st">'stage'</span>: psg_data,</span>
+<span id="cb25-70"><a href="#cb25-70" aria-hidden="true" tabindex="-1"></a>            })</span>
+<span id="cb25-71"><a href="#cb25-71" aria-hidden="true" tabindex="-1"></a>            subject_path <span class="op">=</span> <span class="ss">f"</span><span class="sc">{</span>psg_path<span class="sc">}</span><span class="ss">/id00</span><span class="sc">{</span>i<span class="sc">}</span><span class="ss">_cleaned_psg.out"</span></span>
+<span id="cb25-72"><a href="#cb25-72" aria-hidden="true" tabindex="-1"></a>            psg.write_csv(subject_path, include_header<span class="op">=</span><span class="va">False</span>, separator<span class="op">=</span><span class="st">' '</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+
+
+</section>
+</section>
+
+</main> <!-- /main -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const onCopySuccess = function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "Copied!");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "Copied!");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  }
+  const getTextToCopy = function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+    text: getTextToCopy
+  });
+  clipboard.on('success', onCopySuccess);
+  if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+    // For code content inside modals, clipBoardJS needs to be initialized with a container option
+    // TODO: Check when it could be a function (https://github.com/zenorocha/clipboard.js/issues/860)
+    const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+      text: getTextToCopy,
+      container: window.document.getElementById('quarto-embedded-source-code-modal')
+    });
+    clipboardModal.on('success', onCopySuccess);
+  }
+    var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+    var mailtoRegex = new RegExp(/^mailto:/);
+      var filterRegex = new RegExp("https:\/\/Arcascope\.github\.io\/pisces");
+    var isInternal = (href) => {
+        return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+    }
+    // Inspect non-navigation links and adorn them if external
+ 	var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+    for (var i=0; i<links.length; i++) {
+      const link = links[i];
+      if (!isInternal(link.href)) {
+        // undo the damage that might have been done by quarto-nav.js in the case of
+        // links that we want to consider external
+        if (link.dataset.originalHref !== undefined) {
+          link.href = link.dataset.originalHref;
+        }
+      }
+    }
+  function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+    const config = {
+      allowHTML: true,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start',
+    };
+    if (contentFn) {
+      config.content = contentFn;
+    }
+    if (onTriggerFn) {
+      config.onTrigger = onTriggerFn;
+    }
+    if (onUntriggerFn) {
+      config.onUntrigger = onUntriggerFn;
+    }
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      if (note) {
+        return note.innerHTML;
+      } else {
+        return "";
+      }
+    });
+  }
+  const xrefs = window.document.querySelectorAll('a.quarto-xref');
+  const processXRef = (id, note) => {
+    // Strip column container classes
+    const stripColumnClz = (el) => {
+      el.classList.remove("page-full", "page-columns");
+      if (el.children) {
+        for (const child of el.children) {
+          stripColumnClz(child);
+        }
+      }
+    }
+    stripColumnClz(note)
+    if (id === null || id.startsWith('sec-')) {
+      // Special case sections, only their first couple elements
+      const container = document.createElement("div");
+      if (note.children && note.children.length > 2) {
+        container.appendChild(note.children[0].cloneNode(true));
+        for (let i = 1; i < note.children.length; i++) {
+          const child = note.children[i];
+          if (child.tagName === "P" && child.innerText === "") {
+            continue;
+          } else {
+            container.appendChild(child.cloneNode(true));
+            break;
+          }
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(container);
+        }
+        return container.innerHTML
+      } else {
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        return note.innerHTML;
+      }
+    } else {
+      // Remove any anchor links if they are present
+      const anchorLink = note.querySelector('a.anchorjs-link');
+      if (anchorLink) {
+        anchorLink.remove();
+      }
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(note);
+      }
+      // TODO in 1.5, we should make sure this works without a callout special case
+      if (note.classList.contains("callout")) {
+        return note.outerHTML;
+      } else {
+        return note.innerHTML;
+      }
+    }
+  }
+  for (var i=0; i<xrefs.length; i++) {
+    const xref = xrefs[i];
+    tippyHover(xref, undefined, function(instance) {
+      instance.disable();
+      let url = xref.getAttribute('href');
+      let hash = undefined; 
+      if (url.startsWith('#')) {
+        hash = url;
+      } else {
+        try { hash = new URL(url).hash; } catch {}
+      }
+      if (hash) {
+        const id = hash.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note !== null) {
+          try {
+            const html = processXRef(id, note.cloneNode(true));
+            instance.setContent(html);
+          } finally {
+            instance.enable();
+            instance.show();
+          }
+        } else {
+          // See if we can fetch this
+          fetch(url.split('#')[0])
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.getElementById(id);
+            if (note !== null) {
+              const html = processXRef(id, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      } else {
+        // See if we can fetch a full url (with no hash to target)
+        // This is a special case and we should probably do some content thinning / targeting
+        fetch(url)
+        .then(res => res.text())
+        .then(html => {
+          const parser = new DOMParser();
+          const htmlDoc = parser.parseFromString(html, "text/html");
+          const note = htmlDoc.querySelector('main.content');
+          if (note !== null) {
+            // This should only happen for chapter cross references
+            // (since there is no id in the URL)
+            // remove the first header
+            if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+              note.children[0].remove();
+            }
+            const html = processXRef(null, note);
+            instance.setContent(html);
+          } 
+        }).finally(() => {
+          instance.enable();
+          instance.show();
+        });
+      }
+    }, function(instance) {
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            div.style.left = 0;
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+        // Handle positioning of the toggle
+    window.addEventListener(
+      "resize",
+      throttle(() => {
+        elRect = undefined;
+        if (selectedAnnoteEl) {
+          selectCodeLines(selectedAnnoteEl);
+        }
+      }, 10)
+    );
+    function throttle(fn, ms) {
+    let throttle = false;
+    let timer;
+      return (...args) => {
+        if(!throttle) { // first call gets through
+            fn.apply(this, args);
+            throttle = true;
+        } else { // all the others get throttled
+            if(timer) clearTimeout(timer); // cancel #2
+            timer = setTimeout(() => {
+              fn.apply(this, args);
+              timer = throttle = false;
+            }, ms);
+        }
+      };
+    }
+      // Attach click handler to the DT
+      const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+      for (const annoteDlNode of annoteDls) {
+        annoteDlNode.addEventListener('click', (event) => {
+          const clickedEl = event.target;
+          if (clickedEl !== selectedAnnoteEl) {
+            unselectCodeLines();
+            const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+            if (activeEl) {
+              activeEl.classList.remove('code-annotation-active');
+            }
+            selectCodeLines(clickedEl);
+            clickedEl.classList.add('code-annotation-active');
+          } else {
+            // Unselect the line
+            unselectCodeLines();
+            clickedEl.classList.remove('code-annotation-active');
+          }
+        });
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+</div> <!-- /content -->
+
+
+
+
+<footer class="footer"><div class="nav-footer"><div class="nav-footer-center"><div class="toc-actions d-sm-block d-md-none"><ul><li><a href="https://github.com/Arcascope/pisces/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></div></div></footer></body></html>
