@@ -33,6 +33,7 @@ import time
 import os
 
 import numpy as np
+from sklearn.model_selection import LeaveOneOut
 import tensorflow as tf
 from tqdm import tqdm
 from tensorflow.keras.callbacks import TensorBoard
@@ -40,7 +41,6 @@ from sklearn.calibration import expit
 import keras
 
 from constants import ACC_HZ as acc_hz
-import pisces.models as pm
 from examples.NHRC.nhrc_utils.analysis import make_lr_filename, make_finetuning_filename
 from examples.NHRC.nhrc_utils.model_definitions import LR_INPUT_LENGTH
 from examples.NHRC.nhrc_utils.analysis import prepare_data
@@ -55,7 +55,7 @@ def train_logreg(static_keys, static_data_bundle, hybrid_data_bundle):
     log_dir_lr = f"./logs/lr_{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}"
     lr_tensorboard_callback = TensorBoard(log_dir=log_dir_lr, histogram_freq=1)
 
-    split_maker = pm.LeaveOneOutSplitter()
+    split_maker = LeaveOneOut()
 
     training_results = []
     lr_predictors = []
@@ -153,7 +153,7 @@ def train_cnn(static_keys, static_data_bundle, hybrid_data_bundle):
     cnn_tensorboard_callback = TensorBoard(
         log_dir=log_dir_cnn, histogram_freq=1)
 
-    split_maker = pm.LeaveOneOutSplitter()
+    split_maker = LeaveOneOut()
 
     training_results = []
     cnn_predictors = []
