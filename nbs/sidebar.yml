@@ -3,4 +3,5 @@ website:
     contents:
       - index.ipynb
       - 00_utils.ipynb
-      - 05_experiments.ipynb
+      - 01_data_sets.ipynb
+      - 03_mads_olsen_support.ipynb
