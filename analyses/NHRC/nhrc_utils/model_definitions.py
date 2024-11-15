@@ -37,22 +37,29 @@ NAIVE_LOWER = "naive"
 MODEL_TYPES = [LR_LOWER, EXTRA_LOWER, NAIVE_LOWER]
 
 # Custom loss function that takes weights into account
+
+
 def weighted_binary_crossentropy(y_true, y_pred, sample_weight):
-    bce = keras.losses.binary_crossentropy(y_true, y_pred, from_logits=True)[..., None]
+    bce = keras.losses.binary_crossentropy(
+        y_true, y_pred, from_logits=True)[..., None]
     weighted_bce = bce * sample_weight
     return tf.reduce_mean(weighted_bce)
 
 # Function to build the CNN-based mixture model
+
+
 def build_finetuning_model(input_shape):
     inputs = keras.Input(shape=input_shape)  # Input shape (1024, 4)
 
     # First 1D Convolutional Layer
-    x = keras.layers.Conv1D(filters=16, kernel_size=5, padding='same', activation='linear')(inputs)
+    x = keras.layers.Conv1D(filters=16, kernel_size=5,
+                            padding='same', activation='linear')(inputs)
     x = keras.layers.BatchNormalization()(x)
     x = keras.layers.LeakyReLU(negative_slope=0.1)(x)
 
     # # Second 1D Convolutional Layer
-    x = keras.layers.Conv1D(filters=32, kernel_size=7, padding='same', activation='linear')(x)
+    x = keras.layers.Conv1D(filters=32, kernel_size=7,
+                            padding='same', activation='linear')(x)
     x = keras.layers.BatchNormalization()(x)
     x = keras.layers.LeakyReLU(negative_slope=0.1)(x)
 
@@ -68,6 +75,7 @@ def build_finetuning_model(input_shape):
     # The output shape will be (1024, 1) per example, representing the probability of Sleep at each timestep
     return keras.Model(inputs=inputs, outputs=x)
 
+
 def cnn_pred_proba(cnn, data):
     return expit(
         cnn.predict(
@@ -75,10 +83,13 @@ def cnn_pred_proba(cnn, data):
             verbose=0
         )).reshape(-1,)
 
+
 def naive_pred_proba(data):
     return 1 - softmax(data, axis=-1)[:, 0]
 
 # Custom model class
+
+
 class WeightedModel(keras.Model):
     def __init__(self, original_model: keras.Model):
         super(WeightedModel, self).__init__()
@@ -106,12 +117,17 @@ class WeightedModel(keras.Model):
         return {"loss": loss}
 
 # Original model
+
+
 def build_lr_cnn(kernel_size: int = LR_KERNEL_SIZE):
-    input_layer = keras.layers.Input(shape=(LR_INPUT_LENGTH, 1), name="activity_input")
-    x = keras.layers.Conv1D(filters=1, kernel_size=kernel_size, strides=2)(input_layer)
+    input_layer = keras.layers.Input(
+        shape=(LR_INPUT_LENGTH, 1), name="activity_input")
+    x = keras.layers.Conv1D(
+        filters=1, kernel_size=kernel_size, strides=2)(input_layer)
     x = keras.layers.BatchNormalization()(x)
     model = keras.models.Model(inputs=input_layer, outputs=x)
     return model
+
 
 def lr_cnn_pred_proba(lr_cnn, data: tf.Tensor):
     return expit(
@@ -131,12 +147,14 @@ if __name__ == "__main__":
 
     # Generate dummy data
     N_SAMPLES = 5
-    x_data = tf.random.normal((N_SAMPLES, LR_INPUT_LENGTH, 1), dtype=tf.float32)
+    x_data = tf.random.normal(
+        (N_SAMPLES, LR_INPUT_LENGTH, 1), dtype=tf.float32)
     y_data = tf.random.normal((N_SAMPLES, 1024, 1), dtype=tf.float32)
     sample_weights = tf.random.normal((N_SAMPLES, 1024, 1), dtype=tf.float32)
 
     # Train the model using a dataset
-    dataset = tf.data.Dataset.from_tensor_slices((x_data, y_data, sample_weights))
+    dataset = tf.data.Dataset.from_tensor_slices(
+        (x_data, y_data, sample_weights))
     dataset = dataset.batch(1)
 
     # Fit the model
