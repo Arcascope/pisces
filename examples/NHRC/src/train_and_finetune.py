@@ -36,7 +36,7 @@ import numpy as np
 from sklearn.model_selection import LeaveOneOut
 import tensorflow as tf
 from tqdm import tqdm
-from tensorflow.keras.callbacks import TensorBoard
+from keras.callbacks import TensorBoard
 from sklearn.calibration import expit
 import keras
 
