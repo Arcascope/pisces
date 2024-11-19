@@ -34,10 +34,10 @@ import os
 
 import numpy as np
 from sklearn.model_selection import LeaveOneOut
+from sklearn.calibration import expit
 import tensorflow as tf
 from tqdm import tqdm
 from keras.callbacks import TensorBoard
-from sklearn.calibration import expit
 import keras
 
 from constants import ACC_HZ as acc_hz
