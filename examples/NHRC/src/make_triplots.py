@@ -2,6 +2,7 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
+import keras
 import time
 from examples.NHRC.nhrc_utils.analysis import prepare_data
 from constants import ACC_HZ as acc_hz, TARGET_SLEEP
@@ -11,10 +12,11 @@ COLOR_PALETTE = sns.color_palette("colorblind")
 
 
 class PerformanceMetrics:
-    def __init__(self, sleep_accuracy, wake_accuracy, tst_error):
+    def __init__(self, sleep_accuracy, wake_accuracy, tst_error, keras_sensitivity_at_specificity):
         self.sleep_accuracy = sleep_accuracy
         self.wake_accuracy = wake_accuracy
         self.tst_error = tst_error
+        self.keras_sensitivity_at_specificity = keras_sensitivity_at_specificity
 
 
 def apply_threshold(labels, predictions, threshold):
@@ -34,7 +36,8 @@ def apply_threshold(labels, predictions, threshold):
 
     tst_error = (len(true_sleeps) - len(predicted_sleeps)) / 2  # Minutes
 
-    return PerformanceMetrics(sleep_accuracy, wake_accuracy, tst_error)
+
+    return PerformanceMetrics(sleep_accuracy, wake_accuracy, tst_error, None)
 
 
 def threshold_from_binary_search(labels, wake_probabilities,
@@ -76,6 +79,11 @@ def threshold_from_binary_search(labels, wake_probabilities,
         performance = apply_threshold(
             labels, wake_probabilities, threshold_for_sleep)
         fraction_sleep_scored_as_sleep = performance.sleep_accuracy
+        sens = keras.metrics.SensitivityAtSpecificity(target_sleep_accuracy)
+        one_hot_labels = keras.utils.to_categorical(labels, num_classes=2)
+        sens.update_state(one_hot_labels, wake_probabilities)
+        print("Sensitivity at specificity: " + str(sens.result().numpy()))
+        print(f"WASA{int(target_sleep_accuracy * 100)}: {performance.wake_accuracy}")
         print("Fraction sleep correct: " + str(fraction_sleep_scored_as_sleep))
         print("Goal fraction sleep correct: " + str(target_sleep_accuracy))
         binary_search_counter = binary_search_counter + 1
@@ -258,6 +266,9 @@ def create_histogram(run_mode="naive"):
         print(f"Threshold: {static_threshold}")
         static_perform = apply_threshold(
             true_labels, static_predictions, static_threshold)
+
+        sensitivity_computer = keras.metrics.SensitivityAtSpecificity(target_sleep_accuracy)
+        sensitivity_computer.update_state(true_labels, static_predictions)
 
         hybrid_static_thresh_perform = apply_threshold(
             true_labels, hybrid_predictions, static_threshold)
