@@ -320,7 +320,7 @@ def compute_evaluations_df(
         cnn_predictors: List[tf.Module]):
     model_types = ['naive', 'finetuning', 'lr']
 
-    evals = {s: 
+    evals = {s:
         {m: [] for m in model_types} 
         for s in SCENARIOS
     }
