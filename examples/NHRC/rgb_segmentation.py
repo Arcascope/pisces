@@ -9,16 +9,13 @@ os.environ["KERAS_BACKEND"] = "jax"
 
 # %%
 from src.preprocess_and_save import do_preprocessing, big_specgram_process
+from nhrc_utils.analysis import stages_map
 
 # %%
 # do_preprocessing(big_specgram_process)
 
 # %%
 import numpy as np
-stationary = np.load('/Users/eric/Engineering/Work/pisces/examples/NHRC/pre_processed_data/stationary/stationary_preprocessed_data_50.npy', allow_pickle=True).item()
-s0 = stationary['8173033']
-s0_spec = s0['spectrogram']
-s0_spec.shape
 
 # %%
 import matplotlib.pyplot as plt
@@ -63,8 +60,6 @@ def overlay_channels_fixed(spectrogram_tensor, mintile=5, maxtile=95):
     # plt.show()
 
 
-# %%
-overlay_channels_fixed(np.swapaxes(s0_spec, 0, 1))
 
 # %%
 def debug_normalization(spectrogram_tensor):
@@ -72,24 +67,9 @@ def debug_normalization(spectrogram_tensor):
         channel = spectrogram_tensor[:, :, i]
         print(f"Channel {i} - Min: {channel.min()}, Max: {channel.max()}, Mean: {channel.mean()}")
 
-debug_normalization(s0_spec)
 
 # %%
 import numpy as np
-hybrid = np.load('/Users/eric/Engineering/Work/pisces/examples/NHRC/pre_processed_data/hybrid/hybrid_preprocessed_data_50.npy', allow_pickle=True).item()
-h0 = hybrid['8173033']
-h0_spec = h0['spectrogram']
-h0_spec.shape
-
-# %%
-debug_normalization(h0_spec)
-
-# %%
-overlay_channels_fixed(np.swapaxes(h0_spec, 0, 1), mintile=5, maxtile=89)
-
-# %% [markdown]
-# # Explore the model definition
-# This is for the grizzly part where we repeatedly fail to call the model on our specgrams, then eventually get it right.
 
 # %%
 # import tensorflow as tf
@@ -143,39 +123,6 @@ def segmentation_model(input_shape=NEW_INPUT_SHAPE, num_classes=4):
     
     model = Model(inputs, outputs)
     return model
-
-# %%
-stat_spec_full_stack = np.array([
-    stationary[k]['spectrogram'] for k in list(stationary.keys())
-])
-
-hybrid_spec_full_stack = np.array([
-    hybrid[k]['spectrogram'] for k in list(hybrid.keys())
-])
-
-print("Stationary stack shape: ", stat_spec_full_stack.shape)
-print("Hybrid stack shape: ", hybrid_spec_full_stack.shape)
-
-# %%
-from nhrc_utils.analysis import stages_map
-label_stack = np.array([
-    stages_map(stationary[k]['psg'][:, 1]) for k in list(stationary.keys())
-])
-
-
-# %%
-label_stack.shape
-
-# %%
-label_stack_use = label_stack[label_stack >= 0]
-
-stage_counts = np.zeros(4)
-for i in range(4):
-    stage_counts[i] = np.sum(label_stack_use == i)
-    print(f"Stage {i}: {stage_counts[i]}")
-
-stage_weights = 1 / stage_counts
-
 
 # %%
 def compute_stage_weights(label_stack):
@@ -402,30 +349,13 @@ def load_and_train(max_splits: int = -1, epochs: int = 1, lr: float = 1e-4):
     print(f"Training completed in {end_time - start_time:.2f} seconds")
 
 # %%
-seg = segmentation_model()
-
-# %%
-seg.compile()
-
-# %%
-stat = load_preprocessed_data("stationary")
-stat_bundle = prepare_data(stat)
-
-# %%
-stat_bundle.spectrograms.shape
-
-# %%
-numpy_bytes = stat_bundle.spectrograms.numpy().nbytes
-print(f"Tensor size in bytes: {numpy_bytes} (log2(bytes): {np.log2(numpy_bytes)})")
-
-# %%
 if __name__ == "__main__":
     import warnings
 
     # Suppress all warnings
     warnings.filterwarnings("ignore")
 
-    load_and_train(epochs=100, lr=1e-4)
+    load_and_train(epochs=30, lr=1e-3)
 
 # %%
 
