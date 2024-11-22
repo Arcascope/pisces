@@ -45,8 +45,8 @@ is active.
 
 The pipeline is intended to be flexible and can be easily extended to
 include new models, datasets, and evaluation metrics. In version 2.0, we
-have removed many classes that created a cumbersome API difficult to
-modify and debug.
+have streamlined the library to prioritizing nimbleness and easy
+debugging.
 
 The `examples/NHRC` folder shows how to use `pisces` with other packages
 like `sklearn` and `tensorflow` providing machine learning frameworks.
