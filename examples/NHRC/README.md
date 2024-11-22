@@ -1,0 +1,4 @@
+# NHRC Example
+This is the code for our forthcoming publication with the Naval Health Research Center in San Diego. We are evaluating how the sensitivity (wake accuracy) of an automatic sleep scoring system changes when evaluated on data that simulates a moving and vibrating enviornment. These automatic systems are usually designed and evaluated using data recorded in a sleep labratory, hence the added noise from the environment can push these samples out of distribution.
+
+Beyond the open sharing of our scientific research, we hope this can serve as a useful introduction to using our `pisces` library for research on sleep classifiers. In order to make use of these examples, you will need to set up the `pisces/data/` directory inside the root of this repo correctly. Check out `pisces/data/README.md` to get an idea for how to organize this data so as to be easily read by `pisces`.

@@ -19,7 +19,7 @@ from enum import Enum, auto
 from functools import partial
 from collections import defaultdict
 from typing import Dict, List, Tuple
-from .mads_olsen_support import *
+from .deep_unet_support import *
 from typing import DefaultDict, Iterable
 from scipy.ndimage import gaussian_filter1d
 from .utils import determine_header_rows_and_delimiter
