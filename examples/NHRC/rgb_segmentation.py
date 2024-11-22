@@ -419,12 +419,13 @@ numpy_bytes = stat_bundle.spectrograms.numpy().nbytes
 print(f"Tensor size in bytes: {numpy_bytes} (log2(bytes): {np.log2(numpy_bytes)})")
 
 # %%
-import warnings
+if __name__ == "__main__":
+    import warnings
 
-# Suppress all warnings
-warnings.filterwarnings("ignore")
+    # Suppress all warnings
+    warnings.filterwarnings("ignore")
 
-load_and_train(epochs=100, lr=1e-4)
+    load_and_train(epochs=100, lr=1e-4)
 
 # %%
 
