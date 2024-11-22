@@ -35,9 +35,9 @@ pip install -e .
 
 You may end up with a version of Keras incompatible with the marshalled
 data in `pisces/cached_models`. In that case, run
-[`pisces_setup`](https://Arcascope.github.io/pisces/mads_olsen_support.html#pisces_setup)
+[`pisces_setup`](https://Arcascope.github.io/pisces/deep_unet_support.html#pisces_setup)
 in a terminal;
-[`pisces_setup`](https://Arcascope.github.io/pisces/mads_olsen_support.html#pisces_setup)
+[`pisces_setup`](https://Arcascope.github.io/pisces/deep_unet_support.html#pisces_setup)
 is in your path as long as a Python environment with `pisces` installed
 is active.
 

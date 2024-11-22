@@ -4,4 +4,4 @@ website:
       - index.ipynb
       - 00_utils.ipynb
       - 01_data_sets.ipynb
-      - 03_mads_olsen_support.ipynb
+      - 03_deep_unet_support.ipynb

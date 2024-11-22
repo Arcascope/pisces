@@ -160,4 +160,4 @@ wearOS-sensor-analysis/*
 *.tfevents.*
 pisces/cached_models/*.keras
 *.png
-examples/NHRC/evaluations/models/*.keras
+*.keras
