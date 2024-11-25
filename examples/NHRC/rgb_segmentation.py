@@ -1,24 +1,43 @@
-# %%
 import os
-import numpy as np
 
 # Use jax backend
 # on macOS, this is one of the better out-of-the-box GPU options
 # we have to do this first, before importing Keras ANYWHERE (including in pisces/other modules)
-os.environ["KERAS_BACKEND"] = "jax"
+# So ignore the warnings about imports below this line
+# pylint: disable=wrong-import-position,wrong-import-order
+os.environ["KERAS_BACKEND"] = "torch"
+os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
 
-# %%
+from dataclasses import dataclass
+import time
+import datetime
+
+import matplotlib.pyplot as plt
+import numpy as np
+import torch
+
+import tensorflow as tf
+from sklearn.model_selection import LeaveOneOut
+from tqdm import tqdm
+
+import keras
+from keras.callbacks import TensorBoard, ReduceLROnPlateau
+from keras.layers import (
+    Input, Conv2D, MaxPooling2D, UpSampling2D, Concatenate, BatchNormalization, Activation,
+    AveragePooling2D, Reshape, GlobalAveragePooling2D, Lambda
+)
+from keras.models import Model
+
+
+from src.constants import ACC_HZ
+from examples.NHRC.wasa_metric import BinaryTruePositives, SleepAccuracyMetric
 from src.preprocess_and_save import do_preprocessing, big_specgram_process
 from nhrc_utils.analysis import stages_map
 
-# %%
-# do_preprocessing(big_specgram_process)
 
-# %%
-import numpy as np
 
-# %%
-import matplotlib.pyplot as plt
+
+
 def add_rgb_legend(ax):
     """
     Adds an RGB legend indicating the mapping of colors to accelerometer axes.
@@ -60,6 +79,9 @@ def overlay_channels_fixed(spectrogram_tensor, mintile=5, maxtile=95):
     # plt.show()
 
 
+# from examples.NHRC.nhrc_utils.new_cnn import NEW_INPUT_SHAPE
+NEW_INPUT_SHAPE = (15360, 257, 3)
+NEW_OUTPUT_SHAPE = (1024, 4)
 
 # %%
 def debug_normalization(spectrogram_tensor):
@@ -68,19 +90,6 @@ def debug_normalization(spectrogram_tensor):
         print(f"Channel {i} - Min: {channel.min()}, Max: {channel.max()}, Mean: {channel.mean()}")
 
 
-# %%
-import numpy as np
-
-# %%
-# import tensorflow as tf
-from keras.layers import (
-    Input, Conv2D, MaxPooling2D, UpSampling2D, Concatenate, BatchNormalization, Activation,
-    AveragePooling2D, Reshape, GlobalAveragePooling2D, Lambda
-)
-from keras.models import Model
-import jax.numpy as jnp
-
-from examples.NHRC.nhrc_utils.new_cnn import NEW_INPUT_SHAPE
 
 def segmentation_model(input_shape=NEW_INPUT_SHAPE, num_classes=4):
     inputs = Input(shape=input_shape)
@@ -119,7 +128,8 @@ def segmentation_model(input_shape=NEW_INPUT_SHAPE, num_classes=4):
     # Final dense layer for class probabilities
     outputs = Conv2D(num_classes, (1, 1), activation='softmax')(final_downsampling)  # (1024, 4, 1)
     # outputs = Lambda(lambda x: tf.squeeze(x, axis=2))(outputs)  # Remove leftover spatial dimensions (1024, 4)
-    outputs = Lambda(lambda x: jnp.squeeze(x, axis=2))(outputs)  # Remove leftover spatial dimensions (1024, 4)
+    # outputs = Lambda(lambda x: jnp.squeeze(x, axis=2))(outputs)  # Remove leftover spatial dimensions (1024, 4)
+    outputs = Reshape(NEW_OUTPUT_SHAPE)(outputs)
     
     model = Model(inputs, outputs)
     return model
@@ -137,20 +147,6 @@ def compute_stage_weights(label_stack):
 # # LOOX training loop
 
 # %%
-from dataclasses import dataclass
-import os
-import time
-import datetime
-
-import keras
-import tensorflow as tf
-from keras.callbacks import TensorBoard, ReduceLROnPlateau
-from sklearn.model_selection import LeaveOneOut
-from tqdm import tqdm
-
-
-from examples.NHRC.nhrc_utils.new_cnn import NEW_INPUT_SHAPE
-from src.constants import ACC_HZ
 
 
 # Define the learning rate scheduler callback
@@ -163,31 +159,20 @@ reduce_lr = ReduceLROnPlateau(
 
 @dataclass
 class PreparedDataRGB:
-    spectrograms: tf.Tensor
-    labels: tf.Tensor
-    weights: tf.Tensor
+    spectrograms: np.array
+    labels: np.array 
+    weights: np.array
 
 OUTPUT_SHAPE = (1024,)
 
-def rgb_gather_reshape(data_bundle: PreparedDataRGB, train_idx_tensor: tf.Tensor, input_shape: tuple = NEW_INPUT_SHAPE, output_shape: tuple = OUTPUT_SHAPE) -> tuple | None:
+def rgb_gather_reshape(data_bundle: PreparedDataRGB, train_idx_tensor: np.array, input_shape: tuple = NEW_INPUT_SHAPE, output_shape: tuple = OUTPUT_SHAPE) -> tuple | None:
     input_shape = (-1, *input_shape)
     output_shape = (-1, *output_shape)
-    train_data = tf.reshape(
-        tf.gather(data_bundle.spectrograms, train_idx_tensor),
-        input_shape
-    )
-    train_labels = tf.reshape(
-        tf.gather(data_bundle.labels, train_idx_tensor),
-        output_shape)
-    train_sample_weights = tf.reshape(
-        tf.gather(data_bundle.weights, train_idx_tensor),
-        output_shape)
+    train_data = data_bundle.spectrograms[train_idx_tensor].reshape(input_shape)
+    train_labels = data_bundle.labels[train_idx_tensor].reshape(output_shape)
+    train_sample_weights = data_bundle.weights[train_idx_tensor].reshape(output_shape)
     
-    train_data_jnp = jnp.array(train_data)
-    train_labels_jnp = jnp.array(train_labels)
-    train_sample_weights_jnp = jnp.array(train_sample_weights)
-    # return train_data, train_labels, train_sample_weights
-    return train_data_jnp, train_labels_jnp, train_sample_weights_jnp
+    return train_data, train_labels, train_sample_weights
 
 def prepare_data(preprocessed_data):
     label_stack = np.array([
@@ -211,9 +196,9 @@ def prepare_data(preprocessed_data):
     ])
 
     return PreparedDataRGB(
-        spectrograms=tf.convert_to_tensor(spectrogram_stack, dtype=tf.float32),
-        labels=tf.convert_to_tensor(label_stack_masked, dtype=tf.int32),
-        weights=tf.convert_to_tensor(label_weights, dtype=tf.float32)
+        spectrograms=spectrogram_stack.astype(np.float32),
+        labels=label_stack_masked.astype(np.float32),
+        weights=label_weights.astype(np.float32)
     )
 
 def rgb_path_name(key):
@@ -261,7 +246,9 @@ def train_rgb_cnn(static_keys, static_data_bundle, hybrid_data_bundle, max_split
             loss=keras.losses.SparseCategoricalCrossentropy(),
             optimizer=keras.optimizers.AdamW(learning_rate=lr),
             metrics=[
-                'accuracy',
+                keras.metrics.SparseCategoricalAccuracy(),
+                # 'accuracy',
+                # BinaryTruePositives(),
                 # keras.metrics.SensitivityAtSpecificity(
                 #     WASA_FRAC,
                 #     num_thresholds=200,
@@ -284,7 +271,8 @@ def train_rgb_cnn(static_keys, static_data_bundle, hybrid_data_bundle, max_split
             validation_data=(test_data, test_labels),
             batch_size=1, # 4 seems to be the max we can handle for cnn.predict(stack_of_spectrograms) on M3 Max w/ 64 gb of RAM
             sample_weight=train_sample_weights,
-            callbacks=[cnn_tensorboard_callback, reduce_lr]
+            # callbacks=[cnn_tensorboard_callback, reduce_lr]
+            callbacks=[reduce_lr]
         ))
 
         cnn_predictors.append(cnn)
@@ -355,7 +343,8 @@ if __name__ == "__main__":
     # Suppress all warnings
     warnings.filterwarnings("ignore")
 
-    load_and_train(epochs=30, lr=1e-3)
+    # do_preprocessing(big_specgram_process)
+    load_and_train(epochs=1, lr=1e-3)
 
 # %%
 
