@@ -1,6 +1,6 @@
 import os
 
-from examples.RGB_Spectrograms.models import NEW_INPUT_SHAPE, segmentation_model
+
 
 # Use jax backend
 # on macOS, this is one of the better out-of-the-box GPU options
@@ -12,6 +12,7 @@ os.environ["KERAS_BACKEND"] = "jax"
 
 import sys
 sys.path.append('../NHRC')
+from examples.RGB_Spectrograms.models import NEW_INPUT_SHAPE, segmentation_model
 from dataclasses import dataclass
 import time
 import datetime
@@ -19,6 +20,8 @@ import datetime
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+from scipy.special import expit, softmax
+
 
 import tensorflow as tf
 from sklearn.model_selection import LeaveOneOut
@@ -26,15 +29,15 @@ from tqdm import tqdm
 
 import keras
 from keras.callbacks import TensorBoard, ReduceLROnPlateau
+import keras.ops as K
 
 
 from src.constants import ACC_HZ
 from examples.NHRC.wasa_metric import BinaryTruePositives, WASAMetric
-from src.preprocess_and_save import do_preprocessing, big_specgram_process
+from src.preprocess_and_save import do_preprocessing
 from nhrc_utils.analysis import stages_map
 
 
-import keras.ops as K
 
 
 def add_rgb_legend(ax):
@@ -200,7 +203,6 @@ def train_rgb_cnn(static_keys, static_data_bundle, hybrid_data_bundle, max_split
             optimizer=keras.optimizers.Adam(learning_rate=lr),
             metrics=[
                 keras.metrics.SparseCategoricalAccuracy(),
-                'cohens_kappa',
                 # 'accuracy',
                 # BinaryTruePositives(),
                 # keras.metrics.SensitivityAtSpecificity(
@@ -243,7 +245,7 @@ def train_rgb_cnn(static_keys, static_data_bundle, hybrid_data_bundle, max_split
         # test_pred = expit(test_prediction_raw).reshape(-1,)
         test_prediction_raw = cnn.predict(test_data)
         print("Plotting predictions")
-        debug_plot(test_prediction_raw[0], test_data[0], saveto=f"./saved_outputs/{static_keys[k_test[0]]}_cnn_pred_static_{ACC_HZ}.png")
+        debug_plot(softmax(test_prediction_raw[0], axis=-1), test_data[0], saveto=f"./saved_outputs/{static_keys[k_test[0]]}_cnn_pred_static_{ACC_HZ}.png")
         test_pred = test_prediction_raw
         test_pred_path = (static_keys[k_test[0]]) + \
             f"_cnn_pred_static_{ACC_HZ}.npy"
@@ -315,4 +317,4 @@ if __name__ == "__main__":
     warnings.filterwarnings("ignore")
 
     # do_preprocessing(big_specgram_process)
-    load_and_train(epochs=100, batch_size=1, lr=5e-3)
+    load_and_train(epochs=50, batch_size=1, lr=1e-2)

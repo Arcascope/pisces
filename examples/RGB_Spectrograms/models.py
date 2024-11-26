@@ -6,6 +6,8 @@ from keras.layers import (
 from keras.models import Model
 from keras.regularizers import l2
 
+from examples.RGB_Spectrograms.constants import NEW_INPUT_SHAPE, NEW_OUTPUT_SHAPE
+
 
 def leaky_relu_block(x, filters, kernel_size, strides, padding='same', regularization_strength=0.01, negative_slope=0.1):
 
@@ -52,7 +54,7 @@ def segmentation_model(input_shape=NEW_INPUT_SHAPE, num_classes=4, from_logits=F
     u2 = leaky_relu_transpose_block(p2, 64, (3, 3), (2, 2))
     u2 = Concatenate()([u2, c2])  # Skip connection
     # u2 = UpSampling2D((2, 2))(u2)
-    u2 = leaky_relu_transpose_block(u2, 64, (1, 1), (2, 2), use_batch_norm=False)
+    u2 = leaky_relu_transpose_block(u2, 64, (3, 3), (2, 2), use_batch_norm=False)
     
     # Collapse frequency axis
     collapse = AveragePooling2D(pool_size=(1, u2.shape[2]))(u2)  # Collapse frequency (128 -> 1)
