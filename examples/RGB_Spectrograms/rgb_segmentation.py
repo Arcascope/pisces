@@ -38,7 +38,7 @@ import keras.ops as K
 
 
 from src.constants import ACC_HZ
-from examples.NHRC.wasa_metric import BinaryTruePositives, WASAMetric
+from wasa_metric import WASAMetric
 from src.preprocess_and_save import do_preprocessing
 from nhrc_utils.analysis import stages_map
 
@@ -237,6 +237,7 @@ def train_rgb_cnn(static_keys, static_data_bundle, hybrid_data_bundle, max_split
                 ],
             weighted_metrics=[
                 keras.metrics.SparseCategoricalAccuracy(),
+                WASAMetric(sleep_accuracy=WASA_FRAC)
             ]
         )
 
@@ -365,4 +366,4 @@ if __name__ == "__main__":
     warnings.filterwarnings("ignore")
 
     # do_preprocessing(big_specgram_process)
-    load_and_train(epochs=4, batch_size=1, lr=1e-3)
+    load_and_train(epochs=20, batch_size=1, lr=1e-3)
