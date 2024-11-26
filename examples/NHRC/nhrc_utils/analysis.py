@@ -254,7 +254,8 @@ def mo_predict_logits(data: tf.Tensor):
 
 def stages_map(input) -> np.ndarray:
     changed = np.zeros_like(input)
-    changed[input < 3] = input[input < 3]
+    changed[input < 2] = input[input < 2]
+    changed[input == 2] = 1
     # N4 -> N3
     changed[input == 3] = 2
     changed[input == 4] = 2

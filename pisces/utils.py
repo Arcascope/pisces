@@ -501,7 +501,7 @@ def accelerometer_to_3d_specgram(data, nfft=512, window_len=320, noverlap=256, w
         )
         spectrograms.append(Sxx.T)  # Transpose to shape (time_bins, freq_bins)
     
-    return np.stack(spectrograms, axis=-1)[:, :(nfft // 2)]  # Shape (time_bins, freq_bins, 3)
+    return np.stack(spectrograms, axis=-1)[:, 1:]  # Shape (time_bins, freq_bins, 3)
 
 
 # %% ../nbs/00_utils.ipynb 20

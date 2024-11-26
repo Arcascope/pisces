@@ -39,7 +39,6 @@ def big_specgram_process(dataset: pds.DataSetObject,
     pre_mask_wakes = np.sum(psg_data[:, 1] == 0)
     wakes_masked = 0
 
-    print("Pre-mask:\n\tSleeps", pre_mask_sleeps, "\n\tWakes", pre_mask_wakes)
     for gap_index in gap_indices:
         gap_start = accel_data[gap_index, 0] + ACC_DIFF_GAP
         gap_end = accel_data[gap_index + 1, 0]
@@ -49,11 +48,11 @@ def big_specgram_process(dataset: pds.DataSetObject,
         wake_counts = np.sum((psg_data[mask_indices, 1].astype(int)) == 0)
         wakes_masked += wake_counts
         psg_data[mask_indices, 1:] = -1
+    
+    print_class_statistics(psg_data[:, 1])
 
     post_mask_sleeps = np.sum(psg_data[:, 1] > 0)
     post_mask_wakes = np.sum(psg_data[:, 1] == 0)
-    print("Post-mask:\n\tSleeps", post_mask_sleeps, "\n\tWakes",
-          post_mask_wakes, "\n\tWakes masked", wakes_masked)
 
     # Convert accelerometer data to spectrograms
 
@@ -88,6 +87,16 @@ def big_specgram_process(dataset: pds.DataSetObject,
     # Pad activity data to 2 * 1024 samples
     activity_data = pad_or_truncate(activity_data, int(N_OUTPUT_EPOCHS * 2))
 
+
     return {"spectrogram": padded_spectrograms,
             "activity": activity_data,
             "psg": psg_data}
+
+
+def print_class_statistics(labels: np.array):
+    """
+    Print the % of samples in each class
+    """
+    print("Class statistics:")
+    values, *_, counts = np.unique(labels, return_counts=True)
+    print("MOST COMMON CLASS:", values[np.argmax(counts)], f"at {counts[np.argmax(counts)]/len(labels)*100:.2f}%")

@@ -1,8 +1,7 @@
 import os
+import sys
+from pathlib import Path
 from typing import List
-
-from examples.RGB_Spectrograms.preprocessing import big_specgram_process
-
 
 
 # Use jax backend
@@ -10,11 +9,14 @@ from examples.RGB_Spectrograms.preprocessing import big_specgram_process
 # we have to do this first, before importing Keras ANYWHERE (including in pisces/other modules)
 # So ignore the warnings about imports below this line
 # pylint: disable=wrong-import-position,wrong-import-order
-os.environ["KERAS_BACKEND"] = "jax"
+# os.environ["KERAS_BACKEND"] = "jax"
 # os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
 
-import sys
-sys.path.append('../NHRC')
+local_dir = Path(__file__).resolve().parent
+print("local_dir: ", local_dir)
+sys.path.append(str(local_dir.parent.joinpath('NHRC')))
+from examples.RGB_Spectrograms.preprocessing import big_specgram_process
+from examples.RGB_Spectrograms.channel_permuter import PermutationDataGenerator, Random3DRotationGenerator
 from examples.RGB_Spectrograms.models import NEW_INPUT_SHAPE, segmentation_model
 from dataclasses import dataclass
 import time
@@ -22,7 +24,7 @@ import datetime
 
 import matplotlib.pyplot as plt
 import numpy as np
-import torch
+# import torch
 from scipy.special import expit, softmax
 
 
@@ -98,12 +100,20 @@ def print_and_return(x):
     return x
 
 def compute_stage_weights(label_stack):
-    stage_counts = np.zeros(4)
-    for i in range(4):
-        stage_counts[i] = np.sum(label_stack == i)
+    # Compute balancing sample weights based on label_stack
+    sample_weights = np.zeros_like(label_stack, dtype=np.float32)
+    for idx in range(len(label_stack)):
+        substack = label_stack[idx]
+        n_scored = np.sum(substack >= 0)
+        for i in range(4):
+            sample_weights[idx][substack == i] = n_scored / (np.sum(substack == i) + 1e-8)
+        
+        # Assign weight 0.0 to any values where substack < 0
+        sample_weights[idx][substack < 0] = 0.0
+
+        # sample_weights[idx] /= np.sum(sample_weights[idx])
     
-    stage_weights = 1 / stage_counts
-    return stage_weights
+    return sample_weights
 
 
 # Define the learning rate scheduler callback
@@ -137,10 +147,12 @@ def prepare_data(preprocessed_data) -> PreparedDataRGB:
         for k in list(preprocessed_data.keys())
     ])
 
-    label_weights = np.zeros_like(label_stack, dtype=np.float32)
-    stage_weights = compute_stage_weights(label_stack)
-    for i in range(4):
-        label_weights[label_stack == i] = stage_weights[i]
+    # label_weights = np.zeros_like(label_stack, dtype=np.float32)
+    # stage_weights = compute_stage_weights(label_stack)
+    label_weights = compute_stage_weights(label_stack)
+
+    # for i in range(4):
+    #     label_weights[label_stack == i] = stage_weights[i]
 
     label_weights[label_stack < 0] = 0.0
 
@@ -151,6 +163,12 @@ def prepare_data(preprocessed_data) -> PreparedDataRGB:
         preprocessed_data[k]['spectrogram']
         for k in list(preprocessed_data.keys())
     ])
+
+    # clip the spectrogram stack to 0.05 and 0.95 quantiles
+    p_low = 5
+    for i in range(3):
+        p5, p95 = np.percentile(spectrogram_stack[:, :, :, i], [p_low, 100 - p_low])
+        spectrogram_stack[:, :, :, i] = np.clip(spectrogram_stack[:, :, :, i], p5, p95)
 
     return PreparedDataRGB(
         spectrograms=spectrogram_stack.astype(np.float32),
@@ -174,11 +192,7 @@ def channelwise_std(x, axes=[1, 2]):
 
 def train_rgb_cnn(static_keys, static_data_bundle, hybrid_data_bundle, max_splits: int = -1, epochs: int = 1, lr: float = 1e-4, batch_size: int = 1):
     
-    log_dir_cnn = f"./logs/rgb_cnn_{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}"
 
-    # Configure TensorBoard callback
-    cnn_tensorboard_callback = TensorBoard(
-        log_dir=log_dir_cnn, histogram_freq=1)
 
     split_maker = LeaveOneOut()
 
@@ -191,6 +205,10 @@ def train_rgb_cnn(static_keys, static_data_bundle, hybrid_data_bundle, max_split
 
     # Split the data into training and testing sets
     for k_train, k_test in tqdm(split_maker.split(static_keys), desc="Next split", total=len(static_keys)):
+        log_dir_cnn = f"./logs/rgb_cnn_{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}"
+        # Configure TensorBoard callback
+        cnn_tensorboard_callback = TensorBoard(
+            log_dir=log_dir_cnn, histogram_freq=1)
         if (max_splits > 0) and (len(training_results) >= max_splits):
                 break
         # Convert indices to tensors
@@ -207,26 +225,18 @@ def train_rgb_cnn(static_keys, static_data_bundle, hybrid_data_bundle, max_split
             static_data_bundle, test_idx_tensor)
 
         # Train the model on the training set
-        cnn = segmentation_model(from_logits=True)
+        from_logits = False 
+        cnn = segmentation_model(from_logits=from_logits)
         # cnn = mini_segmentation()
 
         cnn.compile(
-            loss=keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+            loss=keras.losses.SparseCategoricalCrossentropy(from_logits=from_logits),
             optimizer=keras.optimizers.Adam(learning_rate=lr),
             metrics=[
                 keras.metrics.SparseCategoricalAccuracy(),
-                # 'accuracy',
-                # BinaryTruePositives(),
-                # keras.metrics.SensitivityAtSpecificity(
-                #     WASA_FRAC,
-                #     num_thresholds=200,
-                #     class_id=0,
-                #     name=f'WASA{WASA_PERCENT}',
-                #     dtype=None)
                 ],
             weighted_metrics=[
                 keras.metrics.SparseCategoricalAccuracy(),
-            #     WASAMetric(WASA_FRAC)
             ]
         )
 
@@ -241,10 +251,14 @@ def train_rgb_cnn(static_keys, static_data_bundle, hybrid_data_bundle, max_split
         test_specgram_std = channelwise_std(test_data)
         test_data = (test_data - test_specgram_mean) / test_specgram_std
 
+        channel_shuffler = PermutationDataGenerator(train_data, train_labels, sample_weights=train_sample_weights, batch_size=batch_size) 
+        # channel_shuffler = Random3DRotationGenerator(train_data, train_labels, train_sample_weights, batch_size=batch_size)
+
 
         training_results.append(cnn.fit(
-            train_data, train_labels,
-            sample_weight=train_sample_weights,
+            channel_shuffler,
+            # train_data, train_labels,
+            # sample_weight=train_sample_weights,
             epochs=epochs,
             validation_data=(test_data, test_labels, test_sample_weights),
             batch_size=batch_size, # 4 seems to be the max we can handle for cnn.predict(stack_of_spectrograms) on M3 Max w/ 64 gb of RAM
@@ -260,14 +274,21 @@ def train_rgb_cnn(static_keys, static_data_bundle, hybrid_data_bundle, max_split
         # scalar = 10000.0
         # test_prediction_raw = test_prediction_raw / scalar
         # test_pred = expit(test_prediction_raw).reshape(-1,)
-        test_prediction_raw = cnn.predict(test_data)
+        test_prediction_raw = cnn.predict(test_data)[0]
+        if from_logits:
+            print("Applying softmax")
+            test_prediction_raw = softmax(test_prediction_raw, axis=-1)
         print("Plotting predictions")
-        debug_plot(softmax(test_prediction_raw[0], axis=-1), test_data[0], saveto=f"./saved_outputs/{static_keys[k_test[0]]}_cnn_pred_static_{ACC_HZ}.png")
-        test_pred = test_prediction_raw
-        test_pred_path = (static_keys[k_test[0]]) + \
-            f"_cnn_pred_static_{ACC_HZ}.npy"
         os.makedirs("./saved_outputs", exist_ok=True)
-        np.save("./saved_outputs/" + test_pred_path, test_pred)
+        debug_plot(
+            test_prediction_raw, 
+            test_data[0], 
+            weights=test_sample_weights[0],
+            saveto=f"./saved_outputs/{static_keys[k_test[0]]}_cnn_pred_static_{ACC_HZ}.png")
+        test_pred = test_prediction_raw
+        # test_pred_path = (static_keys[k_test[0]]) + \
+        #     f"_cnn_pred_static_{ACC_HZ}.npy"
+        # np.save("./saved_outputs/" + test_pred_path, test_pred)
 
         # Repeat for hybrid data
         # Evaluate the model on the test data
@@ -279,19 +300,28 @@ def train_rgb_cnn(static_keys, static_data_bundle, hybrid_data_bundle, max_split
         # test_prediction_raw = test_prediction_raw / scalar
         # test_pred = expit(test_prediction_raw).reshape(-1,)
         test_pred = test_prediction_raw
-        test_pred_path = (static_keys[k_test[0]]) + \
-            f"_cnn_pred_hybrid_{ACC_HZ}.npy"
-        np.save("saved_outputs/" + test_pred_path, test_pred)
+        # test_pred_path = (static_keys[k_test[0]]) + \
+        #     f"_cnn_pred_hybrid_{ACC_HZ}.npy"
+        # np.save("saved_outputs/" + test_pred_path, test_pred)
 
         # save the trained model weights
         cnn_path = rgb_path_name(static_keys[k_test[0]])
         cnn.save(cnn_path)
 
-def debug_plot(predictions, spectrogram_3d, saveto: str = None):
+def debug_plot(predictions, spectrogram_3d, weights: np.ndarray | None = None, saveto: str = None):
     fig, axs = plt.subplots(2, 1, figsize=(10, 10))
     overlay_channels_fixed(np.swapaxes(spectrogram_3d, 0, 1), ax=axs[0])
     axs[1].stackplot(range(OUTPUT_SHAPE[0]), predictions.T)
     axs[1].set_xlim([0, OUTPUT_SHAPE[0]])
+    axs[1].set_ylim([0, 1])
+    if weights is not None:
+        # apply gray vertical bar over any regions with weight 0.0
+        for idx in np.where(weights == 0.0)[0]:
+            axs[1].axvspan(idx, idx+1, color='gray', alpha=0.5)
+        # axs[1].vlines(weights[weights == 0.0], 0, 1, color='gray', alpha=0.5)
+        # for idx, w in enumerate(weights):
+        #     if w == 0.0:
+        #         axs[1].axvline(x=idx, color='gray', alpha=0.5)
     fig.tight_layout(pad=0.1)
     if saveto is not None:
         os.makedirs(os.path.dirname(saveto), exist_ok=True)
@@ -299,7 +329,8 @@ def debug_plot(predictions, spectrogram_3d, saveto: str = None):
     plt.close()
 
 def load_preprocessed_data(dataset: str):
-    return np.load(f'./pre_processed_data/{dataset}/{dataset}_preprocessed_data_{ACC_HZ}.npy',
+    print("!!!", local_dir)
+    return np.load(local_dir.joinpath(f'pre_processed_data/{dataset}/{dataset}_preprocessed_data_{ACC_HZ}.npy'),
                    allow_pickle=True).item()
 
 def load_and_train(max_splits: int = -1, epochs: int = 1, lr: float = 1e-4, batch_size: int = 1):
@@ -334,4 +365,4 @@ if __name__ == "__main__":
     warnings.filterwarnings("ignore")
 
     # do_preprocessing(big_specgram_process)
-    load_and_train(epochs=50, batch_size=1, lr=1e-4)
+    load_and_train(epochs=4, batch_size=1, lr=1e-3)
