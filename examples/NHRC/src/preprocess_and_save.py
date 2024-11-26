@@ -4,13 +4,11 @@ from typing import Dict, List
 from pathlib import Path
 
 import numpy as np
-from scipy.signal import spectrogram
 import pandas as pd
 import matplotlib.pyplot as plt
 
 from src.constants import ACC_HZ as acc_Hz_str
 
-from examples.NHRC.nhrc_utils.new_cnn import NEW_INPUT_SHAPE
 import pisces.data_sets as pds
 from pisces.data_sets import (
     DataSetObject,
@@ -142,36 +140,6 @@ def process_data(dataset: pds.DataSetObject,
             "activity": activity_data,
             "psg": psg_data}
 
-
-def accelerometer_to_specgram(data, nfft=512, window_len=320, noverlap=256, window='blackman'):
-    """
-    Converts resampled accelerometer data into spectrograms for each axis.
-    
-    Parameters:
-        data (numpy.ndarray): Resampled accelerometer data with shape (N, 4).
-        nfft (int): FFT length.
-        window_len (int): Length of each segment for FFT.
-        noverlap (int): Number of overlapping points between segments.
-        window (str): Type of window function to use (default: 'blackman').
-    
-    Returns:
-        numpy.ndarray: Tensor of spectrograms with shape (time_bins, freq_bins, 3).
-    """
-    axes = ['x', 'y', 'z']  # Acceleration axes
-    spectrograms = []
-    
-    for i in range(1, 4):  # Columns 1, 2, 3 correspond to x, y, z
-        f, t, Sxx = spectrogram(
-            data[:, i], 
-            fs=32,  # Sampling frequency after resampling
-            nfft=nfft, 
-            nperseg=window_len, 
-            noverlap=noverlap, 
-            window=window
-        )
-        spectrograms.append(Sxx.T)  # Transpose to shape (time_bins, freq_bins)
-    
-    return np.stack(spectrograms, axis=-1)  # Shape (time_bins, freq_bins, 3)
 
 
 def process_data_set(data_set: pds.DataSetObject,

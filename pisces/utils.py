@@ -3,8 +3,8 @@
 # %% auto 0
 __all__ = ['WASA_THRESHOLD', 'BALANCE_WEIGHTS', 'determine_header_rows_and_delimiter', 'build_ADS',
            'build_activity_counts_te_Lindert_et_al', 'plot_scores_CDF', 'plot_scores_PDF', 'constant_interp',
-           'avg_steps', 'add_rocs', 'pad_to_hat', 'pad_or_truncate', 'mae_func', 'resample_accel_data', 'Constants',
-           'SleepMetricsCalculator', 'split_analysis']
+           'avg_steps', 'add_rocs', 'pad_to_hat', 'pad_or_truncate', 'mae_func', 'resample_accel_data',
+           'accelerometer_to_3d_specgram', 'Constants', 'SleepMetricsCalculator', 'split_analysis']
 
 # %% ../nbs/00_utils.ipynb 4
 import csv
@@ -470,7 +470,41 @@ def resample_accel_data(accel_data: np.ndarray, original_fs: int, target_fs: int
     resampled_accel_data = np.column_stack((new_time, resampled_data))
     return resampled_accel_data
 
-# %% ../nbs/00_utils.ipynb 19
+# %% ../nbs/00_utils.ipynb 18
+from scipy.signal import spectrogram
+
+def accelerometer_to_3d_specgram(data, nfft=512, window_len=320, noverlap=256, window='blackman'):
+    """
+    Converts resampled accelerometer data into spectrograms for each axis.
+    
+    Parameters:
+        data (numpy.ndarray): Resampled accelerometer data with shape (N, 4).
+        nfft (int): FFT length.
+        window_len (int): Length of each segment for FFT.
+        noverlap (int): Number of overlapping points between segments.
+        window (str): Type of window function to use (default: 'blackman').
+    
+    Returns:
+        numpy.ndarray: Tensor of spectrograms with shape (time_bins, freq_bins, 3).
+    """
+    axes = ['x', 'y', 'z']  # Acceleration axes
+    spectrograms = []
+    
+    for i in range(1, 4):  # Columns 1, 2, 3 correspond to x, y, z
+        f, t, Sxx = spectrogram(
+            data[:, i], 
+            fs=32,  # Sampling frequency after resampling
+            nfft=nfft, 
+            nperseg=window_len, 
+            noverlap=noverlap, 
+            window=window
+        )
+        spectrograms.append(Sxx.T)  # Transpose to shape (time_bins, freq_bins)
+    
+    return np.stack(spectrograms, axis=-1)  # Shape (time_bins, freq_bins, 3)
+
+
+# %% ../nbs/00_utils.ipynb 20
 class Constants:
     # WAKE_THRESHOLD = 0.3  # These values were used for scikit-learn 0.20.3, See:
     # REM_THRESHOLD = 0.35  # https://scikit-learn.org/stable/whats_new.html#version-0-21-0
@@ -574,7 +608,7 @@ class SleepMetricsCalculator:
 
         return res
 
-# %% ../nbs/00_utils.ipynb 21
+# %% ../nbs/00_utils.ipynb 22
 WASA_THRESHOLD = 0.93
 BALANCE_WEIGHTS = True
 
