@@ -5,7 +5,7 @@ import jax.lax
 import jax.numpy as jnp
 
 
-class SleepAccuracyMetric(Metric):
+class WASAMetric(Metric):
     def __init__(self, sleep_accuracy=0.95, **kwargs):
         name = f"WASA{int(100 * sleep_accuracy)}"
         super().__init__(name=name, **kwargs)

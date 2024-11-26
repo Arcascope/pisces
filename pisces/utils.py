@@ -2,9 +2,9 @@
 
 # %% auto 0
 __all__ = ['WASA_THRESHOLD', 'BALANCE_WEIGHTS', 'determine_header_rows_and_delimiter', 'build_ADS',
-           'build_activity_counts_te_Lindert_et_al', 'ActivityCountAlgorithm', 'build_activity_counts',
-           'plot_scores_CDF', 'plot_scores_PDF', 'constant_interp', 'avg_steps', 'add_rocs', 'pad_to_hat', 'mae_func',
-           'resample_accel_data', 'Constants', 'SleepMetricsCalculator', 'split_analysis']
+           'build_activity_counts_te_Lindert_et_al', 'plot_scores_CDF', 'plot_scores_PDF', 'constant_interp',
+           'avg_steps', 'add_rocs', 'pad_to_hat', 'pad_or_truncate', 'mae_func', 'resample_accel_data', 'Constants',
+           'SleepMetricsCalculator', 'split_analysis']
 
 # %% ../nbs/00_utils.ipynb 4
 import csv
@@ -216,24 +216,7 @@ def build_activity_counts_te_Lindert_et_al(
 
     return time_counts, counts
 
-# %% ../nbs/00_utils.ipynb 10
-class ActivityCountAlgorithm(Enum):
-    te_Lindert_et_al = 0
-    ADS = 2
-
-
-def build_activity_counts(
-    data,
-    axis: int = 3,
-    prefix: str = "",
-    algorithm: ActivityCountAlgorithm = ActivityCountAlgorithm.ADS
-) -> Tuple[np.ndarray, np.ndarray]:
-    if algorithm == ActivityCountAlgorithm.ADS:
-        return build_ADS(data)
-    if algorithm == ActivityCountAlgorithm.te_Lindert_et_al:
-        return build_activity_counts_te_Lindert_et_al(data, axis, prefix)
-
-# %% ../nbs/00_utils.ipynb 12
+# %% ../nbs/00_utils.ipynb 11
 def plot_scores_CDF(scores: List[float], ax: plt.Axes = None):
     """Plot the cumulative dist function (CDF) of the scores."""
     # plt.figure(figsize=(20, 10))
@@ -259,7 +242,7 @@ def plot_scores_PDF(scores: List[float], ax: plt.Axes = None):
     if ax is None:
         ax_.legend()
 
-# %% ../nbs/00_utils.ipynb 13
+# %% ../nbs/00_utils.ipynb 12
 def constant_interp(
     x: np.ndarray, xp: np.ndarray, yp: np.ndarray, side: str = "right"
 ) -> np.ndarray:
@@ -335,7 +318,7 @@ def avg_steps(
 
     return all_xs, avg_curve
 
-# %% ../nbs/00_utils.ipynb 14
+# %% ../nbs/00_utils.ipynb 13
 def add_rocs(fprs: List[np.ndarray],
              tprs: List[np.ndarray],
              x_class: str = "SLEEP",
@@ -392,7 +375,7 @@ def add_rocs(fprs: List[np.ndarray],
         resolved_ax.legend()
         plt.show()
 
-# %% ../nbs/00_utils.ipynb 16
+# %% ../nbs/00_utils.ipynb 15
 def pad_to_hat(y: np.ndarray, y_hat: np.ndarray) -> np.ndarray:
     """Adds zeros to the end of y to match the length of y_hat.
 
@@ -405,7 +388,21 @@ def pad_to_hat(y: np.ndarray, y_hat: np.ndarray) -> np.ndarray:
     y_padded = np.pad(y, (0, pad), constant_values=0)
     return y_padded
 
-# %% ../nbs/00_utils.ipynb 17
+
+def pad_or_truncate(data,
+                    desired_length,
+                    pad_value: float = -1.0):
+    current_length = data.shape[0]
+    if current_length < desired_length:
+        padding = desired_length - current_length
+        pad_width = ((0, padding), (0, 0))
+        data = np.pad(data, pad_width, mode='constant',
+                      constant_values=pad_value)
+    else:
+        data = data[:desired_length, :]
+    return data
+
+# %% ../nbs/00_utils.ipynb 16
 def mae_func(
     func: Callable[[np.ndarray], float],
     trues: List[np.ndarray],
@@ -442,7 +439,7 @@ def mae_func(
     return sum(aes) / len(aes)
 
 
-# %% ../nbs/00_utils.ipynb 18
+# %% ../nbs/00_utils.ipynb 17
 from scipy.signal import resample_poly
 
 def resample_accel_data(accel_data: np.ndarray, original_fs: int, target_fs: int) -> np.ndarray:
@@ -473,7 +470,7 @@ def resample_accel_data(accel_data: np.ndarray, original_fs: int, target_fs: int
     resampled_accel_data = np.column_stack((new_time, resampled_data))
     return resampled_accel_data
 
-# %% ../nbs/00_utils.ipynb 20
+# %% ../nbs/00_utils.ipynb 19
 class Constants:
     # WAKE_THRESHOLD = 0.3  # These values were used for scikit-learn 0.20.3, See:
     # REM_THRESHOLD = 0.35  # https://scikit-learn.org/stable/whats_new.html#version-0-21-0
@@ -577,7 +574,7 @@ class SleepMetricsCalculator:
 
         return res
 
-# %% ../nbs/00_utils.ipynb 22
+# %% ../nbs/00_utils.ipynb 21
 WASA_THRESHOLD = 0.93
 BALANCE_WEIGHTS = True
 
