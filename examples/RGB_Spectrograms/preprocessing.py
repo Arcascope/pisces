@@ -1,12 +1,9 @@
 from typing import Dict
 import numpy as np
-from examples.RGB_Spectrograms.constants import N_OUTPUT_EPOCHS, NEW_INPUT_SHAPE
+from examples.RGB_Spectrograms.constants import ACC_DIFF_GAP, ACC_INPUT_HZ, N_OUTPUT_EPOCHS, NEW_INPUT_SHAPE, PSG_DT
 import pisces.data_sets as pds
 from pisces.utils import accelerometer_to_3d_specgram, build_ADS, pad_or_truncate, resample_accel_data
 
-ACC_DIFF_GAP = 1.0
-ACC_INPUT_HZ = 50
-PSG_DT = 30
 
 
 def big_specgram_process(dataset: pds.DataSetObject,

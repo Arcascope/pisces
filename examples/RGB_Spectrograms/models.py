@@ -42,19 +42,27 @@ def leaky_relu_transpose_block(x, filters, kernel_size, strides, padding='same',
 
 def segmentation_model(input_shape=NEW_INPUT_SHAPE, num_classes=4, from_logits=False):
     inputs = Input(shape=input_shape)
+
+    filters = [8, 16, 32, 64, 128]
     
     # Encoder
-    c1 = leaky_relu_block(inputs, 64, (3, 3), (1, 1))
+    c1 = leaky_relu_block(inputs, filters[0], (3, 3), (1, 1))
     p1 = MaxPooling2D((2, 2))(c1)  # Downsampling
     
-    c2 = leaky_relu_block(p1, 128, (3, 3), (1, 1))
+    c2 = leaky_relu_block(p1, filters[1], (3, 3), (1, 1))
     p2 = MaxPooling2D((2, 2))(c2)  # Further Downsampling
+
+    c3 = leaky_relu_block(p2, filters[2], (3, 3), (1, 1))
+    p3 = MaxPooling2D((2, 2))(c3)  # Further Downsampling
+
+    u1 = leaky_relu_transpose_block(p3, filters[2], (3, 3), (2, 2))
     
     # Decoder
-    u2 = leaky_relu_transpose_block(p2, 64, (3, 3), (2, 2))
+    u2 = leaky_relu_transpose_block(u1, filters[1], (3, 3), (2, 2))
     u2 = Concatenate()([u2, c2])  # Skip connection
-    # u2 = UpSampling2D((2, 2))(u2)
-    u2 = leaky_relu_transpose_block(u2, 64, (3, 3), (2, 2), use_batch_norm=False)
+
+    u2 = leaky_relu_transpose_block(u2, filters[0], (3, 3), (2, 2), use_batch_norm=False)
+    u2 = Concatenate()([u2, c1])  # Skip connection
     
     # Collapse frequency axis
     collapse = AveragePooling2D(pool_size=(1, u2.shape[2]))(u2)  # Collapse frequency (128 -> 1)

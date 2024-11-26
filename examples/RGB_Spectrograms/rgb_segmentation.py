@@ -1,4 +1,7 @@
 import os
+from typing import List
+
+from examples.RGB_Spectrograms.preprocessing import big_specgram_process
 
 
 
@@ -159,6 +162,15 @@ def rgb_path_name(key) -> str:
     os.makedirs("./saved_models", exist_ok=True)
     return f"./saved_models/rgb_{key}_{ACC_HZ}.keras"
 
+def channelwise_mean(x, axes=[1, 2]):
+    for axis in axes:
+        x = np.mean(x, axis=axis, keepdims=True)
+    return x
+
+def channelwise_std(x, axes=[1, 2]):
+    for axis in axes:
+        x = np.std(x, axis=axis, keepdims=True)
+    return x
 
 def train_rgb_cnn(static_keys, static_data_bundle, hybrid_data_bundle, max_splits: int = -1, epochs: int = 1, lr: float = 1e-4, batch_size: int = 1):
     
@@ -218,12 +230,17 @@ def train_rgb_cnn(static_keys, static_data_bundle, hybrid_data_bundle, max_split
             ]
         )
 
-        
-        # gives weight 0 to -1 "mask" intervals, 1 to the rest
+        # standardize the data
+        train_specgram_mean = channelwise_mean(train_data)
+        train_specgram_std = channelwise_std(train_data)
+        train_data = (train_data - train_specgram_mean) / train_specgram_std
 
-        # make the labels binary, -1 -> 0
-        # since we incorporate the mask in the sample weights,
-        # we can just set the labels to 0
+        # do this separately, to hide the difference of means from NN.
+        # i.e. both inputs have mean 0 and std 1
+        test_specgram_mean = channelwise_mean(test_data)
+        test_specgram_std = channelwise_std(test_data)
+        test_data = (test_data - test_specgram_mean) / test_specgram_std
+
 
         training_results.append(cnn.fit(
             train_data, train_labels,
@@ -317,4 +334,4 @@ if __name__ == "__main__":
     warnings.filterwarnings("ignore")
 
     # do_preprocessing(big_specgram_process)
-    load_and_train(epochs=50, batch_size=1, lr=1e-2)
+    load_and_train(epochs=50, batch_size=1, lr=1e-4)
