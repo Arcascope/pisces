@@ -4,95 +4,12 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import keras
 import time
+from pisces.metrics import apply_threshold, threshold_from_binary_search, PerformanceMetrics
 from examples.NHRC.nhrc_utils.analysis import prepare_data
 from constants import ACC_HZ as acc_hz, TARGET_SLEEP
 
 plt.rcParams['font.family'] = 'Arial'
 COLOR_PALETTE = sns.color_palette("colorblind")
-
-
-class PerformanceMetrics:
-    def __init__(self, sleep_accuracy, wake_accuracy, tst_error, ):
-        self.sleep_accuracy = sleep_accuracy
-        self.wake_accuracy = wake_accuracy
-        self.tst_error = tst_error
-
-
-def apply_threshold(labels, predictions, threshold):
-    true_wakes = np.where(labels == 0)[0]
-    predicted_wakes = np.where(predictions > threshold)[0]
-
-    # calculate the number of true positives
-    wake_accuracy = len(set(true_wakes).intersection(
-        set(predicted_wakes))) / len(true_wakes)
-
-    # calculate the sleep accuracy
-    true_sleeps = np.where(labels > 0)[0]
-    predicted_sleeps = np.where((predictions <= threshold) & (labels != -1))[0]
-
-    sleep_accuracy = len(set(true_sleeps).intersection(
-        set(predicted_sleeps))) / len(true_sleeps)
-
-    tst_error = (len(true_sleeps) - len(predicted_sleeps)) / 2  # Minutes
-
-
-    return PerformanceMetrics(sleep_accuracy, wake_accuracy, tst_error)
-
-
-def threshold_from_binary_search(labels, wake_probabilities,
-                                 target_sleep_accuracy) -> float:
-
-    # How close to the target wake false positive rate we need to be before stopping
-    false_positive_buffer = 0.0001
-    fraction_sleep_scored_as_sleep = -1
-    binary_search_counter = 0
-
-    max_attempts_binary_search = 50
-
-    # While we haven't found the target wake false positive rate
-    # (and haven't exceeded the number of allowable searches), keep searching:
-    while (
-        fraction_sleep_scored_as_sleep < target_sleep_accuracy - false_positive_buffer
-        or fraction_sleep_scored_as_sleep
-        >= target_sleep_accuracy + false_positive_buffer
-    ) and binary_search_counter < max_attempts_binary_search:
-        # If this is the first iteration on the binary search, initialize.
-        if binary_search_counter == 0:
-            threshold_for_sleep = 0.5
-            threshold_delta = 0.25
-        else:
-            if (
-                fraction_sleep_scored_as_sleep
-                < target_sleep_accuracy - false_positive_buffer
-            ):
-                threshold_for_sleep = threshold_for_sleep + threshold_delta
-                threshold_delta = threshold_delta / 2
-
-            if (
-                fraction_sleep_scored_as_sleep
-                >= target_sleep_accuracy + false_positive_buffer
-            ):
-                threshold_for_sleep = threshold_for_sleep - threshold_delta
-                threshold_delta = threshold_delta / 2
-
-        performance = apply_threshold(
-            labels, wake_probabilities, threshold_for_sleep)
-        fraction_sleep_scored_as_sleep = performance.sleep_accuracy
-        sens = keras.metrics.SensitivityAtSpecificity(target_sleep_accuracy)
-        one_hot_labels = keras.utils.to_categorical(labels, num_classes=2)
-        sens.update_state(one_hot_labels, wake_probabilities)
-        print("Sensitivity at specificity: " + str(sens.result().numpy()))
-        print(f"WASA{int(target_sleep_accuracy * 100)}: {performance.wake_accuracy}")
-        print("Fraction sleep correct: " + str(fraction_sleep_scored_as_sleep))
-        print("Goal fraction sleep correct: " + str(target_sleep_accuracy))
-        binary_search_counter = binary_search_counter + 1
-
-    print("Declaring victory with " +
-          str(fraction_sleep_scored_as_sleep) + "\n\n")
-
-    print("Goal was: " + str(target_sleep_accuracy))
-    return threshold_for_sleep
-
 
 def plot_single_person(static_predictions,
                        hybrid_predictions,
