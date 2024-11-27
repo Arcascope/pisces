@@ -75,7 +75,6 @@ class Random3DRotationGenerator(Sequence):
 
     def on_epoch_end(self):
         """Shuffle indices and generate a new rotation matrix at the end of each epoch."""
-        print("Shuffling indices and generating a new rotation matrix.")
         np.random.shuffle(self.indices)
         self.rotation_matrix = self._generate_random_rotation_matrix()
 
@@ -86,9 +85,10 @@ class Random3DRotationGenerator(Sequence):
             tf.Tensor: A 3x3 rotation matrix.
         """
         # Random angles for rotation around each axis
-        angle_x = tf.random.uniform([], minval=-np.pi / 6, maxval=np.pi / 6)  # Rotation around x-axis
-        angle_y = tf.random.uniform([], minval=-np.pi / 6, maxval=np.pi / 6)  # Rotation around y-axis
-        angle_z = tf.random.uniform([], minval=-np.pi / 6, maxval=np.pi / 6)  # Rotation around z-axis
+        rad_range = np.pi / 2
+        angle_x = tf.random.uniform([], minval=-rad_range, maxval=rad_range)  # Rotation around x-axis
+        angle_y = tf.random.uniform([], minval=-rad_range, maxval=rad_range)  # Rotation around y-axis
+        angle_z = tf.random.uniform([], minval=-rad_range, maxval=rad_range)  # Rotation around z-axis
 
         # Rotation matrices for each axis
         rotation_x = tf.convert_to_tensor([
@@ -108,6 +108,8 @@ class Random3DRotationGenerator(Sequence):
             [tf.sin(angle_z), tf.cos(angle_z), 0],
             [0, 0, 1],
         ], dtype=tf.float32)
+
+        print(f"\nRotation angles: x={angle_x/np.pi:.2f}π, y={angle_y/np.pi:.2f}π, z={angle_z/np.pi:.2f}π")
 
         # Combine rotations: R = Rz * Ry * Rx
         rotation_matrix = tf.linalg.matmul(rotation_z, tf.linalg.matmul(rotation_y, rotation_x))
