@@ -68,7 +68,7 @@ def big_specgram_process(dataset: pds.DataSetObject,
     accel_data_diff = np.diff(accel_data, axis=0)  # take a time diff, this should remove some gravity
     accel_data_diff[:, 0] = accel_data[1:, 0]  # put the time back in
     accel_data_resampled = resample_accel_data(
-        accel_data_diff, original_fs=sample_rate, target_fs=ACC_INPUT_HZ)
+        accel_data, original_fs=sample_rate, target_fs=ACC_INPUT_HZ)
 
     # compute spectrogram with resampled data
     spectrograms = accelerometer_to_3d_specgram(

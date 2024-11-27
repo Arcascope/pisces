@@ -17,7 +17,8 @@ print("local_dir: ", local_dir)
 sys.path.append(str(local_dir.parent.joinpath('NHRC')))
 from examples.RGB_Spectrograms.preprocessing import big_specgram_process
 from examples.RGB_Spectrograms.channel_permuter import PermutationDataGenerator, Random3DRotationGenerator
-from examples.RGB_Spectrograms.models import NEW_INPUT_SHAPE, segmentation_model
+from examples.RGB_Spectrograms.models import segmentation_model
+from examples.RGB_Spectrograms.constants import NEW_INPUT_SHAPE, N_OUTPUT_EPOCHS
 from dataclasses import dataclass
 import time
 import datetime
@@ -38,28 +39,10 @@ import keras.ops as K
 
 
 from src.constants import ACC_HZ
-from wasa_metric import WASAMetric
+from pisces.metrics import WASAMetric, wasa_metric
 from src.preprocess_and_save import do_preprocessing
 from nhrc_utils.analysis import stages_map
 
-
-
-
-def add_rgb_legend(ax):
-    """
-    Adds an RGB legend indicating the mapping of colors to accelerometer axes.
-    """
-    
-    # Create a small color block with labels
-    colors = ['red', 'green', 'blue']
-    labels = ['X-axis (Red)', 'Y-axis (Green)', 'Z-axis (Blue)']
-    for i, color in enumerate(colors):
-        ax.add_patch(plt.Rectangle((0, i), 1, 1, color=color))
-        ax.text(1.2, i + 0.5, labels[i], va='center', fontsize=12)
-
-    ax.axis('off')
-    ax.set_xlim(0, 2)
-    ax.set_ylim(-0.5, 3)
 
 def overlay_channels_fixed(spectrogram_tensor, mintile=5, maxtile=95, ax=None):
     """
@@ -85,19 +68,7 @@ def overlay_channels_fixed(spectrogram_tensor, mintile=5, maxtile=95, ax=None):
     ax.set_xlabel('Time Bins')
     ax.set_ylabel('Frequency Bins')
     ax.set_title('Overlayed Spectrogram Channels as RGB')
-    # plt.show()
 
-
-
-# %%
-def debug_normalization(spectrogram_tensor):
-    for i in range(3):
-        channel = spectrogram_tensor[:, :, i]
-        print(f"Channel {i} - Min: {channel.min()}, Max: {channel.max()}, Mean: {channel.mean()}")
-
-def print_and_return(x):
-    print(x.shape)
-    return x
 
 def compute_stage_weights(label_stack):
     # Compute balancing sample weights based on label_stack
@@ -107,11 +78,8 @@ def compute_stage_weights(label_stack):
         n_scored = np.sum(substack >= 0)
         for i in range(4):
             sample_weights[idx][substack == i] = n_scored / (np.sum(substack == i) + 1e-8)
-        
-        # Assign weight 0.0 to any values where substack < 0
-        sample_weights[idx][substack < 0] = 0.0
 
-        # sample_weights[idx] /= np.sum(sample_weights[idx])
+        sample_weights[idx] /= np.sum(sample_weights[idx])
     
     return sample_weights
 
@@ -120,7 +88,7 @@ def compute_stage_weights(label_stack):
 reduce_lr = ReduceLROnPlateau(
     monitor='val_loss',  # Metric to monitor
     factor=0.5,          # Factor by which the learning rate will be reduced
-    patience=5,          # Number of epochs with no improvement after which learning rate will be reduced
+    patience=15,          # Number of epochs with no improvement after which learning rate will be reduced
     min_lr=1e-6          # Lower bound on the learning rate
 )
 
@@ -130,9 +98,7 @@ class PreparedDataRGB:
     labels: np.array 
     weights: np.array
 
-OUTPUT_SHAPE = (1024,)
-
-def rgb_gather_reshape(data_bundle: PreparedDataRGB, train_idx_tensor: np.array, input_shape: tuple = NEW_INPUT_SHAPE, output_shape: tuple = OUTPUT_SHAPE) -> tuple | None:
+def rgb_gather_reshape(data_bundle: PreparedDataRGB, train_idx_tensor: np.array, input_shape: tuple = NEW_INPUT_SHAPE, output_shape: tuple = (N_OUTPUT_EPOCHS,)) -> tuple | None:
     input_shape = (-1, *input_shape)
     output_shape = (-1, *output_shape)
     train_data = data_bundle.spectrograms[train_idx_tensor].reshape(input_shape)
@@ -147,12 +113,7 @@ def prepare_data(preprocessed_data) -> PreparedDataRGB:
         for k in list(preprocessed_data.keys())
     ])
 
-    # label_weights = np.zeros_like(label_stack, dtype=np.float32)
-    # stage_weights = compute_stage_weights(label_stack)
     label_weights = compute_stage_weights(label_stack)
-
-    # for i in range(4):
-    #     label_weights[label_stack == i] = stage_weights[i]
 
     label_weights[label_stack < 0] = 0.0
 
@@ -165,7 +126,7 @@ def prepare_data(preprocessed_data) -> PreparedDataRGB:
     ])
 
     # clip the spectrogram stack to 0.05 and 0.95 quantiles
-    p_low = 5
+    p_low = 10
     for i in range(3):
         p5, p95 = np.percentile(spectrogram_stack[:, :, :, i], [p_low, 100 - p_low])
         spectrogram_stack[:, :, :, i] = np.clip(spectrogram_stack[:, :, :, i], p5, p95)
@@ -205,7 +166,7 @@ def train_rgb_cnn(static_keys, static_data_bundle, hybrid_data_bundle, max_split
 
     # Split the data into training and testing sets
     for k_train, k_test in tqdm(split_maker.split(static_keys), desc="Next split", total=len(static_keys)):
-        log_dir_cnn = f"./logs/rgb_cnn_{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}"
+        log_dir_cnn = f"./logs/rgb_cnn_{static_keys[k_test[0]]}_{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}"
         # Configure TensorBoard callback
         cnn_tensorboard_callback = TensorBoard(
             log_dir=log_dir_cnn, histogram_freq=1)
@@ -227,17 +188,13 @@ def train_rgb_cnn(static_keys, static_data_bundle, hybrid_data_bundle, max_split
         # Train the model on the training set
         from_logits = False 
         cnn = segmentation_model(from_logits=from_logits)
-        # cnn = mini_segmentation()
 
         cnn.compile(
             loss=keras.losses.SparseCategoricalCrossentropy(from_logits=from_logits),
-            optimizer=keras.optimizers.Adam(learning_rate=lr),
-            metrics=[
-                keras.metrics.SparseCategoricalAccuracy(),
-                ],
+            optimizer=keras.optimizers.AdamW(learning_rate=lr),
             weighted_metrics=[
                 keras.metrics.SparseCategoricalAccuracy(),
-                WASAMetric(sleep_accuracy=WASA_FRAC)
+                WASAMetric(sleep_accuracy=WASA_FRAC, from_logits=from_logits)
             ]
         )
 
@@ -252,8 +209,8 @@ def train_rgb_cnn(static_keys, static_data_bundle, hybrid_data_bundle, max_split
         test_specgram_std = channelwise_std(test_data)
         test_data = (test_data - test_specgram_mean) / test_specgram_std
 
-        # channel_shuffler = PermutationDataGenerator(train_data, train_labels, sample_weights=train_sample_weights, batch_size=batch_size) 
-        channel_shuffler = Random3DRotationGenerator(train_data, train_labels, train_sample_weights, batch_size=batch_size)
+        channel_shuffler = PermutationDataGenerator(train_data, train_labels, sample_weights=train_sample_weights, batch_size=batch_size) 
+        # channel_shuffler = Random3DRotationGenerator(train_data, train_labels, train_sample_weights, batch_size=batch_size)
 
 
         training_results.append(cnn.fit(
@@ -262,8 +219,8 @@ def train_rgb_cnn(static_keys, static_data_bundle, hybrid_data_bundle, max_split
             # sample_weight=train_sample_weights,
             epochs=epochs,
             validation_data=(test_data, test_labels, test_sample_weights),
-            batch_size=batch_size, # 4 seems to be the max we can handle for cnn.predict(stack_of_spectrograms) on M3 Max w/ 64 gb of RAM
-            callbacks=[cnn_tensorboard_callback, reduce_lr]
+            # batch_size=batch_size, # 4 seems to be the max we can handle for cnn.predict(stack_of_spectrograms) on M3 Max w/ 64 gb of RAM
+            callbacks=[cnn_tensorboard_callback]
             # callbacks=[reduce_lr]
         ))
 
@@ -312,17 +269,13 @@ def train_rgb_cnn(static_keys, static_data_bundle, hybrid_data_bundle, max_split
 def debug_plot(predictions, spectrogram_3d, weights: np.ndarray | None = None, saveto: str = None):
     fig, axs = plt.subplots(2, 1, figsize=(10, 10))
     overlay_channels_fixed(np.swapaxes(spectrogram_3d, 0, 1), ax=axs[0])
-    axs[1].stackplot(range(OUTPUT_SHAPE[0]), predictions.T)
-    axs[1].set_xlim([0, OUTPUT_SHAPE[0]])
+    axs[1].stackplot(range(N_OUTPUT_EPOCHS), predictions.T)
+    axs[1].set_xlim([0, N_OUTPUT_EPOCHS])
     axs[1].set_ylim([0, 1])
     if weights is not None:
         # apply gray vertical bar over any regions with weight 0.0
         for idx in np.where(weights == 0.0)[0]:
             axs[1].axvspan(idx, idx+1, color='gray', alpha=0.5)
-        # axs[1].vlines(weights[weights == 0.0], 0, 1, color='gray', alpha=0.5)
-        # for idx, w in enumerate(weights):
-        #     if w == 0.0:
-        #         axs[1].axvline(x=idx, color='gray', alpha=0.5)
     fig.tight_layout(pad=0.1)
     if saveto is not None:
         os.makedirs(os.path.dirname(saveto), exist_ok=True)
@@ -366,4 +319,4 @@ if __name__ == "__main__":
     warnings.filterwarnings("ignore")
 
     # do_preprocessing(big_specgram_process)
-    load_and_train(epochs=20, batch_size=1, lr=1e-3)
+    load_and_train(epochs=100, batch_size=1, lr=1e-3)
