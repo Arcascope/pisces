@@ -72,25 +72,21 @@ def overlay_channels_fixed(spectrogram_tensor, mintile=5, maxtile=95, ax=None):
 
 def compute_stage_weights(label_stack):
     # Compute balancing sample weights based on label_stack
-    sample_weights = np.zeros_like(label_stack, dtype=np.float32)
-    for idx in range(len(label_stack)):
-        substack = label_stack[idx]
-        n_scored = np.sum(substack >= 0)
-        for i in range(4):
-            sample_weights[idx][substack == i] = n_scored / (np.sum(substack == i) + 1e-8)
-
-        sample_weights[idx] /= np.sum(sample_weights[idx])
-    
+    # equal weights 
+    sample_weights =0.25 + np.zeros_like(label_stack, dtype=np.float32)
+    sample_weights[label_stack < 0] = 0.0
     return sample_weights
 
+    # for idx in range(len(label_stack)):
+    #     substack = label_stack[idx]
+    #     n_scored = np.sum(substack >= 0)
+    #     for i in range(4):
+    #         sample_weights[idx][substack == i] = n_scored / (np.sum(substack == i) + 1e-8)
 
-# Define the learning rate scheduler callback
-reduce_lr = ReduceLROnPlateau(
-    monitor='val_loss',  # Metric to monitor
-    factor=0.5,          # Factor by which the learning rate will be reduced
-    patience=15,          # Number of epochs with no improvement after which learning rate will be reduced
-    min_lr=1e-6          # Lower bound on the learning rate
-)
+    #     sample_weights[idx] /= np.sum(sample_weights[idx])
+    
+    # return sample_weights
+
 
 @dataclass
 class PreparedDataRGB:
@@ -151,7 +147,7 @@ def channelwise_std(x, axes=[1, 2]):
         x = np.std(x, axis=axis, keepdims=True)
     return x
 
-def train_rgb_cnn(static_keys, static_data_bundle, hybrid_data_bundle, max_splits: int = -1, epochs: int = 1, lr: float = 1e-4, batch_size: int = 1):
+def train_rgb_cnn(static_keys, static_data_bundle, hybrid_data_bundle, fit_callbacks: list = [], max_splits: int = -1, epochs: int = 1, lr: float = 1e-4, batch_size: int = 1):
     
 
 
@@ -220,8 +216,7 @@ def train_rgb_cnn(static_keys, static_data_bundle, hybrid_data_bundle, max_split
             epochs=epochs,
             validation_data=(test_data, test_labels, test_sample_weights),
             # batch_size=batch_size, # 4 seems to be the max we can handle for cnn.predict(stack_of_spectrograms) on M3 Max w/ 64 gb of RAM
-            callbacks=[cnn_tensorboard_callback]
-            # callbacks=[reduce_lr]
+            callbacks=[cnn_tensorboard_callback, *fit_callbacks]
         ))
 
         cnn_predictors.append(cnn)
@@ -233,6 +228,9 @@ def train_rgb_cnn(static_keys, static_data_bundle, hybrid_data_bundle, max_split
         # test_prediction_raw = test_prediction_raw / scalar
         # test_pred = expit(test_prediction_raw).reshape(-1,)
         test_prediction_raw = cnn.predict(test_data)[0]
+        test_data = test_data[0]
+        test_labels = test_labels[0]
+        test_sample_weights = test_sample_weights[0]
         if from_logits:
             print("Applying softmax")
             test_prediction_raw = softmax(test_prediction_raw, axis=-1)
@@ -240,24 +238,30 @@ def train_rgb_cnn(static_keys, static_data_bundle, hybrid_data_bundle, max_split
         os.makedirs("./saved_outputs", exist_ok=True)
         debug_plot(
             test_prediction_raw, 
-            test_data[0], 
-            weights=test_sample_weights[0],
+            test_data, 
+            weights=test_sample_weights,
             saveto=f"./saved_outputs/{static_keys[k_test[0]]}_cnn_pred_static_{ACC_HZ}.png")
         test_pred = test_prediction_raw
+
+        wasa = wasa_metric(
+            labels=test_labels,
+            predictions=np.sum(test_pred[:, 1:], axis=-1),
+            weights=test_sample_weights)
+        print(f"WASA{WASA_PERCENT}: {wasa.wake_accuracy:.4f}")
         # test_pred_path = (static_keys[k_test[0]]) + \
         #     f"_cnn_pred_static_{ACC_HZ}.npy"
         # np.save("./saved_outputs/" + test_pred_path, test_pred)
 
         # Repeat for hybrid data
         # Evaluate the model on the test data
-        test_data, test_labels, test_sample_weights = rgb_gather_reshape(
-            hybrid_data_bundle, test_idx_tensor)
+        # test_data, test_labels, test_sample_weights = rgb_gather_reshape(
+        #     hybrid_data_bundle, test_idx_tensor)
 
         # Use cnn to predict probabilities
-        test_prediction_raw = cnn.predict(test_data)
+        # test_prediction_raw = cnn.predict(test_data)
         # test_prediction_raw = test_prediction_raw / scalar
         # test_pred = expit(test_prediction_raw).reshape(-1,)
-        test_pred = test_prediction_raw
+        # test_pred = test_prediction_raw
         # test_pred_path = (static_keys[k_test[0]]) + \
         #     f"_cnn_pred_hybrid_{ACC_HZ}.npy"
         # np.save("saved_outputs/" + test_pred_path, test_pred)
@@ -298,10 +302,20 @@ def load_and_train(max_splits: int = -1, epochs: int = 1, lr: float = 1e-4, batc
 
     start_time = time.time()
 
+    # Define the learning rate scheduler callback
+    reduce_lr = ReduceLROnPlateau(
+        monitor='val_loss',  # Metric to monitor
+        factor=0.5,          # Factor by which the learning rate will be reduced
+        patience=max(1, epochs // 8),          # Number of epochs with no improvement after which learning rate will be reduced
+        min_lr=1e-6          # Lower bound on the learning rate
+    )
+
+
     train_rgb_cnn(
         static_keys,
         static_data_bundle,
         hybrid_data_bundle,
+        fit_callbacks=[reduce_lr],
         max_splits=max_splits,
         epochs=epochs,
         batch_size=batch_size,
@@ -319,4 +333,4 @@ if __name__ == "__main__":
     warnings.filterwarnings("ignore")
 
     # do_preprocessing(big_specgram_process)
-    load_and_train(epochs=100, batch_size=1, lr=1e-3)
+    load_and_train(epochs=10, batch_size=1, lr=1e-3)
