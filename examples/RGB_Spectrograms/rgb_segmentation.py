@@ -252,8 +252,8 @@ def train_rgb_cnn(static_keys, static_data_bundle, hybrid_data_bundle, max_split
         test_specgram_std = channelwise_std(test_data)
         test_data = (test_data - test_specgram_mean) / test_specgram_std
 
-        channel_shuffler = PermutationDataGenerator(train_data, train_labels, sample_weights=train_sample_weights, batch_size=batch_size) 
-        # channel_shuffler = Random3DRotationGenerator(train_data, train_labels, train_sample_weights, batch_size=batch_size)
+        # channel_shuffler = PermutationDataGenerator(train_data, train_labels, sample_weights=train_sample_weights, batch_size=batch_size) 
+        channel_shuffler = Random3DRotationGenerator(train_data, train_labels, train_sample_weights, batch_size=batch_size)
 
 
         training_results.append(cnn.fit(
