@@ -12,11 +12,10 @@ COLOR_PALETTE = sns.color_palette("colorblind")
 
 
 class PerformanceMetrics:
-    def __init__(self, sleep_accuracy, wake_accuracy, tst_error, keras_sensitivity_at_specificity):
+    def __init__(self, sleep_accuracy, wake_accuracy, tst_error, ):
         self.sleep_accuracy = sleep_accuracy
         self.wake_accuracy = wake_accuracy
         self.tst_error = tst_error
-        self.keras_sensitivity_at_specificity = keras_sensitivity_at_specificity
 
 
 def apply_threshold(labels, predictions, threshold):
@@ -37,7 +36,7 @@ def apply_threshold(labels, predictions, threshold):
     tst_error = (len(true_sleeps) - len(predicted_sleeps)) / 2  # Minutes
 
 
-    return PerformanceMetrics(sleep_accuracy, wake_accuracy, tst_error, None)
+    return PerformanceMetrics(sleep_accuracy, wake_accuracy, tst_error)
 
 
 def threshold_from_binary_search(labels, wake_probabilities,
@@ -267,8 +266,6 @@ def create_histogram(run_mode="naive"):
         static_perform = apply_threshold(
             true_labels, static_predictions, static_threshold)
 
-        sensitivity_computer = keras.metrics.SensitivityAtSpecificity(target_sleep_accuracy)
-        sensitivity_computer.update_state(true_labels, static_predictions)
 
         hybrid_static_thresh_perform = apply_threshold(
             true_labels, hybrid_predictions, static_threshold)
