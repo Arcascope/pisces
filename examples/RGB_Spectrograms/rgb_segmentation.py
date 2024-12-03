@@ -1,9 +1,9 @@
 import os
-import sys
-from pathlib import Path
-from typing import List
 
+from examples.RGB_Spectrograms.plotting import debug_plot, overlay_channels_fixed
 
+# Suppress TF warnings
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 # Use jax backend
 # on macOS, this is one of the better out-of-the-box GPU options
 # we have to do this first, before importing Keras ANYWHERE (including in pisces/other modules)
@@ -11,6 +11,13 @@ from typing import List
 # pylint: disable=wrong-import-position,wrong-import-order
 # os.environ["KERAS_BACKEND"] = "jax"
 # os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
+import sys
+from pathlib import Path
+from typing import List
+
+from examples.RGB_Spectrograms.training import sparse_categorical_focal, sparse_kl_divergence
+
+
 
 local_dir = Path(__file__).resolve().parent
 print("local_dir: ", local_dir)
@@ -43,31 +50,6 @@ from pisces.metrics import WASAMetric, wasa_metric
 from src.preprocess_and_save import do_preprocessing
 from nhrc_utils.analysis import stages_map
 
-
-def overlay_channels_fixed(spectrogram_tensor, mintile=5, maxtile=95, ax=None):
-    """
-    Overlay spectrogram channels as an RGB image by stacking the three axes (x, y, z).
-    
-    Parameters:
-        spectrogram_tensor (numpy.ndarray): Spectrogram tensor of shape (time_bins, freq_bins, 3).
-    """
-    # Normalize each channel to [0, 1] for proper RGB visualization
-    norm_spec = np.zeros_like(spectrogram_tensor)
-    for i in range(3):
-        channel = spectrogram_tensor[:, :, i]
-        p5, p95 = np.percentile(channel, [mintile, maxtile])  # Robust range
-        norm_spec[:, :, i] = np.clip((channel - p5) / (p95 - p5 + 1e-8), 0, 1)  # Avoid dividing by zero
-    
-    if ax is None:
-        fig, ax = plt.subplots(figsize=(10, 5))
-    # Display the combined RGB image
-
-    ax.imshow(norm_spec, aspect='auto', origin='lower')
-    # add_rgb_legend(plt.gca())
-    # plt.colorbar(label='Intensity')
-    ax.set_xlabel('Time Bins')
-    ax.set_ylabel('Frequency Bins')
-    ax.set_title('Overlayed Spectrogram Channels as RGB')
 
 
 def compute_stage_weights(label_stack):
@@ -147,10 +129,7 @@ def channelwise_std(x, axes=[1, 2]):
         x = np.std(x, axis=axis, keepdims=True)
     return x
 
-def train_rgb_cnn(static_keys, static_data_bundle, hybrid_data_bundle, fit_callbacks: list = [], max_splits: int = -1, epochs: int = 1, lr: float = 1e-4, batch_size: int = 1):
-    
-
-
+def train_rgb_cnn(static_keys, static_data_bundle, hybrid_data_bundle, fit_callbacks: list = [], max_splits: int = -1, epochs: int = 1, lr: float = 1e-4, batch_size: int = 1, use_logits = False):
     split_maker = LeaveOneOut()
 
     training_results = []
@@ -159,6 +138,7 @@ def train_rgb_cnn(static_keys, static_data_bundle, hybrid_data_bundle, fit_callb
     print(f"Training RGB CNN models...")
     WASA_PERCENT = 95
     WASA_FRAC = WASA_PERCENT / 100
+    N_CLASSES = 4
 
     # Split the data into training and testing sets
     for k_train, k_test in tqdm(split_maker.split(static_keys), desc="Next split", total=len(static_keys)):
@@ -182,15 +162,24 @@ def train_rgb_cnn(static_keys, static_data_bundle, hybrid_data_bundle, fit_callb
             static_data_bundle, test_idx_tensor)
 
         # Train the model on the training set
-        from_logits = False 
-        cnn = segmentation_model(from_logits=from_logits)
+        # cnn = segmentation_model(from_logits=use_logits)
+        cnn = segmentation_model(num_classes=N_CLASSES, from_logits=use_logits)
+
+        # one-hot encode the labels
+        train_labels = keras.utils.to_categorical(train_labels, num_classes=N_CLASSES)
+        test_labels = keras.utils.to_categorical(test_labels, num_classes=N_CLASSES)
+
+        print("train label shape: ", train_labels.shape)
+        print("test label shape: ", test_labels.shape)
 
         cnn.compile(
-            loss=keras.losses.SparseCategoricalCrossentropy(from_logits=from_logits),
+            # loss=keras.losses.SparseCategoricalCrossentropy(from_logits=use_logits),
+            loss=keras.losses.CategoricalFocalCrossentropy(from_logits=use_logits),
             optimizer=keras.optimizers.AdamW(learning_rate=lr),
+            # metrics=['accuracy'],
             weighted_metrics=[
-                keras.metrics.SparseCategoricalAccuracy(),
-                WASAMetric(sleep_accuracy=WASA_FRAC, from_logits=from_logits)
+                keras.losses.CategoricalFocalCrossentropy(from_logits=use_logits),
+                # WASAMetric(sleep_accuracy=WASA_FRAC, from_logits=use_logits)
             ]
         )
 
@@ -205,17 +194,17 @@ def train_rgb_cnn(static_keys, static_data_bundle, hybrid_data_bundle, fit_callb
         test_specgram_std = channelwise_std(test_data)
         test_data = (test_data - test_specgram_mean) / test_specgram_std
 
-        channel_shuffler = PermutationDataGenerator(train_data, train_labels, sample_weights=train_sample_weights, batch_size=batch_size) 
+        # channel_shuffler = PermutationDataGenerator(train_data, train_labels, sample_weights=train_sample_weights, batch_size=batch_size) 
         # channel_shuffler = Random3DRotationGenerator(train_data, train_labels, train_sample_weights, batch_size=batch_size)
 
 
         training_results.append(cnn.fit(
-            channel_shuffler,
+            train_data, train_labels, sample_weight=train_sample_weights,
+            # channel_shuffler,
             # train_data, train_labels,
-            # sample_weight=train_sample_weights,
             epochs=epochs,
             validation_data=(test_data, test_labels, test_sample_weights),
-            # batch_size=batch_size, # 4 seems to be the max we can handle for cnn.predict(stack_of_spectrograms) on M3 Max w/ 64 gb of RAM
+            batch_size=batch_size, # 4 seems to be the max we can handle for cnn.predict(stack_of_spectrograms) on M3 Max w/ 64 gb of RAM
             callbacks=[cnn_tensorboard_callback, *fit_callbacks]
         ))
 
@@ -231,21 +220,19 @@ def train_rgb_cnn(static_keys, static_data_bundle, hybrid_data_bundle, fit_callb
         test_data = test_data[0]
         test_labels = test_labels[0]
         test_sample_weights = test_sample_weights[0]
-        if from_logits:
-            print("Applying softmax")
-            test_prediction_raw = softmax(test_prediction_raw, axis=-1)
+        test_probabilities = softmax(test_prediction_raw, axis=-1) if use_logits else test_prediction_raw
         print("Plotting predictions")
         os.makedirs("./saved_outputs", exist_ok=True)
         debug_plot(
-            test_prediction_raw, 
+            test_probabilities, 
             test_data, 
             weights=test_sample_weights,
             saveto=f"./saved_outputs/{static_keys[k_test[0]]}_cnn_pred_static_{ACC_HZ}.png")
         test_pred = test_prediction_raw
 
-        wasa = wasa_metric(
+        wasa, threshold = wasa_metric(
             labels=test_labels,
-            predictions=np.sum(test_pred[:, 1:], axis=-1),
+            predictions=1 - test_probabilities[:, 0],
             weights=test_sample_weights)
         print(f"WASA{WASA_PERCENT}: {wasa.wake_accuracy:.4f}")
         # test_pred_path = (static_keys[k_test[0]]) + \
@@ -270,28 +257,13 @@ def train_rgb_cnn(static_keys, static_data_bundle, hybrid_data_bundle, fit_callb
         cnn_path = rgb_path_name(static_keys[k_test[0]])
         cnn.save(cnn_path)
 
-def debug_plot(predictions, spectrogram_3d, weights: np.ndarray | None = None, saveto: str = None):
-    fig, axs = plt.subplots(2, 1, figsize=(10, 10))
-    overlay_channels_fixed(np.swapaxes(spectrogram_3d, 0, 1), ax=axs[0])
-    axs[1].stackplot(range(N_OUTPUT_EPOCHS), predictions.T)
-    axs[1].set_xlim([0, N_OUTPUT_EPOCHS])
-    axs[1].set_ylim([0, 1])
-    if weights is not None:
-        # apply gray vertical bar over any regions with weight 0.0
-        for idx in np.where(weights == 0.0)[0]:
-            axs[1].axvspan(idx, idx+1, color='gray', alpha=0.5)
-    fig.tight_layout(pad=0.1)
-    if saveto is not None:
-        os.makedirs(os.path.dirname(saveto), exist_ok=True)
-        plt.savefig(saveto)
-    plt.close()
 
 def load_preprocessed_data(dataset: str):
     print("!!!", local_dir)
     return np.load(local_dir.joinpath(f'pre_processed_data/{dataset}/{dataset}_preprocessed_data_{ACC_HZ}.npy'),
                    allow_pickle=True).item()
 
-def load_and_train(max_splits: int = -1, epochs: int = 1, lr: float = 1e-4, batch_size: int = 1):
+def load_and_train(max_splits: int = -1, epochs: int = 1, lr: float = 1e-4, batch_size: int = 1, use_logits = False):
 
     static_preprocessed_data = load_preprocessed_data("stationary")
     static_keys = list(static_preprocessed_data.keys())
@@ -306,8 +278,8 @@ def load_and_train(max_splits: int = -1, epochs: int = 1, lr: float = 1e-4, batc
     reduce_lr = ReduceLROnPlateau(
         monitor='val_loss',  # Metric to monitor
         factor=0.5,          # Factor by which the learning rate will be reduced
-        patience=max(1, epochs // 8),          # Number of epochs with no improvement after which learning rate will be reduced
-        min_lr=1e-6          # Lower bound on the learning rate
+        patience=16,         # Number of epochs with no improvement after which learning rate will be reduced
+        min_lr=1e-5          # Lower bound on the learning rate
     )
 
 
@@ -319,7 +291,8 @@ def load_and_train(max_splits: int = -1, epochs: int = 1, lr: float = 1e-4, batc
         max_splits=max_splits,
         epochs=epochs,
         batch_size=batch_size,
-        lr=lr
+        lr=lr,
+        use_logits=use_logits
     )
     # train_logreg(static_keys, static_data_bundle)
     end_time = time.time()
@@ -332,5 +305,8 @@ if __name__ == "__main__":
     # Suppress all warnings
     warnings.filterwarnings("ignore")
 
+    print(segmentation_model().summary())
+    # exit(0)
+
     # do_preprocessing(big_specgram_process)
-    load_and_train(epochs=10, batch_size=1, lr=1e-3)
+    load_and_train(epochs=25, batch_size=1, lr=1e-4, use_logits=False)
