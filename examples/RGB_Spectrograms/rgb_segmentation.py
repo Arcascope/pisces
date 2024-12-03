@@ -255,7 +255,7 @@ def train_rgb_cnn(static_keys, static_data_bundle, hybrid_data_bundle, fit_callb
 
         # save the trained model weights
         cnn_path = rgb_path_name(static_keys[k_test[0]])
-        cnn.save(cnn_path)
+        # cnn.save(cnn_path)
 
 
 def load_preprocessed_data(dataset: str):
@@ -308,5 +308,5 @@ if __name__ == "__main__":
     print(segmentation_model().summary())
     # exit(0)
 
-    # do_preprocessing(big_specgram_process)
+    do_preprocessing(big_specgram_process)
     load_and_train(epochs=25, batch_size=1, lr=1e-4, use_logits=False)

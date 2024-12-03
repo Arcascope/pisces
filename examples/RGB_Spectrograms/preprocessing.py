@@ -1,6 +1,6 @@
 from typing import Dict
 import numpy as np
-from examples.RGB_Spectrograms.constants import ACC_DIFF_GAP, ACC_INPUT_HZ, N_OUTPUT_EPOCHS, NEW_INPUT_SHAPE, PSG_DT
+from examples.RGB_Spectrograms.constants import ACC_DIFF_GAP, SPEC_INPUT_HZ, ACC_HZ, N_OUTPUT_EPOCHS, NEW_INPUT_SHAPE, PSG_DT, NFFT, NOVERLAP, WINDOW_LEN, WINDOW
 import pisces.data_sets as pds
 from pisces.utils import accelerometer_to_3d_specgram, build_ADS, pad_or_truncate, resample_accel_data
 
@@ -57,22 +57,26 @@ def big_specgram_process(dataset: pds.DataSetObject,
     # Convert accelerometer data to spectrograms
 
     sample_rate = 50
-    if ACC_INPUT_HZ == "dyn":
+    if ACC_HZ == "dyn":
         int_hz = int(avg_time_hz)
         print("dynamic rate:", int_hz)
         sample_rate = int_hz
     else:
-        sample_rate = int(ACC_INPUT_HZ)
+        sample_rate = int(ACC_HZ)
         print("fixed rate:", sample_rate)
 
     accel_data_diff = np.diff(accel_data, axis=0)  # take a time diff, this should remove some gravity
     accel_data_diff[:, 0] = accel_data[1:, 0]  # put the time back in
     accel_data_resampled = resample_accel_data(
-        accel_data, original_fs=sample_rate, target_fs=ACC_INPUT_HZ)
+        accel_data, original_fs=sample_rate, target_fs=SPEC_INPUT_HZ)
 
     # compute spectrogram with resampled data
     spectrograms = accelerometer_to_3d_specgram(
-        accel_data_resampled)
+        accel_data_resampled,
+        nfft=NFFT,
+        window_len=WINDOW_LEN,
+        noverlap=NOVERLAP,
+        window=WINDOW)
     padded_spectrograms = np.zeros(NEW_INPUT_SHAPE)
     padded_spectrograms[:spectrograms.shape[0],
                         ...] = spectrograms[:NEW_INPUT_SHAPE[0], ...]
