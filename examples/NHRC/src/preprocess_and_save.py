@@ -159,7 +159,7 @@ def process_data_set(data_set: pds.DataSetObject,
 
 
 
-def do_preprocessing(process_data_fn=None):
+def do_preprocessing(process_data_fn=None, cache_dir: Path | str | None = None):
     # clean_and_save_accelerometer_data()
 
     start_run = time.time()
@@ -200,7 +200,7 @@ def do_preprocessing(process_data_fn=None):
         hybrid, subjects_to_exclude_hybrid, process_data_fn)
 
     CWD = Path(os.getcwd())
-    save_path = CWD.joinpath("pre_processed_data")
+    save_path = CWD.joinpath("pre_processed_data") if cache_dir is None else Path(cache_dir)
 
     hybrid_name = "hybrid"
     stationary_name = "stationary"
