@@ -138,10 +138,6 @@ def train_rgb_cnn(static_keys, static_data_bundle, hybrid_data_bundle, fit_callb
     WASA_PERCENT = 95
     WASA_FRAC = WASA_PERCENT / 100
 
-    warmup_data = tf.random.normal((1, *NEW_INPUT_SHAPE))
-    cnn = segmentation_model(num_classes=n_classes, from_logits=use_logits)
-    cnn(warmup_data)
-
     # Split the data into training and testing sets
     for k_train, k_test in tqdm(split_maker.split(static_keys), desc="Next split", total=len(static_keys)):
         log_dir_cnn = f"./logs/rgb_cnn_{static_keys[k_test[0]]}_{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}"
