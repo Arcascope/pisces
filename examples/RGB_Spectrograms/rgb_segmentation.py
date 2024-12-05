@@ -1,3 +1,4 @@
+import json
 import os
 
 from examples.RGB_Spectrograms.plotting import debug_plot, overlay_channels_fixed
@@ -52,22 +53,15 @@ from nhrc_utils.analysis import stages_map
 
 
 
-def compute_stage_weights(label_stack):
+def compute_stage_weights(label_stack, n_classes=4):
     # Compute balancing sample weights based on label_stack
-    # equal weights 
-    sample_weights =0.25 + np.zeros_like(label_stack, dtype=np.float32)
+    # n_per_class = np.zeros(n_classes)
+    # for i in range(n_classes):
+    #     n_per_class[i] = np.sum(label_stack == i)
+    # n_total = np.sum(n_per_class)
+    sample_weights = 1/n_classes + np.zeros_like(label_stack, dtype=np.float32)
     sample_weights[label_stack < 0] = 0.0
     return sample_weights
-
-    # for idx in range(len(label_stack)):
-    #     substack = label_stack[idx]
-    #     n_scored = np.sum(substack >= 0)
-    #     for i in range(4):
-    #         sample_weights[idx][substack == i] = n_scored / (np.sum(substack == i) + 1e-8)
-
-    #     sample_weights[idx] /= np.sum(sample_weights[idx])
-    
-    # return sample_weights
 
 
 @dataclass
@@ -77,21 +71,26 @@ class PreparedDataRGB:
     weights: np.array
 
 def rgb_gather_reshape(data_bundle: PreparedDataRGB, train_idx_tensor: np.array, input_shape: tuple = NEW_INPUT_SHAPE, output_shape: tuple = (N_OUTPUT_EPOCHS,)) -> tuple | None:
-    input_shape = (-1, *input_shape)
-    output_shape = (-1, *output_shape)
-    train_data = data_bundle.spectrograms[train_idx_tensor].reshape(input_shape)
-    train_labels = data_bundle.labels[train_idx_tensor].reshape(output_shape)
-    train_sample_weights = data_bundle.weights[train_idx_tensor].reshape(output_shape)
+    input_shape_stack = (-1, *input_shape)
+    output_shape_stack = (-1, *output_shape)
+
+    train_data = data_bundle.spectrograms[train_idx_tensor].reshape(input_shape_stack)
+    train_labels = data_bundle.labels[train_idx_tensor].reshape(output_shape_stack)
+    train_sample_weights = data_bundle.weights[train_idx_tensor].reshape(output_shape_stack)
     
     return train_data, train_labels, train_sample_weights
 
-def prepare_data(preprocessed_data) -> PreparedDataRGB:
+def sw_map_fn(x):
+    return np.where(x > 0, 1.0, x)
+
+def prepare_data(preprocessed_data, n_classes=4) -> PreparedDataRGB:
+    psg_fn = stages_map if n_classes == 4 else sw_map_fn
     label_stack = np.array([
-        stages_map(preprocessed_data[k]['psg'][:, 1])
+        psg_fn(preprocessed_data[k]['psg'][:, 1])
         for k in list(preprocessed_data.keys())
     ])
 
-    label_weights = compute_stage_weights(label_stack)
+    label_weights = compute_stage_weights(label_stack, n_classes=n_classes)
 
     label_weights[label_stack < 0] = 0.0
 
@@ -129,7 +128,7 @@ def channelwise_std(x, axes=[1, 2]):
         x = np.std(x, axis=axis, keepdims=True)
     return x
 
-def train_rgb_cnn(static_keys, static_data_bundle, hybrid_data_bundle, fit_callbacks: list = [], max_splits: int = -1, epochs: int = 1, lr: float = 1e-4, batch_size: int = 1, use_logits = False):
+def train_rgb_cnn(static_keys, static_data_bundle, hybrid_data_bundle, fit_callbacks: list = [], max_splits: int = -1, epochs: int = 1, lr: float = 1e-4, batch_size: int = 1, use_logits = False, n_classes=4):
     split_maker = LeaveOneOut()
 
     training_results = []
@@ -138,7 +137,10 @@ def train_rgb_cnn(static_keys, static_data_bundle, hybrid_data_bundle, fit_callb
     print(f"Training RGB CNN models...")
     WASA_PERCENT = 95
     WASA_FRAC = WASA_PERCENT / 100
-    N_CLASSES = 4
+
+    warmup_data = tf.random.normal((1, *NEW_INPUT_SHAPE))
+    cnn = segmentation_model(num_classes=n_classes, from_logits=use_logits)
+    cnn(warmup_data)
 
     # Split the data into training and testing sets
     for k_train, k_test in tqdm(split_maker.split(static_keys), desc="Next split", total=len(static_keys)):
@@ -149,37 +151,58 @@ def train_rgb_cnn(static_keys, static_data_bundle, hybrid_data_bundle, fit_callb
         if (max_splits > 0) and (len(training_results) >= max_splits):
                 break
         # Convert indices to tensors
-        # train_idx_tensor = tf.constant(k_train, dtype=tf.int32)
-        # test_idx_tensor = tf.constant(k_test, dtype=tf.int32)
         train_idx_tensor = np.array(k_train)
         test_idx_tensor = np.array(k_test)
 
-        # training
+        # network instance to be trained
+        cnn = segmentation_model(num_classes=n_classes, from_logits=use_logits)
+
+        # Get the data
         train_data, train_labels, train_sample_weights = rgb_gather_reshape(
             static_data_bundle, train_idx_tensor)
-        # Evaluate the model on the test data
         test_data, test_labels, test_sample_weights = rgb_gather_reshape(
             static_data_bundle, test_idx_tensor)
 
         # Train the model on the training set
-        # cnn = segmentation_model(from_logits=use_logits)
-        cnn = segmentation_model(num_classes=N_CLASSES, from_logits=use_logits)
+        output = cnn(train_data)
+        print("output shape: ", output.shape)
+
+        print("train label shape: ", train_labels.shape)
+        print("test label shape: ", test_labels.shape)
+        print("unique train labels: ", np.unique(train_labels))
+        n_wake = float(np.sum(train_labels == 0))
+        n_sleep = float(np.sum(train_labels > 0))
+        n_total = n_wake + n_sleep
+        class_weights = {
+            -1: 0.0,
+            0: n_sleep,
+            1: n_wake,
+            # 0: (1 / n_wake) * (n_total / 2.0),
+            # 1: (1 / n_sleep) * (n_total / 2.0)
+        }
+        print("class weights: ", json.dumps(class_weights, indent=2 ))
 
         # one-hot encode the labels
-        train_labels = keras.utils.to_categorical(train_labels, num_classes=N_CLASSES)
-        test_labels = keras.utils.to_categorical(test_labels, num_classes=N_CLASSES)
+        # We will use the 0th index for the "MASK" class
+        train_labels = train_labels+1
+        test_labels = test_labels+1
+        # train_labels = keras.utils.to_categorical(
+        #     train_labels+1,
+        #     num_classes=n_classes+1)
+        # test_labels = keras.utils.to_categorical(
+        #     test_labels+1,
+        #     num_classes=n_classes+1)
 
         print("train label shape: ", train_labels.shape)
         print("test label shape: ", test_labels.shape)
 
         cnn.compile(
-            # loss=keras.losses.SparseCategoricalCrossentropy(from_logits=use_logits),
-            loss=keras.losses.CategoricalFocalCrossentropy(from_logits=use_logits),
+            loss=keras.losses.SparseCategoricalCrossentropy(from_logits=use_logits),
+            # loss=keras.losses.CategoricalFocalCrossentropy(from_logits=use_logits),
             optimizer=keras.optimizers.AdamW(learning_rate=lr),
             # metrics=['accuracy'],
             weighted_metrics=[
-                keras.losses.CategoricalFocalCrossentropy(from_logits=use_logits),
-                # WASAMetric(sleep_accuracy=WASA_FRAC, from_logits=use_logits)
+                # keras.losses.CategoricalFocalCrossentropy(from_logits=use_logits),
             ]
         )
 
@@ -199,12 +222,15 @@ def train_rgb_cnn(static_keys, static_data_bundle, hybrid_data_bundle, fit_callb
 
 
         training_results.append(cnn.fit(
-            train_data, train_labels, sample_weight=train_sample_weights,
+            train_data, train_labels,
+            # sample_weight=train_sample_weights,
             # channel_shuffler,
             # train_data, train_labels,
             epochs=epochs,
-            validation_data=(test_data, test_labels, test_sample_weights),
-            batch_size=batch_size, # 4 seems to be the max we can handle for cnn.predict(stack_of_spectrograms) on M3 Max w/ 64 gb of RAM
+            class_weight={(k+1): v for k, v in enumerate(class_weights.values())},
+            validation_data=(test_data, test_labels),
+            # validation_data=(test_data, test_labels, test_sample_weights),
+            batch_size=batch_size,
             callbacks=[cnn_tensorboard_callback, *fit_callbacks]
         ))
 
@@ -230,11 +256,14 @@ def train_rgb_cnn(static_keys, static_data_bundle, hybrid_data_bundle, fit_callb
             saveto=f"./saved_outputs/{static_keys[k_test[0]]}_cnn_pred_static_{ACC_HZ}.png")
         test_pred = test_prediction_raw
 
-        wasa, threshold = wasa_metric(
-            labels=test_labels,
-            predictions=1 - test_probabilities[:, 0],
-            weights=test_sample_weights)
-        print(f"WASA{WASA_PERCENT}: {wasa.wake_accuracy:.4f}")
+        try:
+            wasa, threshold = wasa_metric(
+                labels=test_labels,
+                predictions=1 - test_probabilities[:, 0+1],
+                weights=test_sample_weights)
+            print(f"WASA{WASA_PERCENT}: {wasa.wake_accuracy:.4f}")
+        except Exception as e:
+            print(f"Error computing WASA: {e}")
         # test_pred_path = (static_keys[k_test[0]]) + \
         #     f"_cnn_pred_static_{ACC_HZ}.npy"
         # np.save("./saved_outputs/" + test_pred_path, test_pred)
@@ -255,7 +284,7 @@ def train_rgb_cnn(static_keys, static_data_bundle, hybrid_data_bundle, fit_callb
 
         # save the trained model weights
         cnn_path = rgb_path_name(static_keys[k_test[0]])
-        # cnn.save(cnn_path)
+        cnn.save(cnn_path)
 
 
 def load_preprocessed_data(dataset: str):
@@ -263,14 +292,16 @@ def load_preprocessed_data(dataset: str):
     return np.load(local_dir.joinpath(f'pre_processed_data/{dataset}/{dataset}_preprocessed_data_{ACC_HZ}.npy'),
                    allow_pickle=True).item()
 
-def load_and_train(max_splits: int = -1, epochs: int = 1, lr: float = 1e-4, batch_size: int = 1, use_logits = False):
+def load_and_train(max_splits: int = -1, epochs: int = 1, lr: float = 1e-4, batch_size: int = 1, use_logits = False, n_classes=4):
 
     static_preprocessed_data = load_preprocessed_data("stationary")
     static_keys = list(static_preprocessed_data.keys())
-    static_data_bundle = prepare_data(static_preprocessed_data)
+    static_data_bundle = prepare_data(static_preprocessed_data, 
+                                      n_classes=n_classes)
 
     hybrid_preprocessed_data = load_preprocessed_data("hybrid")
-    hybrid_data_bundle = prepare_data(hybrid_preprocessed_data)
+    hybrid_data_bundle = prepare_data(hybrid_preprocessed_data, 
+                                      n_classes=n_classes)
 
     start_time = time.time()
 
@@ -292,7 +323,8 @@ def load_and_train(max_splits: int = -1, epochs: int = 1, lr: float = 1e-4, batc
         epochs=epochs,
         batch_size=batch_size,
         lr=lr,
-        use_logits=use_logits
+        use_logits=use_logits,
+        n_classes=n_classes
     )
     # train_logreg(static_keys, static_data_bundle)
     end_time = time.time()
@@ -305,8 +337,8 @@ if __name__ == "__main__":
     # Suppress all warnings
     warnings.filterwarnings("ignore")
 
-    print(segmentation_model().summary())
+    print(segmentation_model(num_classes=2).summary())
     # exit(0)
 
-    do_preprocessing(big_specgram_process)
-    load_and_train(epochs=25, batch_size=1, lr=1e-4, use_logits=False)
+    # do_preprocessing(big_specgram_process, cache_dir=local_dir.joinpath("pre_processed_data"))
+    load_and_train(epochs=25, batch_size=1, lr=1e-4, use_logits=False, n_classes=2)

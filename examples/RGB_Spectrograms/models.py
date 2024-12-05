@@ -5,6 +5,7 @@ from keras.layers import (
 )
 from keras.models import Model
 from keras.regularizers import l2
+import tensorflow as tf
 
 from examples.RGB_Spectrograms.constants import NEW_INPUT_SHAPE, NEW_OUTPUT_SHAPE
 
@@ -45,48 +46,6 @@ from keras.layers import (
 )
 from keras.models import Model
 
-
-def compress_model(input_shape=(15360, 256, 16), output_shape=(1024, 4), negative_slope=0.1):
-    """
-    Compress input tensor to the target output shape using minimal layers.
-
-    Args:
-        input_shape: Shape of the input tensor.
-        output_shape: Target output shape.
-        negative_slope: Negative slope coefficient for LeakyReLU.
-
-    Returns:
-        A Keras model instance.
-    """
-    inputs = Input(shape=input_shape)
-
-    # Aggressive downsampling
-    x = Conv2D(32, kernel_size=(5, 5), strides=(4, 4), padding='same', activation='linear')(inputs)
-    x = BatchNormalization()(x)
-    x = LeakyReLU(negative_slope=negative_slope)(x)
-    # Shape: (3840, 64, 32)
-
-    x = Conv2D(16, kernel_size=(3, 3), strides=(4, 4), padding='same', activation='linear')(x)
-    x = BatchNormalization()(x)
-    x = LeakyReLU(negative_slope=negative_slope)(x)
-    # Shape: (960, 16, 16)
-
-    # x = AveragePooling2D(pool_size=(4, 4), strides=(4, 4), padding='same')(x)
-    # Shape: (240, 4, 16)
-
-    # Final reduction to (1024, 4)
-    # x = Conv2D(4, kernel_size=(1, 1), activation='linear', padding='same')(x)
-    # Shape: (240, 4, 4)
-
-    x = Reshape((1024, 15, 16))(x)
-    x = AveragePooling2D(pool_size=(1, 15))(x)
-    x = Reshape((1024, 16, 1))(x)
-    x = AveragePooling2D(pool_size=(1, 4))(x)
-    x = Reshape(NEW_OUTPUT_SHAPE)(x)
-
-    model = Model(inputs, x)
-    return model
-
 def segmentation_model(input_shape=NEW_INPUT_SHAPE, num_classes=4, from_logits=False):
     inputs = Input(shape=input_shape)
 
@@ -101,19 +60,18 @@ def segmentation_model(input_shape=NEW_INPUT_SHAPE, num_classes=4, from_logits=F
 
     c3 = leaky_relu_block(p2, filters[2], (3, 3), (1, 1))
     p3 = MaxPooling2D((2, 2))(c3)  # Further Downsampling
+    p3 = leaky_relu_block(p3, filters[0], (3, 3), (2, 2))
 
-    u1 = leaky_relu_transpose_block(p3, filters[2], (3, 3), (2, 2))
+    # # Decoder
+    # u1 = leaky_relu_transpose_block(p3, filters[2], (3, 3), (2, 2))
     
-    # Decoder
-    u2 = leaky_relu_transpose_block(u1, filters[1], (3, 3), (2, 2))
-    u2 = Concatenate()([u2, c2])  # Skip connection
+    # u2 = leaky_relu_transpose_block(u1, filters[1], (3, 3), (2, 2))
+    # u2 = Concatenate()([u2, c2])  # Skip connection
 
-    u2 = leaky_relu_block(u2, filters[0], (3, 3), (2, 2))
-
-    # u2 = Concatenate()([u2, c1])  # Skip connection
-
-
-    
+    # u2 = leaky_relu_block(u2, filters[0], (3, 3), (2, 2))
+    # u2 = leaky_relu_block(u2, filters[0], (3, 3), (2, 2))
+    # u2 = leaky_relu_block(u2, filters[0], (3, 3), (2, 2))
+    u2 = p3
     # # Collapse frequency axis
     collapse = AveragePooling2D(pool_size=(1, u2.shape[2] // 2))(u2)
 
@@ -124,10 +82,11 @@ def segmentation_model(input_shape=NEW_INPUT_SHAPE, num_classes=4, from_logits=F
     final_activation = 'linear' if from_logits else 'softmax'
     # outputs = Conv2D(num_classes, (1, 1), activation=final_activation)(final_downsampling)  # (1024, 4, 1)
     # Remove leftover spatial dimensions (1024, 4)
-    outputs = Reshape((1024, 15))(collapse)
-    dense_layer = keras.layers.Dense(num_classes, activation=final_activation)
-    outputs = keras.layers.TimeDistributed(dense_layer)(outputs)
-    # outputs = collapse
+    outputs = Reshape((1024, -1))(collapse)
+
+    if outputs.shape[-1] != num_classes:
+        dense_layer = keras.layers.Dense(num_classes, activation=final_activation)
+        outputs = keras.layers.TimeDistributed(dense_layer)(outputs)
     
     model = Model(inputs, outputs)
     return model
