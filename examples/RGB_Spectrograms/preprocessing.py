@@ -1,8 +1,67 @@
+from dataclasses import dataclass
 from typing import Dict
 import numpy as np
 from examples.RGB_Spectrograms.constants import ACC_DIFF_GAP, SPEC_INPUT_HZ, ACC_HZ, N_OUTPUT_EPOCHS, NEW_INPUT_SHAPE, PSG_DT, NFFT, NOVERLAP, WINDOW_LEN, WINDOW
 import pisces.data_sets as pds
 from pisces.utils import accelerometer_to_3d_specgram, build_ADS, pad_or_truncate, resample_accel_data
+
+@dataclass
+class PreparedDataRGB:
+    spectrograms: np.array
+    labels: np.array 
+    weights: np.array
+
+    def __getitem__(self, index):
+        return PreparedDataRGB(
+            spectrograms=self.spectrograms[index][np.newaxis, ...],
+            labels=self.labels[index][np.newaxis, ...],
+            weights=self.weights[index][np.newaxis, ...]
+        )
+
+def compute_stage_weights(label_stack, n_classes=4):
+    # Compute balancing sample weights based on label_stack
+    n_per_class = np.zeros(n_classes)
+    for i in range(n_classes):
+        n_per_class[i] = np.sum(label_stack == i)
+    n_total = np.sum(n_per_class)
+    sample_weights = np.zeros_like(label_stack, dtype=np.float32)
+    sample_weights[label_stack < 0] = 0.0
+    for i in range(n_classes):
+        sample_weights[label_stack == i] = n_total / (n_per_class[i] * n_classes)
+    return sample_weights
+
+
+def sw_map_fn(x):
+    return np.where(x > 0, 1.0, x)
+
+def prepare_data(preprocessed_data, n_classes=4) -> PreparedDataRGB:
+    psg_fn = stages_map if n_classes == 4 else sw_map_fn
+    label_stack = np.array([
+        psg_fn(preprocessed_data[k]['psg'][:, 1])
+        for k in list(preprocessed_data.keys())
+    ])
+
+    label_weights = compute_stage_weights(label_stack, n_classes=n_classes)
+
+    label_weights[label_stack < 0] = 0.0
+
+
+    spectrogram_stack = np.array([
+        preprocessed_data[k]['spectrogram']
+        for k in list(preprocessed_data.keys())
+    ])
+
+    # clip the spectrogram stack to 0.05 and 0.95 quantiles
+    p_low = 10
+    for i in range(3):
+        p5, p95 = np.percentile(spectrogram_stack[:, :, :, i], [p_low, 100 - p_low])
+        spectrogram_stack[:, :, :, i] = np.clip(spectrogram_stack[:, :, :, i], p5, p95)
+
+    return PreparedDataRGB(
+        spectrograms=spectrogram_stack.astype(np.float32),
+        labels=label_stack.astype(np.float32),
+        weights=label_weights.astype(np.float32)
+    )
 
 
 

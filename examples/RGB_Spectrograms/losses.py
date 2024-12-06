@@ -7,6 +7,7 @@ class MaskedTemporalCategoricalCrossEntropy(keras.losses.Loss):
     """
     def __init__(
         self, 
+        n_classes: int,
         mask_value=-1, 
         sparse: bool = True, 
         from_logits: bool = False, 
@@ -16,23 +17,27 @@ class MaskedTemporalCategoricalCrossEntropy(keras.losses.Loss):
         self.mask_value = mask_value
         self.sparse = sparse
         self.from_logits = from_logits
+        self.n_classes = n_classes
+        self.class_weights = tf.constant([1.0] * n_classes)
     
-    def compute_class_weight(self, y_true, num_classes, dtype=tf.float32):
+    def compute_class_weight(self, y_true, dtype=tf.float32):
         # Flatten y_true to get global class counts
         # Start with turning into sparse encoding if needed
         if not self.sparse:
             y_true = knp.argmax(y_true, axis=-1)
         
-        class_counts = knp.bincount(y_true, minlength=num_classes)
-        print("class counts:", class_counts)
-        class_counts_float = tf.cast(class_counts, dtype)
+
+        for i in range(num_classes):
+            self.class_counts[i] = knp.sum(knp.equal(y_true, i))
+        print("class counts:", self.class_counts)
+        class_counts_float = tf.cast(self.class_counts, dtype)
         total_samples = tf.reduce_sum(class_counts_float)
 
         # Compute class weights
         # A common formula for balancing is:
         # weight_c = total_samples / (num_classes * class_counts[c])
         # This assigns higher weights to underrepresented classes.
-        class_weights = total_samples / (tf.cast(num_classes, dtype) * class_counts_float)
+        class_weights = total_samples / (tf.cast(self.n_classes, dtype) * class_counts_float)
         return class_weights
 
     def call(self, y_true, y_pred):
@@ -40,9 +45,8 @@ class MaskedTemporalCategoricalCrossEntropy(keras.losses.Loss):
         mask = knp.not_equal(y_true, self.mask_value)
 
         pred_dtype = y_pred.dtype
-        num_classes = y_pred.shape[-1]
 
-        class_weights = self.compute_class_weight(y_true[mask], num_classes, dtype=pred_dtype)
+        # class_weights = self.compute_class_weight(y_true[mask], num_classes, dtype=pred_dtype)
 
         y_true = knp.cast(y_true, pred_dtype)
         if self.sparse:
@@ -55,14 +59,16 @@ class MaskedTemporalCategoricalCrossEntropy(keras.losses.Loss):
         # Add a small value to prevent log(0).
         epsilon = 1e-7
         y_pred = tf.clip_by_value(y_pred, epsilon, 1.0 - epsilon)
-        print("true shape:", y_true.shape, "\npred shape:", y_pred.shape, "\nclass_weights shape:", class_weights.shape)
-        print("class weights:", class_weights)
-        ce = -tf.reduce_sum(y_true * tf.math.log(y_pred), axis=-1)
+        
+        log_comparison = y_true * tf.math.log(y_pred)
+        # multiply by class weights
+        log_comparison = log_comparison * self.class_weights
+
+        ce = -tf.reduce_sum(log_comparison, axis=-1)
         # now shape is (batch, time)
 
         # Mask the values
         mask = tf.cast(mask, ce.dtype)
-        print("mask shape:", mask.shape, "\nCE shape:", ce.shape) 
         ce = ce * mask
         
         # Average over the time dimension
@@ -76,7 +82,8 @@ class MaskedTemporalCategoricalCrossEntropy(keras.losses.Loss):
         return {
             'mask_value': self.mask_value,
             'sparse': self.sparse,
-            'from_logits': self.from_logits
+            'from_logits': self.from_logits,
+            'n_classes': self.n_classes
         }
 
     def get_config(self):
