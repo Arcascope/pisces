@@ -1,7 +1,7 @@
 import keras
 from keras.layers import (
-    Input, Conv2D, Conv2DTranspose, MaxPooling2D, UpSampling2D, Concatenate, BatchNormalization, LeakyReLU,
-    AveragePooling2D, AveragePooling3D, Reshape
+    Input, Conv2D, Conv2DTranspose, MaxPooling2D, UpSampling2D, Concatenate, 
+    BatchNormalization, LeakyReLU, AveragePooling1D, AveragePooling2D, Reshape
 )
 from keras.models import Model
 from keras.regularizers import l2
@@ -9,91 +9,103 @@ import tensorflow as tf
 
 from examples.RGB_Spectrograms.constants import NEW_INPUT_SHAPE, NEW_OUTPUT_SHAPE
 
+def leaky_relu_conv_block(x, filters, kernel_size=(3, 3), strides=(1, 1), 
+                          padding='same', regularization_strength=0.01, 
+                          negative_slope=0.1, use_transpose=False, use_batch_norm=True):
+    """
+    A flexible convolutional block that can create either a Conv2D or Conv2DTranspose layer,
+    followed by optional BatchNormalization and LeakyReLU activation.
+    """
+    ConvLayer = Conv2DTranspose if use_transpose else Conv2D
 
-def leaky_relu_block(x, filters, kernel_size, strides, padding='same', regularization_strength=0.01, negative_slope=0.1):
-
-    x = Conv2D(
+    x = ConvLayer(
         filters,
-        kernel_size,
+        kernel_size=kernel_size,
         strides=strides,
         padding=padding,
         activation='linear',
         kernel_regularizer=l2(regularization_strength),
-        bias_regularizer=l2(regularization_strength))(x)
-    x = BatchNormalization()(x)
-    x = LeakyReLU(negative_slope=negative_slope)(x)
-    return x
+        bias_regularizer=l2(regularization_strength)
+    )(x)
 
-def leaky_relu_transpose_block(x, filters, kernel_size, strides, padding='same', 
-                               regularization_strength=0.01, negative_slope=0.1, 
-                               use_batch_norm=True):
-    x = Conv2DTranspose(
-        filters,
-        kernel_size,
-        strides=strides,
-        padding=padding,
-        activation='linear',
-        kernel_regularizer=l2(regularization_strength),
-        bias_regularizer=l2(regularization_strength))(x)
     if use_batch_norm:
         x = BatchNormalization()(x)
+
     x = LeakyReLU(negative_slope=negative_slope)(x)
     return x
 
-import keras
-from keras.layers import (
-    Input, Conv2D, AveragePooling2D, BatchNormalization, LeakyReLU, Reshape
-)
-from keras.models import Model
+def encoder_block(x, filters, pool_size=(2, 2), kernel_size=(3, 3), 
+                  strides=(1, 1), regularization_strength=0.01):
+    """
+    A typical encoder block: convolution block(s) followed by max-pooling.
+    """
+    x = leaky_relu_conv_block(
+        x, filters=filters, kernel_size=kernel_size, strides=strides, 
+        regularization_strength=regularization_strength
+    )
+    p = MaxPooling2D(pool_size=pool_size)(x)
+    return x, p
 
-def segmentation_model(input_shape=NEW_INPUT_SHAPE, num_classes=4, frequency_downsample: int = 4, from_logits=False):
+def decoder_block(x, skip_connection, filters, kernel_size=(3, 3), 
+                  up_strides=(2, 2), regularization_strength=0.01):
+    """
+    A typical decoder block: upsampling (transpose conv), concatenation with skip connection, 
+    followed by a convolution block.
+    """
+    x = leaky_relu_conv_block(
+        x, filters=filters, kernel_size=kernel_size, strides=up_strides, 
+        regularization_strength=regularization_strength, use_transpose=True
+    )
+    x = Concatenate()([x, skip_connection])
+    return x
+
+def segmentation_model(input_shape=NEW_INPUT_SHAPE, num_classes=4, frequency_downsample=4, from_logits=False):
     inputs = Input(shape=input_shape)
 
+    # Downsample frequencies first
     pooled_inputs = AveragePooling2D(pool_size=(1, frequency_downsample))(inputs)
 
-    filters = [2 ** i for i in range(1, 4)]
-    
+    # Define filters in a single place
+    filters = [2, 4, 8]  # This corresponds to [2**1, 2**2, 2**3]
+
     # Encoder
-    c1 = leaky_relu_block(pooled_inputs, filters[0], (3, 3), (1, 1))
-    p1 = MaxPooling2D((2, 2))(c1)  # Downsampling
-    
-    c2 = leaky_relu_block(p1, filters[1], (3, 3), (1, 1))
-    p2 = MaxPooling2D((2, 2))(c2)  # Further Downsampling
+    c1, p1 = encoder_block(pooled_inputs, filters[0])   # Level 1
+    c2, p2 = encoder_block(p1, filters[1])              # Level 2
+    c3, p3 = encoder_block(p2, filters[2])              # Level 3
 
-    c3 = leaky_relu_block(p2, filters[2], (3, 3), (1, 1))
-    p3 = MaxPooling2D((2, 2))(c3)  # Further Downsampling
-    p3 = leaky_relu_block(p3, filters[0], (3, 3), (2, 2))
+    # Further downsampling after the last encoder block
+    # p3 = leaky_relu_conv_block(p3, filters=filters[0], kernel_size=(3, 3), strides=(2, 2))
 
-    # # Decoder
-    u1 = leaky_relu_transpose_block(p3, filters[2], (3, 3), (2, 2))
-    
-    u2 = leaky_relu_transpose_block(u1, filters[1], (3, 3), (2, 2))
-    u2 = Concatenate()([u2, c3])  # Skip connection
+    # Decoder
+    # Up-sample and fuse with skip connections
+    u1 = leaky_relu_conv_block(p3, filters=filters[2], kernel_size=(3, 3), strides=(2, 2), use_transpose=True)
+    # Here, instead of another decoder_block, let's follow the pattern:
+    # (If you need more symmetrical structure, consider adding symmetrical decoder blocks.)
+    u2 = Concatenate()([u1, c3])
+    u2 = leaky_relu_conv_block(u2, filters=filters[1], kernel_size=(3, 3), strides=(2, 2))
 
-    p4 = leaky_relu_block(u2, filters[1], (3, 3), (2, 2))
+    final_rep = u2
 
-    final_rep = p4
 
-    # u2 = leaky_relu_block(u2, filters[0], (3, 3), (2, 2))
-    # u2 = leaky_relu_block(u2, filters[0], (3, 3), (2, 2))
-    # u2 = leaky_relu_block(u2, filters[0], (3, 3), (2, 2))
-    # u2 = p3
-    # # Collapse frequency axis
-    # collapse = AveragePooling2D(pool_size=(1, final_rep.shape[2] // 2))(final_rep)
+    # Collapse spatial dimensions as needed.
+    # Note: Adjusting the pooling to ensure the final shape matches your target.
+    # It's unclear from the original code what exact temporal/frequency downsampling is intended.
+    # You may need to adapt pool sizes based on your input dimensions and desired output shape.
+    collapse = Reshape((2048, -1))(final_rep)
 
-    # # Downsample to match label shape
-    # final_downsampling = AveragePooling2D(pool_size=(15, 1))(collapse)  # Downsample time (* -> 1024)
-    
-    # # Final dense layer for class probabilities
+    # Average pool to halve the time dimension
+    collapse = AveragePooling1D(pool_size=2)(collapse)
+
+    # Reshape to (time_steps, features); time_steps and features inferred dynamically
+    # Since final dimensions can vary, here we assume something like (batch, time, freq, channels).
+    # Replace 1024 and -1 with dynamically inferred shapes if known. For demonstration:
+    # Suppose final_rep shape is (batch, T, F, C), we want (batch, T, num_classes).
+    # If we assume T = 1024 and F * C collapses into num_classes after a Dense layer:
+
+    # Apply a Dense layer to get num_classes
     final_activation = 'linear' if from_logits else 'softmax'
-    # outputs = Conv2D(num_classes, (1, 1), activation=final_activation)(final_downsampling)  # (1024, 4, 1)
-    # Remove leftover spatial dimensions (1024, 4)
-    collapse = AveragePooling2D(pool_size=(1, 1))(final_rep)
-    outputs = Reshape((1024, -1))(collapse)
+    dense_layer = keras.layers.Dense(num_classes, activation=final_activation)
+    outputs = keras.layers.TimeDistributed(dense_layer)(collapse)
 
-    if outputs.shape[-1] != num_classes:
-        dense_layer = keras.layers.Dense(num_classes, activation=final_activation)
-        outputs = keras.layers.TimeDistributed(dense_layer)(outputs)
-    
     model = Model(inputs, outputs)
     return model

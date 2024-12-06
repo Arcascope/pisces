@@ -143,7 +143,7 @@ def train_rgb_cnn(static_keys, static_data_bundle, hybrid_data_bundle, fit_callb
         #     test_labels,
         #     num_classes=n_classes)
 
-        temporal_ce = MaskedTemporalCategoricalCrossEntropy(sparse=True, from_logits=use_logits)
+        temporal_ce = MaskedTemporalCategoricalCrossEntropy(n_classes=n_classes, sparse=True, from_logits=use_logits)
 
         cnn.compile(
             loss=temporal_ce,

@@ -23,7 +23,7 @@ def overlay_channels_fixed(spectrogram_tensor, mintile=5, maxtile=95, ax=None):
         fig, ax = plt.subplots(figsize=(10, 5))
     # Display the combined RGB image
 
-    ax.imshow(norm_spec, aspect='auto', origin='lower')
+    ax.imshow(np.squeeze(norm_spec), aspect='auto', origin='lower')
     # add_rgb_legend(plt.gca())
     # plt.colorbar(label='Intensity')
     ax.set_xlabel('Time Bins')
