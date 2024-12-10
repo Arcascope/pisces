@@ -1,12 +1,32 @@
 from dataclasses import dataclass
 import json
-from typing import Dict
+import os
+from pathlib import Path
+import time
+from typing import Dict, List
 import numpy as np
 from keras.layers import AveragePooling2D
 from examples.RGB_Spectrograms.constants import ACC_DIFF_GAP, PSG_MASK_VALUE, SPEC_INPUT_HZ, ACC_HZ, N_OUTPUT_EPOCHS, NEW_INPUT_SHAPE, PSG_DT, NFFT, NOVERLAP, WINDOW_LEN, WINDOW
 import pisces.data_sets as pds
 from pisces.utils import accelerometer_to_3d_specgram, build_ADS, pad_or_truncate, resample_accel_data
 from examples.NHRC.nhrc_utils.analysis import stages_map
+
+
+DATA_LOCATION = Path('/home/eric/Engineering/Work/pisces/data')
+
+def process_data_set(data_set: pds.DataSetObject,
+                     ids_to_exclude: List[str],
+                     process_data_fn) -> Dict[str, Dict[str, np.ndarray]]:
+    data = {}
+    for subject_id in data_set.ids:
+        if subject_id in ids_to_exclude:
+            continue
+        print(f"Processing {subject_id}")
+        data[subject_id] = process_data_fn(
+            data_set,
+            subject_id)
+    return data
+
 
 @dataclass
 class PreparedDataRGB:
@@ -40,6 +60,15 @@ def compute_weights(labels):
         weight_stack[labels == k] = v
     
     return weight_stack
+
+def preprocessed_set_path(cache_dir: Path, set_name: str) -> Path:
+    set_path = cache_dir.joinpath(set_name)
+    os.makedirs(set_path, exist_ok=True)
+    return set_path
+
+def preprocessed_data_filename(set_name: str, cache_dir: Path | None = None) -> str:
+    base_fn = f"{set_name}_preprocessed_data_{ACC_HZ}.npy"
+    return base_fn if cache_dir is None else preprocessed_set_path(cache_dir=cache_dir, set_name=set_name).joinpath(base_fn)
 
 def sw_map_fn(x):
     return np.where(x > 0, 1.0, x)
@@ -165,6 +194,8 @@ def big_specgram_process(dataset: pds.DataSetObject,
 
 
     return {"spectrogram": padded_spectrograms,
+            "spec_times": times,
+            "spec_freqs": freqs,
             "activity": activity_data,
             "psg": psg_data}
 
@@ -176,3 +207,61 @@ def print_class_statistics(labels: np.array):
     print("Class statistics:")
     values, *_, counts = np.unique(labels, return_counts=True)
     print("MOST COMMON CLASS:", values[np.argmax(counts)], f"at {counts[np.argmax(counts)]/len(labels)*100:.2f}%")
+
+
+def do_preprocessing(process_data_fn=None, cache_dir: Path | str | None = None):
+    # clean_and_save_accelerometer_data()
+
+    start_run = time.time()
+    print("data_location: ", DATA_LOCATION)
+
+    sets = pds.DataSetObject.find_data_sets(DATA_LOCATION)
+    walch = sets['walch_et_al']
+    walch.parse_data_sets()
+    print(f"Found {len(walch.ids)} subjects")
+
+    hybrid = sets['hybrid_motion']
+    hybrid.parse_data_sets()
+    print(f"Found {len(hybrid.ids)} subjects")
+
+    subjects_to_exclude_walch = [
+        "7749105",
+        "5383425",
+        "8258170"
+    ]
+
+    subjects_to_exclude_hybrid = subjects_to_exclude_walch
+
+    # Process the datasets
+    print("PROCESSING WALCH DATA")
+    preprocessed_data_walch = process_data_set(
+        walch, subjects_to_exclude_walch, process_data_fn)
+    print("PROCESSING HYBRID DATA")
+    preprocessed_data_hybrid = process_data_set(
+        hybrid, subjects_to_exclude_hybrid, process_data_fn)
+    print("DONE PROCESSING")
+
+    CWD = Path(os.getcwd())
+    save_path = CWD.joinpath("pre_processed_data") if cache_dir is None else Path(cache_dir)
+
+    hybrid_name = "hybrid"
+    stationary_name = "stationary"
+
+    hybrid_path = preprocessed_set_path(save_path, hybrid_name)
+    os.makedirs(hybrid_path, exist_ok=True)
+
+    walch_path = preprocessed_set_path(save_path, stationary_name)
+    os.makedirs(walch_path, exist_ok=True)
+
+    save_preprocessing_to = preprocessed_data_filename(stationary_name, save_path)
+    print(f"Saving to {save_preprocessing_to}...")
+    with open(save_preprocessing_to, 'wb') as f:
+        np.save(f, preprocessed_data_walch)
+
+    save_preprocessing_to =  preprocessed_data_filename(hybrid_name, save_path)
+    print(f"Saving to {save_preprocessing_to}...")
+    with open(save_preprocessing_to, 'wb') as f:
+        np.save(f, preprocessed_data_hybrid)
+
+    end_run = time.time()
+    print(f"Preprocessing took {end_run - start_run} seconds")

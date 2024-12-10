@@ -1,8 +1,18 @@
 import os
+from pathlib import Path
+import time
 import matplotlib.pyplot as plt
 import numpy as np
+import seaborn as sns
 
-from examples.RGB_Spectrograms.constants import N_OUTPUT_EPOCHS
+from examples.NHRC.src.make_triplots import get_logreg_data, get_summary_string, plot_single_person
+from examples.RGB_Spectrograms.constants import ACC_HZ, N_OUTPUT_EPOCHS, rgb_saved_predictions_name
+from examples.RGB_Spectrograms.preprocessing import prepare_data
+from examples.RGB_Spectrograms.utils import load_preprocessed_data
+from pisces.metrics import apply_threshold, threshold_from_binary_search
+
+plt.rcParams['font.family'] = 'Arial'
+COLOR_PALETTE = sns.color_palette("colorblind")
 
 
 def overlay_channels_fixed(spectrogram_tensor, mintile=5, maxtile=95, ax=None, clip: bool = False):
@@ -60,3 +70,202 @@ def debug_plot(predictions, spectrogram_3d, y_true, weights: np.ndarray | None =
         os.makedirs(os.path.dirname(saveto), exist_ok=True)
         plt.savefig(saveto)
     plt.close()
+
+
+def create_histogram_rgb(run_mode: str, preprocessed_data_path: Path, saved_output_dir: Path, acc_hz: int = ACC_HZ, TARGET_SLEEP: float = 0.95, ):
+    start_run = time.time()
+
+    # Load stationary data
+    static_preprocessed_data = load_preprocessed_data("stationary"
+, preprocessed_data_path)
+
+    static_keys = list(static_preprocessed_data.keys())
+    static_data_bundle = prepare_data(static_preprocessed_data)
+
+    # Load hybrid data
+    hybrid_preprocessed_data = load_preprocessed_data("hybrid", preprocessed_data_path)
+    hybrid_data_bundle = prepare_data(hybrid_preprocessed_data)
+
+    # Holders for outputs
+    static_performs = []
+    hybrid_static_thresh_performs = []
+    hybrid_best_thresh_performs = []
+
+    for i, key in enumerate(static_keys):
+        print(f"Comparing {key}")
+        static_predictions: np.ndarray
+        hybrid_predictions: np.ndarray
+
+        if run_mode == "lr":
+            static_predictions, hybrid_predictions = get_logreg_data(
+                static_data_bundle, hybrid_data_bundle, i)
+
+        if run_mode == "rgb":
+            static_predictions = 1 - np.squeeze(
+                np.load(rgb_saved_predictions_name(key, set_name="static")))
+            hybrid_predictions = 1 - np.squeeze(
+                np.load(rgb_saved_predictions_name(key, set_name="hybrid")))
+
+        true_labels = static_data_bundle.true_labels[i, :].numpy()
+
+        true_labels[true_labels > 1] = 1
+        target_sleep_accuracy = TARGET_SLEEP
+
+        static_threshold = threshold_from_binary_search(
+            true_labels, static_predictions, target_sleep_accuracy)
+
+        print(f"Threshold: {static_threshold}")
+        static_perform = apply_threshold(
+            true_labels, static_predictions, static_threshold)
+
+
+        hybrid_static_thresh_perform = apply_threshold(
+            true_labels, hybrid_predictions, static_threshold)
+
+        hybrid_threshold = threshold_from_binary_search(
+            true_labels, hybrid_predictions, target_sleep_accuracy)
+
+        print("Hybrid Threshold: ", hybrid_threshold)
+        hybrid_best_thresh_perform = apply_threshold(
+            true_labels, hybrid_predictions, hybrid_threshold)
+
+        summary_string = get_summary_string(static_perform=static_perform,
+                                            hybrid_static_thresh_perform=hybrid_static_thresh_perform,
+                                            hybrid_best_thresh_perform=hybrid_best_thresh_perform,
+                                            name=static_keys[i])
+
+        plot_single_person(static_predictions,
+                           hybrid_predictions,
+                           true_labels=true_labels,
+                           static_threshold=static_threshold,
+                           hybrid_threshold=hybrid_threshold,
+                           name=static_keys[i],
+                           target_sleep_accuracy=target_sleep_accuracy,
+                           run_mode=run_mode,
+                           title=summary_string)
+
+        # Append values to arrays
+        static_performs.append(static_perform)
+        hybrid_static_thresh_performs.append(hybrid_static_thresh_perform)
+        hybrid_best_thresh_performs.append(hybrid_best_thresh_perform)
+
+        plt.close()
+
+    metric_colors = {
+        'sleep_accuracy': COLOR_PALETTE[4], 'tst_error': COLOR_PALETTE[1], 'wake_accuracy': COLOR_PALETTE[2]}
+
+    # After the loop, create histograms
+    fig, axs = plt.subplots(3, 3, figsize=(9, 7))
+
+    static_sleep_accuracies = [x.sleep_accuracy for x in static_performs]
+    static_wake_accuracies = [x.wake_accuracy for x in static_performs]
+    static_tst_errors = [x.tst_error for x in static_performs]
+
+    sasa_linspace = np.linspace(0, 1, 27)
+    axs[0, 0].hist(static_sleep_accuracies, bins=sasa_linspace,
+                   color=metric_colors['sleep_accuracy'], alpha=0.7,
+                   edgecolor=np.array(metric_colors['sleep_accuracy']) * 0.8)
+    axs[0, 1].hist(static_wake_accuracies, bins=np.linspace(0, 1, 21),
+                   color=metric_colors['wake_accuracy'], alpha=0.7,
+                   edgecolor=np.array(metric_colors['wake_accuracy']) * 0.8)
+    axs[0, 2].hist(static_tst_errors, bins=np.linspace(-50, 50, 21),
+                   color=metric_colors['tst_error'], alpha=0.7,
+                   edgecolor=np.array(metric_colors['tst_error']) * 0.8)
+
+    hybrid_sleep_accuracies_static_thresh = [
+        x.sleep_accuracy for x in hybrid_static_thresh_performs]
+    hybrid_wake_accuracies_static_thresh = [
+        x.wake_accuracy for x in hybrid_static_thresh_performs]
+    hybrid_tst_errors_static_thresh = [
+        x.tst_error for x in hybrid_static_thresh_performs]
+
+    axs[1, 0].hist(hybrid_sleep_accuracies_static_thresh, bins=sasa_linspace,
+                   color=metric_colors['sleep_accuracy'], alpha=0.7,
+                   edgecolor=np.array(metric_colors['sleep_accuracy']) * 0.8)
+    axs[1, 1].hist(hybrid_wake_accuracies_static_thresh, bins=np.linspace(0, 1, 21),
+                   color=metric_colors['wake_accuracy'], alpha=0.7,
+                   edgecolor=np.array(metric_colors['wake_accuracy']) * 0.8)
+    axs[1, 2].hist(hybrid_tst_errors_static_thresh, bins=np.linspace(-50, 50, 21),
+                   color=metric_colors['tst_error'], alpha=0.7,
+                   edgecolor=np.array(metric_colors['tst_error']) * 0.8)
+
+    hybrid_sleep_choose_best = [
+        x.sleep_accuracy for x in hybrid_best_thresh_performs]
+    hybrid_wake_choose_best = [
+        x.wake_accuracy for x in hybrid_best_thresh_performs]
+    hybrid_tst_choose_best = [
+        x.tst_error for x in hybrid_best_thresh_performs]
+
+    axs[2, 0].hist(hybrid_sleep_choose_best, bins=sasa_linspace,
+                   color=metric_colors['sleep_accuracy'], alpha=0.7,
+                   edgecolor=np.array(metric_colors['sleep_accuracy']) * 0.8)
+    axs[2, 1].hist(hybrid_wake_choose_best, bins=np.linspace(0, 1, 21),
+                   color=metric_colors['wake_accuracy'], alpha=0.7,
+                   edgecolor=np.array(metric_colors['wake_accuracy']) * 0.8)
+    axs[2, 2].hist(hybrid_tst_choose_best, bins=np.linspace(-50, 50, 21),
+                   color=metric_colors['tst_error'], alpha=0.7,
+                   edgecolor=np.array(metric_colors['tst_error']) * 0.8)
+
+    # Set common properties for all axes
+    for ax in axs.flat:
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.set_title('')
+        ax.set_ylim(0, 32 if ax in axs[:, 0] else 6 if ax in axs[:, 1] else 10)
+        ax.set_xlim(-50 if ax in axs[:, 2] else 0,
+                    50 if ax in axs[:, 2] else 1)
+
+    # Add row labels to the left of the leftmost plots
+    row_labels = ["Static data\nevaluated with\nstatic threshold",
+                  "Hybrid data\nevaluated with\nstatic threshold",
+                  "Hybrid data\nevaluated with\nhybrid threshold"]
+    for ax, label in zip(axs[:, 0], row_labels):
+        ax.set_ylabel(label, rotation=0, size='x-large',
+                      labelpad=80, ha='center')
+    # Uncomment to change y-label to "Count" instead of the experiment conditions
+    # for ax, label in zip(axs[:, 0], ['Count'] * 3):
+    #     ax.set_ylabel(label)
+    for ax, label in zip(axs[2, :], ['Sleep accuracy', 'Wake accuracy', 'TST error (minutes)']):
+        ax.set_xlabel(label)
+
+    for i, data in enumerate([static_sleep_accuracies, static_wake_accuracies, static_tst_errors,
+                              hybrid_sleep_accuracies_static_thresh, hybrid_wake_accuracies_static_thresh, hybrid_tst_errors_static_thresh,
+                              hybrid_sleep_choose_best, hybrid_wake_choose_best, hybrid_tst_choose_best]):
+        row = i // 3
+        col = i % 3
+        mean_value = np.mean(data)
+        axs[row, col].axvline(mean_value, color='red',
+                              linestyle='dashed', linewidth=1)
+        abs_mean_value = np.mean(np.abs(np.array(data)))
+
+        # Add text showing the mean_value above the line
+        if mean_value == abs_mean_value:
+            axs[row, col].text(mean_value, axs[row, col].get_ylim()[
+                1], f'Mean: {mean_value:.2f}', color='red', ha='center', fontsize=8)
+        else:
+            axs[row, col].text(mean_value, axs[row, col].get_ylim()[
+                1], f'Mean: {mean_value:.2f} (Abs. Mean: {abs_mean_value:.2f})', color='red', ha='center', fontsize=8)
+        if col == 2:
+            percentage_above = np.sum(np.abs(data) > 30) / len(data) * 100
+            axs[row, col].text(
+                -20, axs[row, col].get_ylim()[1] - 2, f'% >30 min:\n{percentage_above:.2f}%', color='gray', ha='center', fontsize=8)
+
+    plt.tight_layout()
+    plt.savefig(
+        f"{run_mode}_{acc_hz}_hists_WASA{int(target_sleep_accuracy * 100)}.png", dpi=200)
+    # plt.show()
+    plt.close()
+
+    # Do a statistical test to determine if the distributions are different
+    from scipy.stats import ttest_ind
+    static_sleep_accuracies = np.array(static_sleep_accuracies)
+    hybrid_sleep_accuracies_static_thresh = np.array(
+        hybrid_sleep_accuracies_static_thresh)
+    hybrid_sleep_choose_best = np.array(hybrid_sleep_choose_best)
+
+    print("Statistical test result:")
+    print(ttest_ind(static_sleep_accuracies, hybrid_sleep_accuracies_static_thresh))
+
+    end_run = time.time()
+    print(f"Total time to make triplots: {end_run - start_run} seconds")
+    print("Done with triplots")

@@ -493,6 +493,15 @@ def accelerometer_to_3d_specgram(data, nfft=512, window_len=320, noverlap=256, w
     frequencies = []
     
     for i in range(1, 4):  # Columns 1, 2, 3 correspond to x, y, z
+        """
+        From the source code:
+        ```
+        time = np.arange(nperseg/2, x.shape[-1] - nperseg/2 + 1,
+                    nperseg - noverlap)/float(fs)
+        if boundary is not None:
+            time -= (nperseg/2) / fs
+        ```
+        """
         f, t, Sxx = spectrogram(
             data[:, i], 
             fs=fs,  # Sampling frequency after resampling
@@ -505,8 +514,8 @@ def accelerometer_to_3d_specgram(data, nfft=512, window_len=320, noverlap=256, w
         times.append(t)
         frequencies.append(f)
     return (np.stack(spectrograms, axis=-1)[:, 1:], # Shape (time_bins, freq_bins, 3)
-            np.stack(times, axis=-1), 
-            np.stack(frequencies, axis=-1))
+            np.array(times[0]), 
+            np.array(frequencies[0]))
 
 
 

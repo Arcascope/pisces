@@ -14,18 +14,21 @@ import os
 # os.environ["KERAS_BACKEND"] = "jax"
 # os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
 # from examples.RGB_Spectrograms.losses import MaskedTemporalCategoricalCrossEntropy
-from examples.RGB_Spectrograms.plotting import debug_plot
+# from examples.NHRC.src.preprocess_and_save import preprocessed_data_filename
+from examples.RGB_Spectrograms.plotting import create_histogram_rgb, debug_plot
 import sys
 from pathlib import Path
 from typing import List
 
+from examples.RGB_Spectrograms.utils import load_preprocessed_data
+
 local_dir = Path(__file__).resolve().parent
 print("local_dir: ", local_dir)
 sys.path.append(str(local_dir.parent.joinpath('NHRC')))
-from examples.RGB_Spectrograms.preprocessing import PreparedDataRGB, big_specgram_process, prepare_data
+from examples.RGB_Spectrograms.preprocessing import PreparedDataRGB, big_specgram_process, prepare_data, do_preprocessing
 # from examples.RGB_Spectrograms.channel_permuter import PermutationDataGenerator, Random3DRotationGenerator
 from examples.RGB_Spectrograms.models import segmentation_model
-from examples.RGB_Spectrograms.constants import NEW_INPUT_SHAPE, N_OUTPUT_EPOCHS, PSG_MASK_VALUE
+from examples.RGB_Spectrograms.constants import ACC_HZ, NEW_INPUT_SHAPE, N_OUTPUT_EPOCHS, PSG_MASK_VALUE, rgb_path_name, rgb_saved_predictions_name
 from dataclasses import dataclass
 import time
 import datetime
@@ -46,26 +49,27 @@ import keras.ops as K
 from keras.metrics import SpecificityAtSensitivity
 
 
-from src.constants import ACC_HZ
 from pisces.metrics import WASAMetric, wasa_metric
-from src.preprocess_and_save import do_preprocessing
 
 # downsample rate for frequency axis
+# FREQ_DOWN = 4 #NEW_INPUT_SHAPE[1] // 16 
 FREQ_DOWN = NEW_INPUT_SHAPE[1] // 16 
 
-def rgb_gather_reshape(data_bundle: PreparedDataRGB, train_idx_tensor: np.array, input_shape: tuple, output_shape: tuple) -> tuple | None:
+def rgb_gather_reshape(data_bundle: PreparedDataRGB, idx_tensor: np.array, input_shape: tuple, output_shape: tuple) -> tuple | None:
     input_shape_stack = (-1, *input_shape)
     output_shape_stack = (-1, *output_shape)
 
-    train_data = data_bundle.spectrograms[train_idx_tensor].reshape(input_shape_stack)
-    train_labels = data_bundle.labels[train_idx_tensor].reshape(output_shape_stack)
-    train_sample_weights = data_bundle.weights[train_idx_tensor].reshape(output_shape_stack)
-    
-    return train_data, train_labels, train_sample_weights
+    idx_data = data_bundle.spectrograms[idx_tensor].reshape(input_shape_stack)
+    idx_labels = data_bundle.labels[idx_tensor].reshape(output_shape_stack)
+    idx_sample_weights = data_bundle.weights[idx_tensor].reshape(output_shape_stack)
 
-def rgb_path_name(key) -> str:
-    os.makedirs("./saved_models", exist_ok=True)
-    return f"./saved_models/rgb_{key}_{ACC_HZ}.keras"
+    idx_specgram_mean = channelwise_mean(idx_data)
+    idx_specgram_std = channelwise_std(idx_data)
+
+    idx_data_centered = (idx_data - idx_specgram_mean) / idx_specgram_std
+    
+    return idx_data_centered, idx_labels, idx_sample_weights
+
 
 def channelwise_mean(x, axes=[1, 2]):
     for axis in axes:
@@ -77,7 +81,7 @@ def channelwise_std(x, axes=[1, 2]):
         x = np.std(x, axis=axis, keepdims=True)
     return x
 
-def train_rgb_cnn(static_keys, static_data_bundle, hybrid_data_bundle, fit_callbacks: list = [], max_splits: int = -1, epochs: int = 1, lr: float = 1e-4, batch_size: int = 1, use_logits = False, n_classes=4):
+def train_rgb_cnn(static_keys, static_data_bundle, hybrid_data_bundle, fit_callbacks: list = [], max_splits: int = -1, epochs: int = 1, lr: float = 1e-4, batch_size: int = 1, use_logits = False, n_classes=4, predictions_path: Path = None, models_path: Path = None):
     split_maker = LeaveOneOut()
 
     training_results = []
@@ -86,7 +90,7 @@ def train_rgb_cnn(static_keys, static_data_bundle, hybrid_data_bundle, fit_callb
     print(f"Training RGB CNN models with {n_classes} classes...")
     WASA_PERCENT = 95
     WASA_FRAC = WASA_PERCENT / 100
-    os.makedirs("./saved_outputs", exist_ok=True)
+    # os.makedirs("./saved_outputs", exist_ok=True)
 
     INPUT_SHAPE = list(NEW_INPUT_SHAPE)
     INPUT_SHAPE[1] //= FREQ_DOWN
@@ -112,6 +116,7 @@ def train_rgb_cnn(static_keys, static_data_bundle, hybrid_data_bundle, fit_callb
         # Convert indices to tensors
         train_idx_tensor = np.array(k_train)
         test_idx_tensor = np.array(k_test)
+        test_id = static_keys[k_test[0]]
 
         # network instance to be trained
         cnn = make_segmenter()
@@ -147,38 +152,17 @@ def train_rgb_cnn(static_keys, static_data_bundle, hybrid_data_bundle, fit_callb
         # temporal_ce = MaskedTemporalCategoricalCrossEntropy(n_classes=n_classes, sparse=True, from_logits=use_logits)
 
         cnn.compile(
-            # loss=temporal_ce,
-            # loss=keras.losses.SparseCategoricalCrossentropy(from_logits=use_logits),
             loss=keras.losses.BinaryCrossentropy(from_logits=use_logits),
-            # loss=keras.losses.CategoricalFocalCrossentropy(from_logits=use_logits),
             optimizer=keras.optimizers.Adam(learning_rate=lr),
             weighted_metrics=[
-                # WASAMetric(WASA_FRAC, from_logits=use_logits),
                 # SpecificityAtSensitivity(WASA_FRAC, name=f"WASA{WASA_PERCENT}"),
-                'auc'
-            #     temporal_ce,
+                # 'auc'
             ]
         )
 
-        # standardize the data
-        train_specgram_mean = channelwise_mean(train_data)
-        train_specgram_std = channelwise_std(train_data)
-        train_data = (train_data - train_specgram_mean) / train_specgram_std
-
-        # do this separately, to hide the difference of means from NN.
-        # i.e. both inputs have mean 0 and std 1
-        test_specgram_mean = channelwise_mean(test_data)
-        test_specgram_std = channelwise_std(test_data)
-        test_data = (test_data - test_specgram_mean) / test_specgram_std
-
         # channel_shuffler = PermutationDataGenerator(train_data, train_labels, sample_weights=train_sample_weights, batch_size=batch_size) 
-        # Use cnn to predict probabilities
-        # Rescale so everything doesn't get set to 0 or 1 in the expit call
 
         print("Training model...")
-        # print("Training Input shape: ", train_data.shape)
-        # print("Training input size in MiB: ", train_data.nbytes / 1024 / 1024)
-        # print("Training Target shape: ", train_labels.shape)
 
         training_results.append(cnn.fit(
             train_data, train_labels_pro,
@@ -193,59 +177,98 @@ def train_rgb_cnn(static_keys, static_data_bundle, hybrid_data_bundle, fit_callb
 
         cnn_predictors.append(cnn)
 
+        evaluate_and_save_test(
+            test_data,
+            test_labels_pro,
+            test_sample_weights,
+            cnn,
+            test_id,
+            "static",
+            use_logits,
+            wasa_percent=WASA_PERCENT,
+            predictions_path=predictions_path
+        )
+
+        # Now do the same with the hybrid data
+        hybrid_test_data, _, hybrid_test_sample_weights = rgb_gather_reshape(
+            hybrid_data_bundle, test_idx_tensor,
+            input_shape=INPUT_SHAPE, output_shape=OUTPUT_SHAPE)
+        
+        evaluate_and_save_test(
+            hybrid_test_data,
+            test_labels_pro, # labels SHOULD be the same
+            hybrid_test_sample_weights,
+            cnn,
+            test_id,
+            "hybrid",
+            use_logits,
+            wasa_percent=WASA_PERCENT,
+            predictions_path=predictions_path
+        )
+
 
         # Use cnn to predict probabilities
         # Rescale so everything doesn't get set to 0 or 1 in the expit call
-        scalar = 10000.0 if use_logits else 1.0
-        test_labels = test_labels[0]
-        test_sample_weights = test_sample_weights[0]
-        test_prediction_raw = cnn.predict(test_data)
-        test_probabilities = expit(test_prediction_raw) if use_logits else test_prediction_raw
-        print("Plotting predictions")
-        debug_plot(
-            predictions=test_probabilities, 
-            spectrogram_3d=test_data, 
-            y_true=test_labels,
-            weights=test_sample_weights,
-            saveto=f"./saved_outputs/{static_keys[k_test[0]]}_cnn_pred_static_{ACC_HZ}.png")
-        
-
-        try:
-            # p_sleep = 1 - test_probabilities[:, 0]
-            p_sleep = test_probabilities
-            wasa, threshold = wasa_metric(
-                labels=np.squeeze(test_labels),
-                predictions=np.squeeze(p_sleep),
-                weights=np.squeeze(test_sample_weights))
-            print(f"WASA{WASA_PERCENT}: {wasa.wake_accuracy:.4f}")
-            test_pred_path = (static_keys[k_test[0]]) + \
-                f"_cnn_pred_static_{ACC_HZ}.npy"
-            test_pred = p_sleep > threshold
-            np.save("./saved_outputs/" + test_pred_path, test_pred)
-        except Exception as e:
-            print(f"Error computing WASA: {e}")
+        # scalar = 10000.0 if use_logits else 1.0 # DONT USE HERE....pushed everything to 0.5, i.e. expit(0)
 
         # save the trained model weights
-        cnn_path = rgb_path_name(static_keys[k_test[0]])
-        cnn.save(cnn_path)
+        if models_path is not None:
+            cnn_path = rgb_path_name(test_id, saved_model_dir=models_path)
+            cnn.save(cnn_path)
+
+def evaluate_and_save_test(
+        test_data,
+        test_labels,
+        test_sample_weights,
+        cnn,
+        test_id: str,
+        set_name: str,
+        use_logits: bool,
+        wasa_percent: int = 95,
+        predictions_path: Path = None):
+    test_labels = test_labels[0]
+    test_sample_weights = test_sample_weights[0]
+    test_prediction_raw = cnn.predict(test_data)
+    test_probabilities = expit(test_prediction_raw) if use_logits else test_prediction_raw
+    print("Plotting predictions")
+    wasa_computed = True
+    try:
+        # p_sleep = 1 - test_probabilities[:, 0]
+        p_wake = 1 - test_probabilities
+        wasa, threshold = wasa_metric(
+            labels=np.squeeze(test_labels),
+            predictions=np.squeeze(p_wake),
+            weights=np.squeeze(test_sample_weights))
+        print(f"WASA{wasa_percent}: {wasa.wake_accuracy:.4f}")
+        test_pred_path = Path(rgb_saved_predictions_name(test_id, saved_output_dir=predictions_path, set_name=set_name))
+        print(f"Saving predictions to {test_pred_path}")
+        # test_pred = (1 - p_wake)> threshold
+        np.save(test_pred_path, test_probabilities)
+    except Exception as e:
+        print(f"Error computing WASA: {e}")
+        wasa_computed = False
+    debug_plot(
+        predictions=test_probabilities,
+        spectrogram_3d=test_data, 
+        y_true=test_labels,
+        weights=test_sample_weights,
+        saveto=predictions_path.joinpath(f"{test_id}_cnn_pred_{set_name}_{ACC_HZ}.png")
+                                         if predictions_path is not None else None)
+    
 
 
-def load_preprocessed_data(dataset: str):
-    print("!!!", local_dir)
-    return np.load(local_dir.joinpath(f'pre_processed_data/{dataset}/{dataset}_preprocessed_data_{ACC_HZ}.npy'),
-                   allow_pickle=True).item()
+def load_and_train(preprocessed_path: Path, max_splits: int = -1, epochs: int = 1, lr: float = 1e-4, batch_size: int = 1, use_logits = False, n_classes=4, predictions_path: str = None):
 
-def load_and_train(max_splits: int = -1, epochs: int = 1, lr: float = 1e-4, batch_size: int = 1, use_logits = False, n_classes=4):
-
-    static_preprocessed_data = load_preprocessed_data("stationary")
+    static_preprocessed_data = load_preprocessed_data("stationary", preprocessed_path)
     static_keys = list(static_preprocessed_data.keys())
     static_data_bundle = prepare_data(static_preprocessed_data, 
                                       n_classes=n_classes,
                                       freq_downsample=FREQ_DOWN)
 
-    # hybrid_preprocessed_data = load_preprocessed_data("hybrid")
-    # hybrid_data_bundle = prepare_data(hybrid_preprocessed_data, 
-    #                                   n_classes=n_classes)
+    hybrid_preprocessed_data = load_preprocessed_data("hybrid", preprocessed_path)
+    hybrid_data_bundle = prepare_data(hybrid_preprocessed_data, 
+                                      n_classes=n_classes,
+                                      freq_downsample=FREQ_DOWN)
 
     start_time = time.time()
 
@@ -261,14 +284,15 @@ def load_and_train(max_splits: int = -1, epochs: int = 1, lr: float = 1e-4, batc
     train_rgb_cnn(
         static_keys,
         static_data_bundle,
-        None, # hybrid_data_bundle,
+        hybrid_data_bundle,
         fit_callbacks=[reduce_lr],
         max_splits=max_splits,
         epochs=epochs,
         batch_size=batch_size,
         lr=lr,
         use_logits=use_logits,
-        n_classes=n_classes
+        n_classes=n_classes,
+        predictions_path=predictions_path
     )
     # train_logreg(static_keys, static_data_bundle)
     end_time = time.time()
@@ -280,9 +304,16 @@ if __name__ == "__main__":
 
     # Suppress all warnings
     warnings.filterwarnings("ignore")
+    preprocessed_data_path = local_dir.joinpath("pre_processed_data")
+    predictions_path = local_dir.joinpath("saved_outputs")
 
-    # do_preprocessing(big_specgram_process, cache_dir=local_dir.joinpath("pre_processed_data"))
-    load_and_train(epochs=50, batch_size=1, lr=1e-4, use_logits=True, n_classes=2)
+    # do_preprocessing(big_specgram_process, cache_dir=preprocessed_data_path)
+    load_and_train(preprocessed_path=preprocessed_data_path, epochs=2, batch_size=1, lr=1e-4, use_logits=True, n_classes=2, predictions_path=predictions_path)
+    create_histogram_rgb(
+        "rgb", 
+        preprocessed_data_path=preprocessed_data_path,  
+        saved_output_dir=predictions_path, 
+        training_prediction_path=predictions_path)
 
 
 # 0. focus on sleep wake

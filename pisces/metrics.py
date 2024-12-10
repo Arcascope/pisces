@@ -61,7 +61,7 @@ class PerformanceMetrics:
 
 def apply_threshold(labels, predictions, threshold):
     true_wakes = np.where(labels == 0)[0]
-    predicted_wakes = np.where(predictions > threshold)[0]
+    predicted_wakes = np.where((predictions > threshold) & (labels != -1))[0]
 
     # calculate the number of true positives
     wake_accuracy = len(set(true_wakes).intersection(
@@ -119,15 +119,15 @@ def threshold_from_binary_search(labels, wake_probabilities,
         performance = apply_threshold(
             labels, wake_probabilities, threshold_for_sleep)
         fraction_sleep_scored_as_sleep = performance.sleep_accuracy
-        print(f"WASA{int(target_sleep_accuracy * 100)}: {performance.wake_accuracy}")
-        print("Fraction sleep correct: " + str(fraction_sleep_scored_as_sleep))
-        print("Goal fraction sleep correct: " + str(target_sleep_accuracy))
+        # print(f"WASA{int(target_sleep_accuracy * 100)}: {performance.wake_accuracy}")
+        # print("Fraction sleep correct: " + str(fraction_sleep_scored_as_sleep))
+        # print("Goal fraction sleep correct: " + str(target_sleep_accuracy))
         binary_search_counter = binary_search_counter + 1
 
-    print("Declaring victory with " +
-          str(fraction_sleep_scored_as_sleep) + "\n\n")
+    # print("Declaring victory with " +
+    #       str(fraction_sleep_scored_as_sleep) + "\n\n")
 
-    print("Goal was: " + str(target_sleep_accuracy))
+    # print("Goal was: " + str(target_sleep_accuracy))
     return threshold_for_sleep
 
 def wasa_metric(labels, predictions, weights, target_sleep_accuracy=0.95) -> Tuple[PerformanceMetrics, float]:

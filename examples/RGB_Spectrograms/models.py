@@ -63,7 +63,8 @@ def decoder_block(x, skip_connection, filters, kernel_size=(3, 3),
 def segmentation_model(input_shape=NEW_INPUT_SHAPE, output_shape=NEW_OUTPUT_SHAPE, num_classes=4, from_logits=False):
     input = Input(shape=input_shape)
     # zero-pad:
-    zeros_to_add = int(2 ** (knp.ceil(knp.log2(input_shape[0]))) - input_shape[0])
+    # zeros_to_add = int(2 ** (knp.ceil(knp.log2(input_shape[0]))) - input_shape[0])
+    zeros_to_add = 0
     print("ZEROS TO ADD:", zeros_to_add)
     x = input
     if (zeros_to_add > 0):
@@ -72,9 +73,12 @@ def segmentation_model(input_shape=NEW_INPUT_SHAPE, output_shape=NEW_OUTPUT_SHAP
     # Apply Conv2d with strides to downsample frequencies
     pool_size = (2, 2)
     strides = (1, 1)
-    x, p = encoder_block(x, filters=4, pool_size=pool_size, kernel_size=(11, 3), strides=strides)
-    x, p = encoder_block(p, filters=8, pool_size=pool_size, kernel_size=(11, 3), strides=strides)
-    x, p = encoder_block(p, filters=16, pool_size=pool_size, kernel_size=(11, 3), strides=strides)
+    kernel_horiz = 19 # chosen such that 30 seconds corresponds to 1 kernel
+    kernel_vert = 3
+    kernel_size = (kernel_horiz, kernel_vert)
+    x, p = encoder_block(x, filters=4, pool_size=pool_size, kernel_size=kernel_size, strides=strides)
+    x, p = encoder_block(p, filters=8, pool_size=pool_size, kernel_size=kernel_size, strides=strides)
+    x, p = encoder_block(p, filters=16, pool_size=pool_size, kernel_size=kernel_size, strides=strides)
 
     pool_vector = p
     pooled_inputs = AveragePooling2D(pool_size=(pool_vector.shape[1] // output_shape[0], pool_vector.shape[2]))(pool_vector)
@@ -86,10 +90,6 @@ def segmentation_model(input_shape=NEW_INPUT_SHAPE, output_shape=NEW_OUTPUT_SHAP
     # Apply a Conv1d layer to get num_classes
     final_activation = 'linear' if from_logits else 'softmax'
     outputs = keras.layers.Conv1D(num_classes, 1, activation=final_activation)(reshaped_inputs)
-
-    # dense_layer = keras.layers.Dense(num_classes, activation=final_activation)
-    # outputs = keras.layers.TimeDistributed(dense_layer)(reshaped_inputs)
-
 
     # outputs = pooled_inputs
 

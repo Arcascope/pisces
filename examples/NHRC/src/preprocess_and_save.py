@@ -156,8 +156,14 @@ def process_data_set(data_set: pds.DataSetObject,
             subject_id)
     return data
 
+def preprocessed_set_path(cache_dir: Path, set_name: str) -> Path:
+    set_path = cache_dir.joinpath(set_name)
+    os.makedirs(set_path, exist_ok=True)
+    return set_path
 
-
+def preprocessed_data_filename(set_name: str, cache_dir: Path | None = None) -> str:
+    base_fn = f"{set_name}_preprocessed_data_{acc_Hz_str}.npy"
+    return base_fn if cache_dir is None else cache_dir.joinpath(base_fn)
 
 def do_preprocessing(process_data_fn=None, cache_dir: Path | str | None = None):
     # clean_and_save_accelerometer_data()
@@ -194,10 +200,13 @@ def do_preprocessing(process_data_fn=None, cache_dir: Path | str | None = None):
             return process_data(data_set, data_processor_walch, subjects_to_exclude, )
 
     # Process the datasets
+    print("PROCESSING WALCH DATA")
     preprocessed_data_walch = process_data_set(
         walch, subjects_to_exclude_walch, process_data_fn)
+    print("PROCESSING HYBRID DATA")
     preprocessed_data_hybrid = process_data_set(
         hybrid, subjects_to_exclude_hybrid, process_data_fn)
+    print("DONE PROCESSING")
 
     CWD = Path(os.getcwd())
     save_path = CWD.joinpath("pre_processed_data") if cache_dir is None else Path(cache_dir)
@@ -205,20 +214,18 @@ def do_preprocessing(process_data_fn=None, cache_dir: Path | str | None = None):
     hybrid_name = "hybrid"
     stationary_name = "stationary"
 
-    hybrid_path = save_path.joinpath(hybrid_name)
+    hybrid_path = preprocessed_set_path(save_path, hybrid_name)
     os.makedirs(hybrid_path, exist_ok=True)
 
-    walch_path = save_path.joinpath(stationary_name)
+    walch_path = preprocessed_set_path(save_path, stationary_name)
     os.makedirs(walch_path, exist_ok=True)
 
-    save_preprocessing_to = walch_path.joinpath(
-        f"{stationary_name}_preprocessed_data_{acc_Hz_str}.npy")
+    save_preprocessing_to = preprocessed_data_filename(stationary_name, walch_path)
     print(f"Saving to {save_preprocessing_to}...")
     with open(save_preprocessing_to, 'wb') as f:
         np.save(f, preprocessed_data_walch)
 
-    save_preprocessing_to = hybrid_path.joinpath(
-        f"{hybrid_name}_preprocessed_data_{acc_Hz_str}.npy")
+    save_preprocessing_to =  preprocessed_data_filename(hybrid_name, hybrid_path)
     print(f"Saving to {save_preprocessing_to}...")
     with open(save_preprocessing_to, 'wb') as f:
         np.save(f, preprocessed_data_hybrid)
