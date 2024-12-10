@@ -308,12 +308,11 @@ if __name__ == "__main__":
     predictions_path = local_dir.joinpath("saved_outputs")
 
     # do_preprocessing(big_specgram_process, cache_dir=preprocessed_data_path)
-    load_and_train(preprocessed_path=preprocessed_data_path, epochs=2, batch_size=1, lr=1e-4, use_logits=True, n_classes=2, predictions_path=predictions_path)
+    # load_and_train(preprocessed_path=preprocessed_data_path, epochs=2, batch_size=1, lr=1e-4, use_logits=True, n_classes=2, predictions_path=predictions_path)
     create_histogram_rgb(
         "rgb", 
-        preprocessed_data_path=preprocessed_data_path,  
-        saved_output_dir=predictions_path, 
-        training_prediction_path=predictions_path)
+        preprocessed_data_path=preprocessed_data_path,
+        saved_output_dir=predictions_path)
 
 
 # 0. focus on sleep wake

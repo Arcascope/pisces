@@ -102,11 +102,11 @@ def create_histogram_rgb(run_mode: str, preprocessed_data_path: Path, saved_outp
 
         if run_mode == "rgb":
             static_predictions = 1 - np.squeeze(
-                np.load(rgb_saved_predictions_name(key, set_name="static")))
+                np.load(rgb_saved_predictions_name(key, saved_output_dir=saved_output_dir, set_name="static")))
             hybrid_predictions = 1 - np.squeeze(
-                np.load(rgb_saved_predictions_name(key, set_name="hybrid")))
+                np.load(rgb_saved_predictions_name(key, saved_output_dir=saved_output_dir, set_name="hybrid")))
 
-        true_labels = static_data_bundle.true_labels[i, :].numpy()
+        true_labels = static_data_bundle.labels[i, :]
 
         true_labels[true_labels > 1] = 1
         target_sleep_accuracy = TARGET_SLEEP
