@@ -1,4 +1,6 @@
 
+PSG_MASK_VALUE = -1
+
 # use "dyn" for resampling basd on avg Hz per recording
 # use a number for fixed resampling
 ACC_HZ = "50"  # "50" "dyn" "32"
@@ -17,5 +19,5 @@ WINDOW='blackman'
 N_OUTPUT_EPOCHS = 1024
 N_CLASSES = 4
 # 2 ** 14 is large enough to hold 8+ hours of 32 Hz spectrogram @ 512 NFFT/256 NOVERLAP
-NEW_INPUT_SHAPE = (2 ** 14, NFFT // 2, 3)
+NEW_INPUT_SHAPE = (30 * 512, NFFT // 2, 3)
 NEW_OUTPUT_SHAPE = (N_OUTPUT_EPOCHS, N_CLASSES)

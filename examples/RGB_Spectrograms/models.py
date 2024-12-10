@@ -5,6 +5,7 @@ from keras.layers import (
 )
 from keras.models import Model
 from keras.regularizers import l2
+import keras.ops as knp
 import tensorflow as tf
 
 from examples.RGB_Spectrograms.constants import NEW_INPUT_SHAPE, NEW_OUTPUT_SHAPE
@@ -59,7 +60,43 @@ def decoder_block(x, skip_connection, filters, kernel_size=(3, 3),
     x = Concatenate()([x, skip_connection])
     return x
 
-def segmentation_model(input_shape=NEW_INPUT_SHAPE, num_classes=4, frequency_downsample=4, from_logits=False):
+def segmentation_model(input_shape=NEW_INPUT_SHAPE, output_shape=NEW_OUTPUT_SHAPE, num_classes=4, from_logits=False):
+    input = Input(shape=input_shape)
+    # zero-pad:
+    zeros_to_add = int(2 ** (knp.ceil(knp.log2(input_shape[0]))) - input_shape[0])
+    print("ZEROS TO ADD:", zeros_to_add)
+    x = input
+    if (zeros_to_add > 0):
+        x = keras.layers.ZeroPadding2D(padding=(zeros_to_add // 2, 0))(x)
+
+    # Apply Conv2d with strides to downsample frequencies
+    pool_size = (2, 2)
+    strides = (1, 1)
+    x, p = encoder_block(x, filters=4, pool_size=pool_size, kernel_size=(11, 3), strides=strides)
+    x, p = encoder_block(p, filters=8, pool_size=pool_size, kernel_size=(11, 3), strides=strides)
+    x, p = encoder_block(p, filters=16, pool_size=pool_size, kernel_size=(11, 3), strides=strides)
+
+    pool_vector = p
+    pooled_inputs = AveragePooling2D(pool_size=(pool_vector.shape[1] // output_shape[0], pool_vector.shape[2]))(pool_vector)
+
+    reshaped_inputs = Reshape((output_shape[0], -1))(pooled_inputs)
+
+
+
+    # Apply a Conv1d layer to get num_classes
+    final_activation = 'linear' if from_logits else 'softmax'
+    outputs = keras.layers.Conv1D(num_classes, 1, activation=final_activation)(reshaped_inputs)
+
+    # dense_layer = keras.layers.Dense(num_classes, activation=final_activation)
+    # outputs = keras.layers.TimeDistributed(dense_layer)(reshaped_inputs)
+
+
+    # outputs = pooled_inputs
+
+    model = Model(input, outputs)
+    return model
+
+def segmentation_model_big(input_shape=NEW_INPUT_SHAPE, num_classes=4, frequency_downsample=4, from_logits=False):
     inputs = Input(shape=input_shape)
 
     # Downsample frequencies first

@@ -1,9 +1,12 @@
 from dataclasses import dataclass
+import json
 from typing import Dict
 import numpy as np
-from examples.RGB_Spectrograms.constants import ACC_DIFF_GAP, SPEC_INPUT_HZ, ACC_HZ, N_OUTPUT_EPOCHS, NEW_INPUT_SHAPE, PSG_DT, NFFT, NOVERLAP, WINDOW_LEN, WINDOW
+from keras.layers import AveragePooling2D
+from examples.RGB_Spectrograms.constants import ACC_DIFF_GAP, PSG_MASK_VALUE, SPEC_INPUT_HZ, ACC_HZ, N_OUTPUT_EPOCHS, NEW_INPUT_SHAPE, PSG_DT, NFFT, NOVERLAP, WINDOW_LEN, WINDOW
 import pisces.data_sets as pds
 from pisces.utils import accelerometer_to_3d_specgram, build_ADS, pad_or_truncate, resample_accel_data
+from examples.NHRC.nhrc_utils.analysis import stages_map
 
 @dataclass
 class PreparedDataRGB:
@@ -18,33 +21,37 @@ class PreparedDataRGB:
             weights=self.weights[index][np.newaxis, ...]
         )
 
-def compute_stage_weights(label_stack, n_classes=4):
-    # Compute balancing sample weights based on label_stack
-    n_per_class = np.zeros(n_classes)
-    for i in range(n_classes):
-        n_per_class[i] = np.sum(label_stack == i)
-    n_total = np.sum(n_per_class)
-    sample_weights = np.zeros_like(label_stack, dtype=np.float32)
-    sample_weights[label_stack < 0] = 0.0
-    for i in range(n_classes):
-        sample_weights[label_stack == i] = n_total / (n_per_class[i] * n_classes)
-    return sample_weights
+def compute_weights(labels):
+    # TODO: expand to handle multi-class
+    # compute class weights here
+    n_wake = float(np.sum(labels == 0))
+    n_sleep = float(np.sum(labels > 0))
+    n_total = n_wake + n_sleep # excludes -1 mask
 
+    class_weights = {
+        PSG_MASK_VALUE: 0.0,
+        0: (1 / n_wake) * (n_total / 2.0),
+        1: (1 / n_sleep) * (n_total / 2.0)
+    }
+    print("class weights: ", json.dumps(class_weights, indent=2 ))
+
+    weight_stack = np.ones_like(labels, dtype=np.float32)
+    for k, v in class_weights.items():
+        weight_stack[labels == k] = v
+    
+    return weight_stack
 
 def sw_map_fn(x):
     return np.where(x > 0, 1.0, x)
 
-def prepare_data(preprocessed_data, n_classes=4) -> PreparedDataRGB:
+def prepare_data(preprocessed_data, n_classes=4, freq_downsample: int = 1) -> PreparedDataRGB:
     psg_fn = stages_map if n_classes == 4 else sw_map_fn
     label_stack = np.array([
         psg_fn(preprocessed_data[k]['psg'][:, 1])
         for k in list(preprocessed_data.keys())
     ])
 
-    label_weights = compute_stage_weights(label_stack, n_classes=n_classes)
-
-    label_weights[label_stack < 0] = 0.0
-
+    label_weights = compute_weights(label_stack)
 
     spectrogram_stack = np.array([
         preprocessed_data[k]['spectrogram']
@@ -56,6 +63,10 @@ def prepare_data(preprocessed_data, n_classes=4) -> PreparedDataRGB:
     for i in range(3):
         p5, p95 = np.percentile(spectrogram_stack[:, :, :, i], [p_low, 100 - p_low])
         spectrogram_stack[:, :, :, i] = np.clip(spectrogram_stack[:, :, :, i], p5, p95)
+    
+    if freq_downsample > 1:
+        # apply avg pooling to downsample the frequency axis
+        spectrogram_stack = AveragePooling2D((1, freq_downsample))(spectrogram_stack).numpy()
 
     return PreparedDataRGB(
         spectrograms=spectrogram_stack.astype(np.float32),
@@ -115,7 +126,7 @@ def big_specgram_process(dataset: pds.DataSetObject,
 
     # Convert accelerometer data to spectrograms
 
-    sample_rate = 50
+    sample_rate = 50  # we configure this next
     if ACC_HZ == "dyn":
         int_hz = int(avg_time_hz)
         print("dynamic rate:", int_hz)
@@ -124,24 +135,26 @@ def big_specgram_process(dataset: pds.DataSetObject,
         sample_rate = int(ACC_HZ)
         print("fixed rate:", sample_rate)
 
-    accel_data_diff = np.diff(accel_data, axis=0)  # take a time diff, this should remove some gravity
-    accel_data_diff[:, 0] = accel_data[1:, 0]  # put the time back in
     accel_data_resampled = resample_accel_data(
         accel_data, original_fs=sample_rate, target_fs=SPEC_INPUT_HZ)
+    accel_data_diff = np.zeros_like(accel_data_resampled[1:])
+    accel_data_diff[:, 1:] = np.diff(accel_data_resampled[:, 1:], axis=0)  # take a time diff, this should remove some gravity
+    accel_data_diff[:, 0] = accel_data_resampled[1:, 0]  # put the time back in
 
     # compute spectrogram with resampled data
-    spectrograms = accelerometer_to_3d_specgram(
-        accel_data_resampled,
+    spectrograms, times, freqs = accelerometer_to_3d_specgram(
+        accel_data_diff,
         nfft=NFFT,
         window_len=WINDOW_LEN,
         noverlap=NOVERLAP,
-        window=WINDOW)
+        window=WINDOW,
+        fs=SPEC_INPUT_HZ)
     padded_spectrograms = np.zeros(NEW_INPUT_SHAPE)
     padded_spectrograms[:spectrograms.shape[0],
                         ...] = spectrograms[:NEW_INPUT_SHAPE[0], ...]
 
     # Compute activity with resampled data
-    activity_time, ads = build_ADS(accel_data)
+    activity_time, ads = build_ADS(accel_data_resampled)
     activity_data = np.column_stack((activity_time, ads))
 
     # Pad PSG data to 1024 samples

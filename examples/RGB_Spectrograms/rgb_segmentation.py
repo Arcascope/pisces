@@ -2,9 +2,9 @@ import json
 import os
 
 # Suppress TF warnings
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+# os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 #[Compiling module a_inference_one_step_on_data_58306__.69169] Very slow compile? If you want to file a bug, run with envvar XLA_FLAGS=--xla_dump_to=/tmp/foo and attach the results.
-os.environ['XLA_FLAGS'] = '--xla_dump_to=./xla_dump'
+# os.environ['XLA_FLAGS'] = '--xla_dump_to=./xla_dump'
 
 # Use jax backend
 # on macOS, this is one of the better out-of-the-box GPU options
@@ -13,23 +13,19 @@ os.environ['XLA_FLAGS'] = '--xla_dump_to=./xla_dump'
 # pylint: disable=wrong-import-position,wrong-import-order
 # os.environ["KERAS_BACKEND"] = "jax"
 # os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
-from examples.RGB_Spectrograms.losses import MaskedTemporalCategoricalCrossEntropy
-from examples.RGB_Spectrograms.plotting import debug_plot, overlay_channels_fixed
+# from examples.RGB_Spectrograms.losses import MaskedTemporalCategoricalCrossEntropy
+from examples.RGB_Spectrograms.plotting import debug_plot
 import sys
 from pathlib import Path
 from typing import List
-
-from examples.RGB_Spectrograms.training import sparse_categorical_focal, sparse_kl_divergence
-
-
 
 local_dir = Path(__file__).resolve().parent
 print("local_dir: ", local_dir)
 sys.path.append(str(local_dir.parent.joinpath('NHRC')))
 from examples.RGB_Spectrograms.preprocessing import PreparedDataRGB, big_specgram_process, prepare_data
-from examples.RGB_Spectrograms.channel_permuter import PermutationDataGenerator, Random3DRotationGenerator
+# from examples.RGB_Spectrograms.channel_permuter import PermutationDataGenerator, Random3DRotationGenerator
 from examples.RGB_Spectrograms.models import segmentation_model
-from examples.RGB_Spectrograms.constants import NEW_INPUT_SHAPE, N_OUTPUT_EPOCHS
+from examples.RGB_Spectrograms.constants import NEW_INPUT_SHAPE, N_OUTPUT_EPOCHS, PSG_MASK_VALUE
 from dataclasses import dataclass
 import time
 import datetime
@@ -47,14 +43,17 @@ from tqdm import tqdm
 import keras
 from keras.callbacks import TensorBoard, ReduceLROnPlateau
 import keras.ops as K
+from keras.metrics import SpecificityAtSensitivity
 
 
 from src.constants import ACC_HZ
 from pisces.metrics import WASAMetric, wasa_metric
 from src.preprocess_and_save import do_preprocessing
-from nhrc_utils.analysis import stages_map
 
-def rgb_gather_reshape(data_bundle: PreparedDataRGB, train_idx_tensor: np.array, input_shape: tuple = NEW_INPUT_SHAPE, output_shape: tuple = (N_OUTPUT_EPOCHS,)) -> tuple | None:
+# downsample rate for frequency axis
+FREQ_DOWN = NEW_INPUT_SHAPE[1] // 16 
+
+def rgb_gather_reshape(data_bundle: PreparedDataRGB, train_idx_tensor: np.array, input_shape: tuple, output_shape: tuple) -> tuple | None:
     input_shape_stack = (-1, *input_shape)
     output_shape_stack = (-1, *output_shape)
 
@@ -84,13 +83,21 @@ def train_rgb_cnn(static_keys, static_data_bundle, hybrid_data_bundle, fit_callb
     training_results = []
     cnn_predictors = []
 
-    print(f"Training RGB CNN models...")
+    print(f"Training RGB CNN models with {n_classes} classes...")
     WASA_PERCENT = 95
     WASA_FRAC = WASA_PERCENT / 100
     os.makedirs("./saved_outputs", exist_ok=True)
 
+    INPUT_SHAPE = list(NEW_INPUT_SHAPE)
+    INPUT_SHAPE[1] //= FREQ_DOWN
+    INPUT_SHAPE = tuple(INPUT_SHAPE)
+    print("INPUT SHAPE: ", INPUT_SHAPE)
+
+    OUTPUT_SHAPE = (N_OUTPUT_EPOCHS, )
+
+
     def make_segmenter():
-        return segmentation_model(num_classes=n_classes, from_logits=use_logits)
+        return segmentation_model(input_shape=INPUT_SHAPE, num_classes=1, from_logits=use_logits)
     
     print(make_segmenter().summary())
 
@@ -111,50 +118,46 @@ def train_rgb_cnn(static_keys, static_data_bundle, hybrid_data_bundle, fit_callb
 
         # Get the data
         train_data, train_labels, train_sample_weights = rgb_gather_reshape(
-            static_data_bundle, train_idx_tensor)
+            static_data_bundle, train_idx_tensor,
+            input_shape=INPUT_SHAPE, output_shape=OUTPUT_SHAPE)
+
         test_data, test_labels, test_sample_weights = rgb_gather_reshape(
-            static_data_bundle, test_idx_tensor)
+            static_data_bundle, test_idx_tensor,
+            input_shape=INPUT_SHAPE, output_shape=OUTPUT_SHAPE)
 
         # Train the model on the training set
-        output = cnn.layers[-1].output
-        print("output shape: ", output.shape)
+        # output = cnn.layers[-1].output
+        # print("output shape: ", output.shape)
 
-        print("train label shape: ", train_labels.shape)
-        print("test label shape: ", test_labels.shape)
-        print("unique train labels: ", np.unique(train_labels))
-        n_wake = float(np.sum(train_labels == 0))
-        n_sleep = float(np.sum(train_labels > 0))
+        # print("INPUT SHAPE: ", INPUT_SHAPE)
+        # print("train input shape: ", train_data.shape)
+        # print("train label shape: ", train_labels.shape)
+        # print("test label shape: ", test_labels.shape)
+        # print("unique train labels: ", np.unique(train_labels))
 
-        n_total = n_wake + n_sleep
-        class_weights = {
-            -1: 0.0,
-            0: (1 / n_wake) * (n_total / 2.0),
-            1: (1 / n_sleep) * (n_total / 2.0)
-        }
-        print("class weights: ", json.dumps(class_weights, indent=2 ))
+        # any mods to the labels
+        # train_labels_pro = tf.zeros_like(train_labels)
+        train_labels_pro = tf.where(
+            train_labels == PSG_MASK_VALUE, 0, train_labels)
 
-        # one-hot encode the labels
-        train_labels = train_labels
-        test_labels = test_labels
-        # train_labels = keras.utils.to_categorical(
-        #     train_labels,
-        #     num_classes=n_classes)
-        # test_labels = keras.utils.to_categorical(
-        #     test_labels,
-        #     num_classes=n_classes)
+        # test_labels_pro = tf.zeros_like(test_labels)
+        test_labels_pro = tf.where(
+            test_labels == PSG_MASK_VALUE, 0, test_labels)
 
-        temporal_ce = MaskedTemporalCategoricalCrossEntropy(n_classes=n_classes, sparse=True, from_logits=use_logits)
+        # temporal_ce = MaskedTemporalCategoricalCrossEntropy(n_classes=n_classes, sparse=True, from_logits=use_logits)
 
         cnn.compile(
-            loss=temporal_ce,
+            # loss=temporal_ce,
             # loss=keras.losses.SparseCategoricalCrossentropy(from_logits=use_logits),
+            loss=keras.losses.BinaryCrossentropy(from_logits=use_logits),
             # loss=keras.losses.CategoricalFocalCrossentropy(from_logits=use_logits),
-            optimizer=keras.optimizers.AdamW(learning_rate=lr),
-            metrics=[temporal_ce],
-            # weighted_metrics=[
+            optimizer=keras.optimizers.Adam(learning_rate=lr),
+            weighted_metrics=[
+                # WASAMetric(WASA_FRAC, from_logits=use_logits),
+                # SpecificityAtSensitivity(WASA_FRAC, name=f"WASA{WASA_PERCENT}"),
+                'auc'
             #     temporal_ce,
-            #     # keras.losses.CategoricalFocalCrossentropy(from_logits=use_logits),
-            # ]
+            ]
         )
 
         # standardize the data
@@ -169,15 +172,21 @@ def train_rgb_cnn(static_keys, static_data_bundle, hybrid_data_bundle, fit_callb
         test_data = (test_data - test_specgram_mean) / test_specgram_std
 
         # channel_shuffler = PermutationDataGenerator(train_data, train_labels, sample_weights=train_sample_weights, batch_size=batch_size) 
+        # Use cnn to predict probabilities
+        # Rescale so everything doesn't get set to 0 or 1 in the expit call
 
+        print("Training model...")
+        # print("Training Input shape: ", train_data.shape)
+        # print("Training input size in MiB: ", train_data.nbytes / 1024 / 1024)
+        # print("Training Target shape: ", train_labels.shape)
 
         training_results.append(cnn.fit(
-            train_data, train_labels,
+            train_data, train_labels_pro,
             # channel_shuffler,
-            # sample_weight=train_sample_weights,
+            sample_weight=train_sample_weights,
             epochs=epochs,
-            validation_data=(test_data, test_labels),
-            # validation_data=(test_data, test_labels, test_sample_weights),
+            # validation_data=(test_data, test_labels),
+            validation_data=(test_data, test_labels_pro, test_sample_weights),
             batch_size=batch_size,
             callbacks=[cnn_tensorboard_callback, *fit_callbacks]
         ))
@@ -190,22 +199,24 @@ def train_rgb_cnn(static_keys, static_data_bundle, hybrid_data_bundle, fit_callb
         scalar = 10000.0 if use_logits else 1.0
         test_labels = test_labels[0]
         test_sample_weights = test_sample_weights[0]
-        test_prediction_raw = cnn.predict(test_data) / scalar
-        test_probabilities = softmax(test_prediction_raw, axis=-1) if use_logits else test_prediction_raw
+        test_prediction_raw = cnn.predict(test_data)
+        test_probabilities = expit(test_prediction_raw) if use_logits else test_prediction_raw
         print("Plotting predictions")
         debug_plot(
-            test_probabilities, 
-            test_data, 
+            predictions=test_probabilities, 
+            spectrogram_3d=test_data, 
+            y_true=test_labels,
             weights=test_sample_weights,
             saveto=f"./saved_outputs/{static_keys[k_test[0]]}_cnn_pred_static_{ACC_HZ}.png")
         
 
         try:
-            p_sleep = 1 - test_probabilities[:, 0]
+            # p_sleep = 1 - test_probabilities[:, 0]
+            p_sleep = test_probabilities
             wasa, threshold = wasa_metric(
-                labels=test_labels,
-                predictions=p_sleep,
-                weights=test_sample_weights)
+                labels=np.squeeze(test_labels),
+                predictions=np.squeeze(p_sleep),
+                weights=np.squeeze(test_sample_weights))
             print(f"WASA{WASA_PERCENT}: {wasa.wake_accuracy:.4f}")
             test_pred_path = (static_keys[k_test[0]]) + \
                 f"_cnn_pred_static_{ACC_HZ}.npy"
@@ -229,7 +240,8 @@ def load_and_train(max_splits: int = -1, epochs: int = 1, lr: float = 1e-4, batc
     static_preprocessed_data = load_preprocessed_data("stationary")
     static_keys = list(static_preprocessed_data.keys())
     static_data_bundle = prepare_data(static_preprocessed_data, 
-                                      n_classes=n_classes)
+                                      n_classes=n_classes,
+                                      freq_downsample=FREQ_DOWN)
 
     # hybrid_preprocessed_data = load_preprocessed_data("hybrid")
     # hybrid_data_bundle = prepare_data(hybrid_preprocessed_data, 
@@ -270,7 +282,8 @@ if __name__ == "__main__":
     warnings.filterwarnings("ignore")
 
     # do_preprocessing(big_specgram_process, cache_dir=local_dir.joinpath("pre_processed_data"))
-    load_and_train(epochs=2, batch_size=1, lr=1e-4, use_logits=False, n_classes=2)
+    load_and_train(epochs=50, batch_size=1, lr=1e-4, use_logits=True, n_classes=2)
+
 
 # 0. focus on sleep wake
 # 1. trim input size down (either downsample img in-network or pre-network)
