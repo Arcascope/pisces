@@ -45,7 +45,7 @@ def overlay_channels_fixed(spectrogram_tensor, mintile=5, maxtile=95, ax=None, c
     ax.set_ylabel('Frequency Bins')
     ax.set_title('Overlayed Spectrogram Channels as RGB')
 
-def debug_plot(predictions, spectrogram_3d, y_true, weights: np.ndarray | None = None, saveto: str = None):
+def debug_plot(predictions, spectrogram_3d, y_true, weights: np.ndarray | None = None, saveto: str = None, wasa_threshold: float | None = None, wasa_value: float | None = None):
     fig, axs = plt.subplots(2, 1, figsize=(10, 10))
     overlay_channels_fixed(np.swapaxes(np.squeeze(spectrogram_3d), 0, 1), ax=axs[0])
     predictions_squeezed = np.squeeze(predictions)
@@ -57,6 +57,12 @@ def debug_plot(predictions, spectrogram_3d, y_true, weights: np.ndarray | None =
             axs[1].stackplot(range(N_OUTPUT_EPOCHS), predictions_squeezed.T)
         except Exception as e:
             print(e)
+
+    if wasa_threshold is not None:
+        axs[1].axhline(wasa_threshold, color='r', linestyle='--', label='WASA Threshold')
+    
+    if wasa_value is not None:
+        axs[1].set_title(f'WASA: {wasa_value:.2f}')
 
     axs[1].plot(range(N_OUTPUT_EPOCHS), y_true, 'k--')
     axs[1].set_xlim([0, N_OUTPUT_EPOCHS])
@@ -72,7 +78,7 @@ def debug_plot(predictions, spectrogram_3d, y_true, weights: np.ndarray | None =
     plt.close()
 
 
-def create_histogram_rgb(run_mode: str, preprocessed_data_path: Path, saved_output_dir: Path, acc_hz: int = ACC_HZ, TARGET_SLEEP: float = 0.95, ):
+def create_histogram_rgb(run_mode: str, preprocessed_data_path: Path, saved_output_dir: Path, acc_hz: int = ACC_HZ, TARGET_SLEEP: float = 0.95, sleep_proba: bool = True):
     start_run = time.time()
 
     # Load stationary data
@@ -101,10 +107,18 @@ def create_histogram_rgb(run_mode: str, preprocessed_data_path: Path, saved_outp
                 static_data_bundle, hybrid_data_bundle, i)
 
         if run_mode == "rgb":
-            static_predictions = 1 - np.squeeze(
+            static_predictions = np.squeeze(
                 np.load(rgb_saved_predictions_name(key, saved_output_dir=saved_output_dir, set_name="static")))
-            hybrid_predictions = 1 - np.squeeze(
+            hybrid_predictions = np.squeeze(
                 np.load(rgb_saved_predictions_name(key, saved_output_dir=saved_output_dir, set_name="hybrid")))
+            # the methods below want wake probabilities
+            if sleep_proba:
+                static_predictions = 1 - static_predictions
+                hybrid_predictions = 1 - hybrid_predictions
+            # static_predictions = 1 - np.squeeze(
+            #     np.load(rgb_saved_predictions_name(key, saved_output_dir=saved_output_dir, set_name="static")))
+            # hybrid_predictions = 1 - np.squeeze(
+            #     np.load(rgb_saved_predictions_name(key, saved_output_dir=saved_output_dir, set_name="hybrid")))
 
         true_labels = static_data_bundle.labels[i, :]
 

@@ -6,6 +6,7 @@ import time
 from typing import Dict, List
 import numpy as np
 from keras.layers import AveragePooling2D
+import tensorflow as tf
 from examples.RGB_Spectrograms.constants import ACC_DIFF_GAP, PSG_MASK_VALUE, SPEC_INPUT_HZ, ACC_HZ, N_OUTPUT_EPOCHS, NEW_INPUT_SHAPE, PSG_DT, NFFT, NOVERLAP, WINDOW_LEN, WINDOW
 import pisces.data_sets as pds
 from pisces.utils import accelerometer_to_3d_specgram, build_ADS, pad_or_truncate, resample_accel_data
@@ -265,3 +266,17 @@ def do_preprocessing(process_data_fn=None, cache_dir: Path | str | None = None):
 
     end_run = time.time()
     print(f"Preprocessing took {end_run - start_run} seconds")
+
+def prepared_labels_tf(labels: tf.Tensor, mask_value: int = -1, mask_to: int | None = None, pos_class: int = 1) -> np.array:
+    prep_labels = tf.where(labels == pos_class, 1, 0)
+
+    # numpy is this: prep_labels[labels == mask_value] = mask_to if mask_to is not None else mask_value
+    prep_labels = tf.where(labels == mask_value, mask_to if mask_to is not None else mask_value, prep_labels)
+
+    return prep_labels
+
+def prepared_labels(labels: np.array, mask_value: int = -1, mask_to: int | None = None, pos_class: int = 1) -> np.array:
+    prep_labels = np.where(labels == pos_class, 1, 0)
+    prep_labels[labels == mask_value] = mask_to if mask_to is not None else mask_value
+
+    return prep_labels

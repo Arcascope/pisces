@@ -6,8 +6,8 @@ import tensorflow as tf
 class PermutationDataGenerator(Sequence):
     def __init__(self, images, labels, sample_weights=None, batch_size=8):
         self.images = images
-        self.labels = labels
-        self.sample_weights = sample_weights
+        self.labels = tf.convert_to_tensor(labels)
+        self.sample_weights = tf.convert_to_tensor(sample_weights) if sample_weights is not None else None
         self.batch_size = batch_size
         self.indices = np.arange(len(images))
         
@@ -17,18 +17,20 @@ class PermutationDataGenerator(Sequence):
     def __getitem__(self, index):
         # Select batch indices
         batch_indices = self.indices[index * self.batch_size: (index + 1) * self.batch_size]
+        batch_indices = tf.convert_to_tensor(batch_indices, dtype=tf.int32)
+
         batch_images = self.images[batch_indices]
-        batch_labels = self.labels[batch_indices]
-        batch_weights = self.sample_weights[batch_indices] if self.sample_weights is not None else None
+        batch_labels = tf.gather(self.labels, batch_indices)
+        batch_weights = tf.gather(self.sample_weights, batch_indices) if self.sample_weights is not None else None
         
         # Permute channels for a batch of images
-        permuted_images = np.array([img[..., np.random.permutation(3)] for img in batch_images])
+        permuted_images = tf.stack([tf.gather(img, tf.random.shuffle(tf.range(img.shape[-1])), axis=-1) for img in batch_images])
 
-        
         return permuted_images, batch_labels, batch_weights
 
     def on_epoch_end(self):
         np.random.shuffle(self.indices)
+
 
 
 class Random3DRotationGenerator(Sequence):

@@ -130,15 +130,16 @@ def threshold_from_binary_search(labels, wake_probabilities,
     # print("Goal was: " + str(target_sleep_accuracy))
     return threshold_for_sleep
 
-def wasa_metric(labels, predictions, weights, target_sleep_accuracy=0.95) -> Tuple[PerformanceMetrics, float]:
-    labels = labels[weights > 0]
-    predictions = predictions[weights > 0]
+def wasa_metric(y_true, p_wake, sample_weights=None, target_sleep_accuracy=0.95) -> Tuple[PerformanceMetrics, float]:
+    if sample_weights is not None:
+        y_true = y_true[sample_weights > 0]
+        p_wake = p_wake[sample_weights > 0]
 
-    labels[labels > 1] = 1
+    y_true[y_true > 1] = 1
 
-    threshold = threshold_from_binary_search(labels, predictions, target_sleep_accuracy)
+    threshold = threshold_from_binary_search(y_true, p_wake, target_sleep_accuracy)
 
     perform = apply_threshold(
-        labels, predictions, threshold)
+        y_true, p_wake, threshold)
 
     return perform, threshold

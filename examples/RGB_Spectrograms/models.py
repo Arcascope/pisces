@@ -74,16 +74,20 @@ def segmentation_model(input_shape=NEW_INPUT_SHAPE, output_shape=NEW_OUTPUT_SHAP
     pool_size = (2, 2)
     strides = (1, 1)
     kernel_horiz = 19 # chosen such that 30 seconds corresponds to 1 kernel
+    # kernel_horiz = 7
+
     kernel_vert = 3
     kernel_size = (kernel_horiz, kernel_vert)
     x, p = encoder_block(x, filters=4, pool_size=pool_size, kernel_size=kernel_size, strides=strides)
     x, p = encoder_block(p, filters=8, pool_size=pool_size, kernel_size=kernel_size, strides=strides)
     x, p = encoder_block(p, filters=16, pool_size=pool_size, kernel_size=kernel_size, strides=strides)
+    x, p = encoder_block(p, filters=32, pool_size=pool_size, kernel_size=kernel_size, strides=strides)
 
     pool_vector = p
-    pooled_inputs = AveragePooling2D(pool_size=(pool_vector.shape[1] // output_shape[0], pool_vector.shape[2]))(pool_vector)
+    # pooled_inputs = AveragePooling2D(pool_size=(pool_vector.shape[1] // output_shape[0], pool_vector.shape[2]))(pool_vector)
 
-    reshaped_inputs = Reshape((output_shape[0], -1))(pooled_inputs)
+    # reshaped_inputs = Reshape((output_shape[0], -1))(pooled_inputs)
+    reshaped_inputs = Reshape((output_shape[0], -1))(p)
 
 
 

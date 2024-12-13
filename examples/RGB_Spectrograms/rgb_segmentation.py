@@ -16,6 +16,7 @@ import os
 # from examples.RGB_Spectrograms.losses import MaskedTemporalCategoricalCrossEntropy
 # from examples.NHRC.src.preprocess_and_save import preprocessed_data_filename
 from examples.RGB_Spectrograms.channel_permuter import PermutationDataGenerator
+from examples.RGB_Spectrograms.losses import MaskedLoss
 from examples.RGB_Spectrograms.plotting import create_histogram_rgb, debug_plot
 import sys
 from pathlib import Path
@@ -26,7 +27,7 @@ from examples.RGB_Spectrograms.utils import load_preprocessed_data, print_histog
 local_dir = Path(__file__).resolve().parent
 print("local_dir: ", local_dir)
 sys.path.append(str(local_dir.parent.joinpath('NHRC')))
-from examples.RGB_Spectrograms.preprocessing import PreparedDataRGB, big_specgram_process, prepare_data, do_preprocessing
+from examples.RGB_Spectrograms.preprocessing import PreparedDataRGB, big_specgram_process, prepare_data, do_preprocessing, prepared_labels_tf
 # from examples.RGB_Spectrograms.channel_permuter import PermutationDataGenerator, Random3DRotationGenerator
 from examples.RGB_Spectrograms.models import segmentation_model
 from examples.RGB_Spectrograms.constants import ACC_HZ, NEW_INPUT_SHAPE, N_OUTPUT_EPOCHS, PSG_MASK_VALUE, rgb_path_name, rgb_saved_predictions_name
@@ -53,8 +54,16 @@ from keras.metrics import SpecificityAtSensitivity
 from pisces.metrics import WASAMetric, wasa_metric
 
 # downsample rate for frequency axis
-FREQ_DOWN = 2
+FREQ_DOWN = 4
 # FREQ_DOWN = NEW_INPUT_SHAPE[1] // 16 
+BFCE_GAMMA = 4
+BFCE_ALPHA = 0.5
+WASA_PERCENT = 95
+
+
+def log_dir_fn(test_id):
+    # return f"logs/bfce_gamma_{BFCE_GAMMA}_p_wake_rgb_cnn_{test_id}_{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}"
+    return f"logs/rgb_cnn_{test_id}_{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}"
 
 def rgb_gather_reshape(data_bundle: PreparedDataRGB, idx_tensor: np.array, input_shape: tuple, output_shape: tuple) -> tuple | None:
     input_shape_stack = (-1, *input_shape)
@@ -82,14 +91,13 @@ def channelwise_std(x, axes=[1, 2]):
         x = np.std(x, axis=axis, keepdims=True)
     return x
 
-def train_rgb_cnn(static_keys, static_data_bundle, hybrid_data_bundle, fit_callbacks: list = [], max_splits: int = -1, epochs: int = 1, lr: float = 1e-4, batch_size: int = 1, use_logits = False, n_classes=4, predictions_path: Path = None, models_path: Path = None):
+def train_rgb_cnn(static_keys, static_data_bundle, hybrid_data_bundle, fit_callbacks: list = [], max_splits: int = -1, epochs: int = 1, lr: float = 1e-4, batch_size: int = 1, use_logits = False, n_classes=4, predictions_path: Path = None, models_path: Path = None, sleep_proba: bool = True):
     split_maker = LeaveOneOut()
 
     training_results = []
     cnn_predictors = []
 
     print(f"Training RGB CNN models with {n_classes} classes...")
-    WASA_PERCENT = 95
     WASA_FRAC = WASA_PERCENT / 100
     # os.makedirs("./saved_outputs", exist_ok=True)
 
@@ -110,8 +118,8 @@ def train_rgb_cnn(static_keys, static_data_bundle, hybrid_data_bundle, fit_callb
 
     # Split the data into training and testing sets
     for k_train, k_test in tqdm(split_maker.split(static_keys), desc="Next split", total=len(static_keys)):
-        log_dir_cnn = local_dir / log_dir_fn(static_keys[k_test[0]])
         # Configure TensorBoard callback
+        log_dir_cnn = local_dir / log_dir_fn(static_keys[k_test[0]])
         cnn_tensorboard_callback = TensorBoard(
             log_dir=log_dir_cnn, histogram_freq=1)
         if (max_splits > 0) and (len(training_results) >= max_splits):
@@ -143,24 +151,27 @@ def train_rgb_cnn(static_keys, static_data_bundle, hybrid_data_bundle, fit_callb
         # print("test label shape: ", test_labels.shape)
         # print("unique train labels: ", np.unique(train_labels))
 
-        # Train models to predict wake instead of sleep.
-        train_labels_pro = tf.where(
-            train_labels != PSG_MASK_VALUE, 1 - train_labels,  0)
-
+        # (pos_class=0) Train models to predict wake instead of sleep.
+        train_labels_pro = prepared_labels_tf(labels=train_labels, mask_to=0, mask_value=PSG_MASK_VALUE, pos_class=1 if sleep_proba else 0)
+        val_labels_pro = prepared_labels_tf(labels=test_labels, mask_to=0, mask_value=PSG_MASK_VALUE, pos_class=1 if sleep_proba else 0)
         # Other code is still assuming the labels are wake=0 sleep=1, hence we use different labels for validation and post-training evaluation
-        val_labels_pro = tf.where(
-            test_labels != PSG_MASK_VALUE,1 - test_labels, 0)
-        test_labels_pro = tf.where(
-            test_labels != PSG_MASK_VALUE, test_labels, 0)
+        test_labels_pro = prepared_labels_tf(labels=test_labels, mask_to=0, mask_value=PSG_MASK_VALUE, pos_class=1)
 
         # temporal_ce = MaskedTemporalCategoricalCrossEntropy(n_classes=n_classes, sparse=True, from_logits=use_logits)
+        bfc = keras.losses.BinaryFocalCrossentropy(
+            from_logits=use_logits,
+            apply_class_balancing=False,
+            alpha=BFCE_ALPHA,
+            gamma=BFCE_GAMMA)
 
         cnn.compile(
             loss=keras.losses.BinaryCrossentropy(from_logits=use_logits),
-            optimizer=keras.optimizers.Adam(learning_rate=lr),
+            # loss=bfc,
+            optimizer=keras.optimizers.AdamW(learning_rate=lr),
             weighted_metrics=[
-                # SpecificityAtSensitivity(WASA_FRAC, name=f"WASA{WASA_PERCENT}"),
-                # 'auc'
+                # wasa_metric
+                # SpecificityAtSensitivity(WASA_FRAC, name=f"WASA{WASA_PERCENT}", class_id=0),
+                'auc'
             ]
         )
 
@@ -173,7 +184,7 @@ def train_rgb_cnn(static_keys, static_data_bundle, hybrid_data_bundle, fit_callb
             train_data, train_labels_pro,
             sample_weight=train_sample_weights,
             epochs=epochs,
-            # validation_data=(test_data, test_labels),
+            # validation_data=(test_data, val_labels_pro),
             validation_data=(test_data, val_labels_pro, test_sample_weights),
             batch_size=batch_size,
             callbacks=[cnn_tensorboard_callback, *fit_callbacks]
@@ -223,8 +234,7 @@ def train_rgb_cnn(static_keys, static_data_bundle, hybrid_data_bundle, fit_callb
         
         print_histogram(wasas, bins=np.arange(np.min(wasas), 1.1, 0.1))
 
-def log_dir_fn(test_id):
-    return f"logs/channel_shuffle_p_wake_rgb_cnn_{test_id}_{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}"
+
 
 def evaluate_and_save_test(
         test_data,
@@ -243,14 +253,15 @@ def evaluate_and_save_test(
     print("Plotting predictions")
     wasa_computed = True
     wasa_result = -1.0
+    wasa_threshold = 0.5
     try:
         # p_sleep = 1 - test_probabilities[:, 0]
-        p_wake = test_probabilities
-        # p_wake = 1 - test_probabilities
+        # p_wake = test_probabilities
+        p_wake = 1 - test_probabilities
         wasa, threshold = wasa_metric(
-            labels=np.squeeze(test_labels),
-            predictions=np.squeeze(p_wake),
-            weights=np.squeeze(test_sample_weights))
+            y_true=np.squeeze(test_labels),
+            p_wake=np.squeeze(p_wake),
+            sample_weights=np.squeeze(test_sample_weights))
 
         print(f"WASA{wasa_percent}: {wasa.wake_accuracy:.4f}")
         wasa_result = wasa.wake_accuracy
@@ -268,14 +279,16 @@ def evaluate_and_save_test(
             y_true=test_labels,
             weights=test_sample_weights,
             saveto=predictions_path.joinpath(f"{test_id}_cnn_pred_{set_name}_{ACC_HZ}.png")
-                                            if predictions_path is not None else None)
+                                            if predictions_path is not None else None,
+            wasa_threshold=wasa_threshold if wasa_computed else None,
+            wasa_value=wasa_result if wasa_computed else None,)
     except Exception as e:
         print(f"Error plotting predictions: {e}")
     return wasa_result
     
 
 
-def load_and_train(preprocessed_path: Path, max_splits: int = -1, epochs: int = 1, lr: float = 1e-4, batch_size: int = 1, use_logits = False, n_classes=4, predictions_path: str = None):
+def load_and_train(preprocessed_path: Path, max_splits: int = -1, epochs: int = 1, lr: float = 1e-4, batch_size: int = 1, use_logits = False, n_classes=4, predictions_path: str = None, sleep_proba: bool = True):
 
     static_preprocessed_data = load_preprocessed_data("stationary", preprocessed_path)
     static_keys = list(static_preprocessed_data.keys())
@@ -293,9 +306,9 @@ def load_and_train(preprocessed_path: Path, max_splits: int = -1, epochs: int = 
     # Define the learning rate scheduler callback
     reduce_lr = ReduceLROnPlateau(
         monitor='val_loss',  # Metric to monitor
-        factor=0.5,          # Factor by which the learning rate will be reduced
-        patience=16,         # Number of epochs with no improvement after which learning rate will be reduced
-        min_lr=1e-5          # Lower bound on the learning rate
+        factor=0.75,          # Factor by which the learning rate will be reduced
+        patience=8,         # Number of epochs with no improvement after which learning rate will be reduced
+        min_lr=lr / 8          # Lower bound on the learning rate
     )
 
 
@@ -310,7 +323,8 @@ def load_and_train(preprocessed_path: Path, max_splits: int = -1, epochs: int = 
         lr=lr,
         use_logits=use_logits,
         n_classes=n_classes,
-        predictions_path=predictions_path
+        predictions_path=predictions_path,
+        sleep_proba=sleep_proba,
     )
     # train_logreg(static_keys, static_data_bundle)
     end_time = time.time()
@@ -328,15 +342,18 @@ if __name__ == "__main__":
     # do_preprocessing(big_specgram_process, cache_dir=preprocessed_data_path)
     load_and_train(
         preprocessed_path=preprocessed_data_path, 
-        epochs=37,  # 37 is eyeballed from TesnorBoard
+        epochs=60,  # 37 is eyeballed from TesnorBoard
         batch_size=1, 
-        lr=5e-4, 
+        lr=1e-4, 
         use_logits=True, 
-        n_classes=2, predictions_path=predictions_path)
+        n_classes=2,
+        sleep_proba=True,
+        predictions_path=predictions_path)
     create_histogram_rgb(
         "rgb", 
         preprocessed_data_path=preprocessed_data_path,
-        saved_output_dir=predictions_path)
+        saved_output_dir=predictions_path,
+        sleep_proba=True)
 
 
 # 0. focus on sleep wake
