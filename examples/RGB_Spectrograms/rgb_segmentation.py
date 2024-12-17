@@ -54,7 +54,8 @@ from keras.metrics import SpecificityAtSensitivity
 from pisces.metrics import WASAMetric, wasa_metric
 
 # downsample rate for frequency axis
-FREQ_DOWN = 4
+FREQ_DOWN = 1
+
 # FREQ_DOWN = NEW_INPUT_SHAPE[1] // 16 
 BFCE_GAMMA = 4
 BFCE_ALPHA = 0.5
@@ -63,7 +64,7 @@ WASA_PERCENT = 95
 
 def log_dir_fn(test_id):
     # return f"logs/bfce_gamma_{BFCE_GAMMA}_p_wake_rgb_cnn_{test_id}_{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}"
-    return f"logs/rgb_cnn_{test_id}_{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}"
+    return f"logs/10_minute_kernel_{test_id}_{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}"
 
 def rgb_gather_reshape(data_bundle: PreparedDataRGB, idx_tensor: np.array, input_shape: tuple, output_shape: tuple) -> tuple | None:
     input_shape_stack = (-1, *input_shape)
@@ -115,6 +116,7 @@ def train_rgb_cnn(static_keys, static_data_bundle, hybrid_data_bundle, fit_callb
     print(make_segmenter().summary())
 
     wasas = []
+    that_auc = keras.metrics.AUC(from_logits=use_logits, name="AUC")
 
     # Split the data into training and testing sets
     for k_train, k_test in tqdm(split_maker.split(static_keys), desc="Next split", total=len(static_keys)):
@@ -171,7 +173,7 @@ def train_rgb_cnn(static_keys, static_data_bundle, hybrid_data_bundle, fit_callb
             weighted_metrics=[
                 # wasa_metric
                 # SpecificityAtSensitivity(WASA_FRAC, name=f"WASA{WASA_PERCENT}", class_id=0),
-                'auc'
+                that_auc
             ]
         )
 
@@ -263,8 +265,10 @@ def evaluate_and_save_test(
             p_wake=np.squeeze(p_wake),
             sample_weights=np.squeeze(test_sample_weights))
 
-        print(f"WASA{wasa_percent}: {wasa.wake_accuracy:.4f}")
+        wasa_threshold = threshold
         wasa_result = wasa.wake_accuracy
+        print(f"WASA{wasa_percent}: {wasa.wake_accuracy:.4f}")
+
         test_pred_path = Path(rgb_saved_predictions_name(test_id, saved_output_dir=predictions_path, set_name=set_name))
         print(f"Saving predictions to {test_pred_path}")
         # test_pred = (1 - p_wake)> threshold
@@ -334,6 +338,10 @@ def load_and_train(preprocessed_path: Path, max_splits: int = -1, epochs: int = 
 if __name__ == "__main__":
     import warnings
 
+    # set the random seed to 20241217
+    np.random.seed(20241217)
+    tf.random.set_seed(20241217)
+
     # Suppress all warnings
     warnings.filterwarnings("ignore")
     preprocessed_data_path = local_dir.joinpath("pre_processed_data")
@@ -342,7 +350,7 @@ if __name__ == "__main__":
     # do_preprocessing(big_specgram_process, cache_dir=preprocessed_data_path)
     load_and_train(
         preprocessed_path=preprocessed_data_path, 
-        epochs=60,  # 37 is eyeballed from TesnorBoard
+        epochs=30,  # 37 is eyeballed from TesnorBoard
         batch_size=1, 
         lr=1e-4, 
         use_logits=True, 

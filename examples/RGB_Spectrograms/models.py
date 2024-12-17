@@ -73,11 +73,13 @@ def segmentation_model(input_shape=NEW_INPUT_SHAPE, output_shape=NEW_OUTPUT_SHAP
     # Apply Conv2d with strides to downsample frequencies
     pool_size = (2, 2)
     strides = (1, 1)
-    kernel_horiz = 19 # chosen such that 30 seconds corresponds to 1 kernel
+    # *2
+    kernel_horiz = 19 * 2 * 12 # chosen such that 30 seconds corresponds to 1 kernel
     # kernel_horiz = 7
 
     kernel_vert = 3
     kernel_size = (kernel_horiz, kernel_vert)
+
     x, p = encoder_block(x, filters=4, pool_size=pool_size, kernel_size=kernel_size, strides=strides)
     x, p = encoder_block(p, filters=8, pool_size=pool_size, kernel_size=kernel_size, strides=strides)
     x, p = encoder_block(p, filters=16, pool_size=pool_size, kernel_size=kernel_size, strides=strides)
@@ -98,6 +100,7 @@ def segmentation_model(input_shape=NEW_INPUT_SHAPE, output_shape=NEW_OUTPUT_SHAP
     # outputs = pooled_inputs
 
     model = Model(input, outputs)
+    sub_model = Model()
     return model
 
 def segmentation_model_big(input_shape=NEW_INPUT_SHAPE, num_classes=4, frequency_downsample=4, from_logits=False):
