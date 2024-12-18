@@ -339,8 +339,9 @@ if __name__ == "__main__":
     import warnings
 
     # set the random seed to 20241217
-    np.random.seed(20241217)
-    tf.random.set_seed(20241217)
+    SEED = 20241217
+    np.random.seed(SEED)
+    tf.random.set_seed(SEED)
 
     # Suppress all warnings
     warnings.filterwarnings("ignore")

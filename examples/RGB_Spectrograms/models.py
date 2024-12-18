@@ -61,6 +61,7 @@ def decoder_block(x, skip_connection, filters, kernel_size=(3, 3),
     return x
 
 def segmentation_model(input_shape=NEW_INPUT_SHAPE, output_shape=NEW_OUTPUT_SHAPE, num_classes=4, from_logits=False):
+    regularization_strength = 0.01
     input = Input(shape=input_shape)
     # zero-pad:
     # zeros_to_add = int(2 ** (knp.ceil(knp.log2(input_shape[0]))) - input_shape[0])
@@ -74,16 +75,27 @@ def segmentation_model(input_shape=NEW_INPUT_SHAPE, output_shape=NEW_OUTPUT_SHAP
     pool_size = (2, 2)
     strides = (1, 1)
     # *2
-    kernel_horiz = 19 * 2 * 12 # chosen such that 30 seconds corresponds to 1 kernel
+    kernel_horiz_0 = 19 * 2 * 12 # chosen such that 30 seconds corresponds to 1 kernel
+    kernel_horiz_1 = 19 * 2 * 6
     # kernel_horiz = 7
 
     kernel_vert = 3
-    kernel_size = (kernel_horiz, kernel_vert)
+    kernel_size_0 = (kernel_horiz_1, kernel_vert)
+    kernel_size_1 = (kernel_horiz_1, kernel_vert)
 
-    x, p = encoder_block(x, filters=4, pool_size=pool_size, kernel_size=kernel_size, strides=strides)
-    x, p = encoder_block(p, filters=8, pool_size=pool_size, kernel_size=kernel_size, strides=strides)
-    x, p = encoder_block(p, filters=16, pool_size=pool_size, kernel_size=kernel_size, strides=strides)
-    x, p = encoder_block(p, filters=32, pool_size=pool_size, kernel_size=kernel_size, strides=strides)
+    filters_base = 4
+    filters_incr_ratio = 2
+    current_filter = filters_base
+
+    x, p = encoder_block(x, filters=filters_base, pool_size=pool_size, kernel_size=kernel_size_0, strides=strides)
+
+    current_filter *= filters_incr_ratio
+    x, p = encoder_block(p, filters=current_filter, pool_size=pool_size, kernel_size=kernel_size_1, strides=strides,
+                         regularization_strength=regularization_strength)
+    x, p = encoder_block(p, filters=current_filter, pool_size=pool_size, kernel_size=kernel_size_1, strides=strides,
+                         regularization_strength=regularization_strength)
+    x, p = encoder_block(p, filters=current_filter, pool_size=pool_size, kernel_size=kernel_size_1, strides=strides,
+                         regularization_strength=regularization_strength)
 
     pool_vector = p
     # pooled_inputs = AveragePooling2D(pool_size=(pool_vector.shape[1] // output_shape[0], pool_vector.shape[2]))(pool_vector)
@@ -95,7 +107,13 @@ def segmentation_model(input_shape=NEW_INPUT_SHAPE, output_shape=NEW_OUTPUT_SHAP
 
     # Apply a Conv1d layer to get num_classes
     final_activation = 'linear' if from_logits else 'softmax'
-    outputs = keras.layers.Conv1D(num_classes, 1, activation=final_activation)(reshaped_inputs)
+    outputs = keras.layers.Conv1D(
+        num_classes, 
+        1, 
+        activation=final_activation,
+        kernel_regularizer=l2(regularization_strength),
+        bias_regularizer=l2(regularization_strength)
+        )(reshaped_inputs)
 
     # outputs = pooled_inputs
 

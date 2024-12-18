@@ -177,14 +177,17 @@ def create_histogram_rgb(run_mode: str, preprocessed_data_path: Path, saved_outp
 
     sasa_linspace = np.linspace(0, 1, 27)
     axs[0, 0].hist(static_sleep_accuracies, bins=sasa_linspace,
-                   color=metric_colors['sleep_accuracy'], alpha=0.7,
-                   edgecolor=np.array(metric_colors['sleep_accuracy']) * 0.8)
+                   color=metric_colors['sleep_accuracy'], 
+                   alpha=0.7,)
+                #    edgecolor=np.array(metric_colors['sleep_accuracy']) * 0.8)
     axs[0, 1].hist(static_wake_accuracies, bins=np.linspace(0, 1, 21),
-                   color=metric_colors['wake_accuracy'], alpha=0.7,
-                   edgecolor=np.array(metric_colors['wake_accuracy']) * 0.8)
+                   color=metric_colors['wake_accuracy'],
+                   alpha=0.7,)
+                #    edgecolor=np.array(metric_colors['wake_accuracy']) * 0.8)
     axs[0, 2].hist(static_tst_errors, bins=np.linspace(-50, 50, 21),
-                   color=metric_colors['tst_error'], alpha=0.7,
-                   edgecolor=np.array(metric_colors['tst_error']) * 0.8)
+                   color=metric_colors['tst_error'],
+                   alpha=0.7,)
+                #    edgecolor=np.array(metric_colors['tst_error']) * 0.8)
 
     hybrid_sleep_accuracies_static_thresh = [
         x.sleep_accuracy for x in hybrid_static_thresh_performs]
@@ -194,14 +197,14 @@ def create_histogram_rgb(run_mode: str, preprocessed_data_path: Path, saved_outp
         x.tst_error for x in hybrid_static_thresh_performs]
 
     axs[1, 0].hist(hybrid_sleep_accuracies_static_thresh, bins=sasa_linspace,
-                   color=metric_colors['sleep_accuracy'], alpha=0.7,
-                   edgecolor=np.array(metric_colors['sleep_accuracy']) * 0.8)
+                   color=metric_colors['sleep_accuracy'], alpha=0.7,)
+                #    edgecolor=np.array(metric_colors['sleep_accuracy']) * 0.8)
     axs[1, 1].hist(hybrid_wake_accuracies_static_thresh, bins=np.linspace(0, 1, 21),
-                   color=metric_colors['wake_accuracy'], alpha=0.7,
-                   edgecolor=np.array(metric_colors['wake_accuracy']) * 0.8)
+                   color=metric_colors['wake_accuracy'], alpha=0.7,)
+                #    edgecolor=np.array(metric_colors['wake_accuracy']) * 0.8)
     axs[1, 2].hist(hybrid_tst_errors_static_thresh, bins=np.linspace(-50, 50, 21),
-                   color=metric_colors['tst_error'], alpha=0.7,
-                   edgecolor=np.array(metric_colors['tst_error']) * 0.8)
+                   color=metric_colors['tst_error'], alpha=0.7,)
+                #    edgecolor=np.array(metric_colors['tst_error']) * 0.8)
 
     hybrid_sleep_choose_best = [
         x.sleep_accuracy for x in hybrid_best_thresh_performs]
@@ -211,14 +214,14 @@ def create_histogram_rgb(run_mode: str, preprocessed_data_path: Path, saved_outp
         x.tst_error for x in hybrid_best_thresh_performs]
 
     axs[2, 0].hist(hybrid_sleep_choose_best, bins=sasa_linspace,
-                   color=metric_colors['sleep_accuracy'], alpha=0.7,
-                   edgecolor=np.array(metric_colors['sleep_accuracy']) * 0.8)
+                   color=metric_colors['sleep_accuracy'], alpha=0.7,)
+                #    edgecolor=np.array(metric_colors['sleep_accuracy']) * 0.8)
     axs[2, 1].hist(hybrid_wake_choose_best, bins=np.linspace(0, 1, 21),
-                   color=metric_colors['wake_accuracy'], alpha=0.7,
-                   edgecolor=np.array(metric_colors['wake_accuracy']) * 0.8)
+                   color=metric_colors['wake_accuracy'], alpha=0.7,)
+                #    edgecolor=np.array(metric_colors['wake_accuracy']) * 0.8)
     axs[2, 2].hist(hybrid_tst_choose_best, bins=np.linspace(-50, 50, 21),
-                   color=metric_colors['tst_error'], alpha=0.7,
-                   edgecolor=np.array(metric_colors['tst_error']) * 0.8)
+                   color=metric_colors['tst_error'], alpha=0.7,)
+                #    edgecolor=np.array(metric_colors['tst_error']) * 0.8)
 
     # Set common properties for all axes
     for ax in axs.flat:
