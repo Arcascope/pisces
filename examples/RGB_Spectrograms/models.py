@@ -92,8 +92,10 @@ def segmentation_model(input_shape=NEW_INPUT_SHAPE, output_shape=NEW_OUTPUT_SHAP
     current_filter *= filters_incr_ratio
     x, p = encoder_block(p, filters=current_filter, pool_size=pool_size, kernel_size=kernel_size_1, strides=strides,
                          regularization_strength=regularization_strength)
+    current_filter *= filters_incr_ratio
     x, p = encoder_block(p, filters=current_filter, pool_size=pool_size, kernel_size=kernel_size_1, strides=strides,
                          regularization_strength=regularization_strength)
+    current_filter *= filters_incr_ratio
     x, p = encoder_block(p, filters=current_filter, pool_size=pool_size, kernel_size=kernel_size_1, strides=strides,
                          regularization_strength=regularization_strength)
 

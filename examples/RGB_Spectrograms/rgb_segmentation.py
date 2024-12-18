@@ -92,7 +92,23 @@ def channelwise_std(x, axes=[1, 2]):
         x = np.std(x, axis=axis, keepdims=True)
     return x
 
-def train_rgb_cnn(static_keys, static_data_bundle, hybrid_data_bundle, fit_callbacks: list = [], max_splits: int = -1, epochs: int = 1, lr: float = 1e-4, batch_size: int = 1, use_logits = False, n_classes=4, predictions_path: Path = None, models_path: Path = None, sleep_proba: bool = True):
+def channel_agg(x):
+    return tf.reduce_mean(x, axis=-1, keepdims=True)
+
+def train_rgb_cnn(
+        static_keys,
+        static_data_bundle,
+        hybrid_data_bundle,
+        fit_callbacks: list = [],
+        max_splits: int = -1,
+        epochs: int = 1,
+        lr: float = 1e-4,
+        batch_size: int = 1,
+        use_logits = False,
+        n_classes=4,
+        predictions_path: Path = None,
+        models_path: Path = None,
+        sleep_proba: bool = True):
     split_maker = LeaveOneOut()
 
     training_results = []
@@ -104,14 +120,18 @@ def train_rgb_cnn(static_keys, static_data_bundle, hybrid_data_bundle, fit_callb
 
     INPUT_SHAPE = list(NEW_INPUT_SHAPE)
     INPUT_SHAPE[1] //= FREQ_DOWN
-    INPUT_SHAPE = tuple(INPUT_SHAPE)
+    # INPUT_SHAPE = tuple(INPUT_SHAPE)
     print("INPUT SHAPE: ", INPUT_SHAPE)
+
+    # experiment with normalizing the input data to the NN without breaking downstream plotting code
+    SEG_INPUT_SHAPE = [i for i in INPUT_SHAPE] # copy the list
+    SEG_INPUT_SHAPE[-1] = 1
 
     OUTPUT_SHAPE = (N_OUTPUT_EPOCHS, )
 
 
     def make_segmenter():
-        return segmentation_model(input_shape=INPUT_SHAPE, num_classes=1, from_logits=use_logits)
+        return segmentation_model(input_shape=SEG_INPUT_SHAPE, num_classes=1, from_logits=use_logits)
     
     print(make_segmenter().summary())
 
@@ -142,6 +162,8 @@ def train_rgb_cnn(static_keys, static_data_bundle, hybrid_data_bundle, fit_callb
         test_data, test_labels, test_sample_weights = rgb_gather_reshape(
             static_data_bundle, test_idx_tensor,
             input_shape=INPUT_SHAPE, output_shape=OUTPUT_SHAPE)
+        
+        val_data = test_data
 
         # Train the model on the training set
         # output = cnn.layers[-1].output
@@ -154,17 +176,33 @@ def train_rgb_cnn(static_keys, static_data_bundle, hybrid_data_bundle, fit_callb
         # print("unique train labels: ", np.unique(train_labels))
 
         # (pos_class=0) Train models to predict wake instead of sleep.
-        train_labels_pro = prepared_labels_tf(labels=train_labels, mask_to=0, mask_value=PSG_MASK_VALUE, pos_class=1 if sleep_proba else 0)
-        val_labels_pro = prepared_labels_tf(labels=test_labels, mask_to=0, mask_value=PSG_MASK_VALUE, pos_class=1 if sleep_proba else 0)
+        train_pos_class = 1 if sleep_proba else 0
+        train_labels_pro = prepared_labels_tf(labels=train_labels, mask_to=0, mask_value=PSG_MASK_VALUE, pos_class=train_pos_class)
+        val_labels_pro = prepared_labels_tf(labels=test_labels, mask_to=0, mask_value=PSG_MASK_VALUE, pos_class=train_pos_class)
         # Other code is still assuming the labels are wake=0 sleep=1, hence we use different labels for validation and post-training evaluation
         test_labels_pro = prepared_labels_tf(labels=test_labels, mask_to=0, mask_value=PSG_MASK_VALUE, pos_class=1)
 
+        if INPUT_SHAPE != SEG_INPUT_SHAPE:
+            # train_data = train_data[..., np.newaxis]
+            # test_data = test_data[..., np.newaxis]
+            # take the average over axis -1
+            train_data = channel_agg(train_data)
+            val_data = channel_agg(val_data)
+            test_data = val_data
+            print("Training data shape", train_data.shape)
+            print("val data shape",  val_data.shape)
+        else:
+            print("L>>>>>>> Input shape already matches segmentation input shape")
+            print("INPUT SHAPE: ", INPUT_SHAPE)
+            print("SEG INPUT SHAPE: ", SEG_INPUT_SHAPE)
+            print("train input shape: ", train_data.shape)
+
         # temporal_ce = MaskedTemporalCategoricalCrossEntropy(n_classes=n_classes, sparse=True, from_logits=use_logits)
-        bfc = keras.losses.BinaryFocalCrossentropy(
-            from_logits=use_logits,
-            apply_class_balancing=False,
-            alpha=BFCE_ALPHA,
-            gamma=BFCE_GAMMA)
+        # bfc = keras.losses.BinaryFocalCrossentropy(
+        #     from_logits=use_logits,
+        #     apply_class_balancing=False,
+        #     alpha=BFCE_ALPHA,
+        #     gamma=BFCE_GAMMA)
 
         cnn.compile(
             loss=keras.losses.BinaryCrossentropy(from_logits=use_logits),
@@ -187,7 +225,7 @@ def train_rgb_cnn(static_keys, static_data_bundle, hybrid_data_bundle, fit_callb
             sample_weight=train_sample_weights,
             epochs=epochs,
             # validation_data=(test_data, val_labels_pro),
-            validation_data=(test_data, val_labels_pro, test_sample_weights),
+            validation_data=(val_data, val_labels_pro, test_sample_weights),
             batch_size=batch_size,
             callbacks=[cnn_tensorboard_callback, *fit_callbacks]
         ))
@@ -211,6 +249,9 @@ def train_rgb_cnn(static_keys, static_data_bundle, hybrid_data_bundle, fit_callb
         hybrid_test_data, _, hybrid_test_sample_weights = rgb_gather_reshape(
             hybrid_data_bundle, test_idx_tensor,
             input_shape=INPUT_SHAPE, output_shape=OUTPUT_SHAPE)
+        
+        if INPUT_SHAPE[-1] != SEG_INPUT_SHAPE[-1]:
+            hybrid_test_data = channel_agg(hybrid_test_data)
         
         evaluate_and_save_test(
             hybrid_test_data,
@@ -351,7 +392,7 @@ if __name__ == "__main__":
     # do_preprocessing(big_specgram_process, cache_dir=preprocessed_data_path)
     load_and_train(
         preprocessed_path=preprocessed_data_path, 
-        epochs=30,  # 37 is eyeballed from TesnorBoard
+        epochs=20,  # 37 is eyeballed from TesnorBoard
         batch_size=1, 
         lr=1e-4, 
         use_logits=True, 

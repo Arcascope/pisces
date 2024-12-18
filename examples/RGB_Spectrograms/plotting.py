@@ -47,7 +47,7 @@ def overlay_channels_fixed(spectrogram_tensor, mintile=5, maxtile=95, ax=None, c
 
 def debug_plot(predictions, spectrogram_3d, y_true, weights: np.ndarray | None = None, saveto: str = None, wasa_threshold: float | None = None, wasa_value: float | None = None):
     fig, axs = plt.subplots(2, 1, figsize=(10, 10))
-    overlay_channels_fixed(np.swapaxes(np.squeeze(spectrogram_3d), 0, 1), ax=axs[0])
+    overlay_channels_fixed(np.swapaxes(np.squeeze(spectrogram_3d), 0, 1), ax=axs[0], clip=False)
     predictions_squeezed = np.squeeze(predictions)
     print(predictions_squeezed.shape)
     try:
@@ -76,6 +76,7 @@ def debug_plot(predictions, spectrogram_3d, y_true, weights: np.ndarray | None =
         os.makedirs(os.path.dirname(saveto), exist_ok=True)
         plt.savefig(saveto)
     plt.close()
+    print("debug plot complete")
 
 
 def create_histogram_rgb(run_mode: str, preprocessed_data_path: Path, saved_output_dir: Path, acc_hz: int = ACC_HZ, TARGET_SLEEP: float = 0.95, sleep_proba: bool = True):
