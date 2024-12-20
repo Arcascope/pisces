@@ -1,10 +1,11 @@
 import json
 import os
 
+import pandas as pd
+
 # Suppress TF warnings
 # os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
-#[Compiling module a_inference_one_step_on_data_58306__.69169] Very slow compile? If you want to file a bug, run with envvar XLA_FLAGS=--xla_dump_to=/tmp/foo and attach the results.
-# os.environ['XLA_FLAGS'] = '--xla_dump_to=./xla_dump'
+os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 
 # Use jax backend
 # on macOS, this is one of the better out-of-the-box GPU options
@@ -109,12 +110,22 @@ def train_rgb_cnn(
         predictions_path: Path = None,
         models_path: Path = None,
         sleep_proba: bool = True):
+    
+    if predictions_path is not None:
+        os.makedirs(predictions_path, exist_ok=True)
+        print("Saving predictions to ", predictions_path)
+    
+    if models_path is not None:
+        os.makedirs(models_path, exist_ok=True)
+        print("Saving models to ", models_path)
+
+
     split_maker = LeaveOneOut()
 
     training_results = []
     cnn_predictors = []
 
-    print(f"Training RGB CNN models with {n_classes} classes...")
+    print(f"Training Homebrew CNN models with {n_classes} classes...")
     WASA_FRAC = WASA_PERCENT / 100
     # os.makedirs("./saved_outputs", exist_ok=True)
 
@@ -136,6 +147,7 @@ def train_rgb_cnn(
     print(make_segmenter().summary())
 
     wasas = []
+    ids = []
     that_auc = keras.metrics.AUC(from_logits=use_logits, name="AUC")
 
     # Split the data into training and testing sets
@@ -150,6 +162,7 @@ def train_rgb_cnn(
         train_idx_tensor = np.array(k_train)
         test_idx_tensor = np.array(k_test)
         test_id = static_keys[k_test[0]]
+        ids.append(test_id)
 
         # network instance to be trained
         cnn = make_segmenter()
@@ -210,7 +223,7 @@ def train_rgb_cnn(
             optimizer=keras.optimizers.AdamW(learning_rate=lr),
             weighted_metrics=[
                 # wasa_metric
-                # SpecificityAtSensitivity(WASA_FRAC, name=f"WASA{WASA_PERCENT}", class_id=0),
+                keras.metrics.SpecificityAtSensitivity(WASA_FRAC, name=f"WASA{WASA_PERCENT}", num_thresholds=300),
                 that_auc
             ]
         )
@@ -272,10 +285,18 @@ def train_rgb_cnn(
 
         # save the trained model weights
         if models_path is not None:
-            cnn_path = rgb_path_name(test_id, saved_model_dir=models_path)
-            cnn.save(cnn_path)
+            try:
+                cnn_path = Path(models_path) / f'{test_id}_homebrew.keras'#rgb_path_name(test_id, saved_model_dir=models_path)
+                cnn.save(cnn_path)
+            except:
+                print(f"Error saving model {cnn_path}")
         
-        print_histogram(wasas, bins=np.arange(np.min(wasas), 1.1, 0.1))
+        print_histogram(wasas, bins=10)
+        if predictions_path is not None:
+            pd.DataFrame({
+                "test_id": ids,
+                f"wasa{WASA_PERCENT}": wasas
+            }).to_csv(Path(predictions_path) / f"wasa{WASA_PERCENT}.csv")
 
 
 
@@ -306,7 +327,9 @@ def evaluate_and_save_test(
             p_wake=np.squeeze(p_wake),
             sample_weights=np.squeeze(test_sample_weights))
 
-        wasa_threshold = threshold
+        # 1 - wasa_threshold because the above computes it for wake probabilities
+        # but we want to score downstream using sleep probas
+        wasa_threshold = 1 - threshold
         wasa_result = wasa.wake_accuracy
         print(f"WASA{wasa_percent}: {wasa.wake_accuracy:.4f}")
 
@@ -370,6 +393,7 @@ def load_and_train(preprocessed_path: Path, max_splits: int = -1, epochs: int = 
         n_classes=n_classes,
         predictions_path=predictions_path,
         sleep_proba=sleep_proba,
+        models_path=Path(predictions_path).joinpath("saved_models")
     )
     # train_logreg(static_keys, static_data_bundle)
     end_time = time.time()
@@ -392,7 +416,7 @@ if __name__ == "__main__":
     # do_preprocessing(big_specgram_process, cache_dir=preprocessed_data_path)
     load_and_train(
         preprocessed_path=preprocessed_data_path, 
-        epochs=20,  # 37 is eyeballed from TesnorBoard
+        epochs=12,  # 37 is eyeballed from TesnorBoard
         batch_size=1, 
         lr=1e-4, 
         use_logits=True, 

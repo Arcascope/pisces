@@ -10,10 +10,11 @@ def load_preprocessed_data(dataset: str, preprocessed_data_path: Path = None):
                    allow_pickle=True).item()
 
 
-def print_histogram(data, bins=10):
+def print_histogram(data, bins: int=10):
     """prints a text histogram into the terminal"""
     data = np.array(data)
-    hist, bin_edges = np.histogram(data, bins=bins)
+    bins_arr = np.linspace(0, 1, bins+1)
+    hist, bin_edges = np.histogram(data, bins=bins_arr)
     pos_prepend = ""
     if bin_edges[0] < 0:
         pos_prepend = " "

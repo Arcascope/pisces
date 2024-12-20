@@ -76,9 +76,10 @@ def segmentation_model(input_shape=NEW_INPUT_SHAPE, output_shape=NEW_OUTPUT_SHAP
     strides = (1, 1)
     # *2
     kernel_horiz_0 = 19 * 2 * 12 # chosen such that 30 seconds corresponds to 1 kernel
-    kernel_horiz_1 = 19 * 2 * 6
+    kernel_horiz_1 = 19 * 2 * 4
     # kernel_horiz = 7
 
+    # experiment with more freq pixels
     kernel_vert = 3
     kernel_size_0 = (kernel_horiz_1, kernel_vert)
     kernel_size_1 = (kernel_horiz_1, kernel_vert)
@@ -98,11 +99,10 @@ def segmentation_model(input_shape=NEW_INPUT_SHAPE, output_shape=NEW_OUTPUT_SHAP
     current_filter *= filters_incr_ratio
     x, p = encoder_block(p, filters=current_filter, pool_size=pool_size, kernel_size=kernel_size_1, strides=strides,
                          regularization_strength=regularization_strength)
+    current_filter *= filters_incr_ratio
+    x, p = encoder_block(p, filters=current_filter, pool_size=pool_size, kernel_size=kernel_size_1, strides=strides,
+                         regularization_strength=regularization_strength)
 
-    pool_vector = p
-    # pooled_inputs = AveragePooling2D(pool_size=(pool_vector.shape[1] // output_shape[0], pool_vector.shape[2]))(pool_vector)
-
-    # reshaped_inputs = Reshape((output_shape[0], -1))(pooled_inputs)
     reshaped_inputs = Reshape((output_shape[0], -1))(p)
 
 
@@ -117,10 +117,8 @@ def segmentation_model(input_shape=NEW_INPUT_SHAPE, output_shape=NEW_OUTPUT_SHAP
         bias_regularizer=l2(regularization_strength)
         )(reshaped_inputs)
 
-    # outputs = pooled_inputs
 
     model = Model(input, outputs)
-    sub_model = Model()
     return model
 
 def segmentation_model_big(input_shape=NEW_INPUT_SHAPE, num_classes=4, frequency_downsample=4, from_logits=False):

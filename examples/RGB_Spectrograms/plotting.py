@@ -60,12 +60,15 @@ def debug_plot(predictions, spectrogram_3d, y_true, weights: np.ndarray | None =
 
     if wasa_threshold is not None:
         axs[1].axhline(wasa_threshold, color='r', linestyle='--', label='WASA Threshold')
+        binary_predictions = predictions_squeezed > wasa_threshold
+        axs[1].plot(range(N_OUTPUT_EPOCHS), binary_predictions, label='Threshold applied')
     
     if wasa_value is not None:
         axs[1].set_title(f'WASA: {wasa_value:.2f}')
 
     axs[1].plot(range(N_OUTPUT_EPOCHS), y_true, 'k--')
     axs[1].set_xlim([0, N_OUTPUT_EPOCHS])
+    axs[1].legend()
     # axs[1].set_ylim([0, 1])
     if weights is not None:
         # apply gray vertical bar over any regions with weight 0.0
