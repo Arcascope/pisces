@@ -74,7 +74,7 @@ def segmentation_model(input_shape=NEW_INPUT_SHAPE, output_shape=NEW_OUTPUT_SHAP
     # kernel_horiz = 7
 
     # experiment with more freq pixels
-    kernel_vert = 3
+    kernel_vert = 5
     kernel_size_0 = (kernel_horiz_1, kernel_vert)
     kernel_size_1 = (kernel_horiz_1, kernel_vert)
 
