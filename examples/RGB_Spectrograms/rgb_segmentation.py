@@ -303,6 +303,9 @@ def train_rgb_cnn(
                 f"wasa{WASA_PERCENT}": [wasas[-1]]
             }).to_csv(Path(predictions_path) / f"wasa{WASA_PERCENT}.csv", mode='a', index=False, header=False)
 
+            # now load this csv, and make a line plot where each row with the same "test_id" is connected, and the x-axis shows experiment_id in sorted order.
+            # wasa_csv = 
+
 
 
 def evaluate_and_save_test(
