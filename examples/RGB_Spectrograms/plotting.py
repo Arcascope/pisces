@@ -273,7 +273,7 @@ def create_histogram_rgb(run_mode: str, preprocessed_data_path: Path, saved_outp
 
     plt.tight_layout()
     plt.savefig(
-        saved_output_dir / f"{run_mode}_{acc_hz}_hists_WASA{int(target_sleep_accuracy * 100)}.png", dpi=200)
+        saved_output_dir / f"{int(time.time())}_{run_mode}_{acc_hz}_hists_WASA{int(target_sleep_accuracy * 100)}.png", dpi=200)
     # plt.show()
     plt.close()
 

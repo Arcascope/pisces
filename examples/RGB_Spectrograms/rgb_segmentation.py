@@ -63,9 +63,9 @@ BFCE_ALPHA = 0.5
 WASA_PERCENT = 95
 
 
-def log_dir_fn(test_id):
+def log_dir_fn(test_id, unique_id):
     # return f"logs/bfce_gamma_{BFCE_GAMMA}_p_wake_rgb_cnn_{test_id}_{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}"
-    return f"logs/new_year_0_{test_id}_{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}"
+    return f"logs/new_year_0_{test_id}_{unique_id}"
 
 def rgb_gather_reshape(data_bundle: PreparedDataRGB, idx_tensor: np.array, input_shape: tuple, output_shape: tuple) -> tuple | None:
     input_shape_stack = (-1, *input_shape)
@@ -150,11 +150,13 @@ def train_rgb_cnn(
     best_wasa = 0.0
     ids = []
     that_auc = keras.metrics.AUC(from_logits=use_logits, name="AUC")
+    run_time = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
 
     # Split the data into training and testing sets
     for k_train, k_test in tqdm(split_maker.split(static_keys), desc="Next split", total=len(static_keys)):
         # Configure TensorBoard callback
-        log_dir_cnn = local_dir / log_dir_fn(static_keys[k_test[0]])
+
+        log_dir_cnn = local_dir / log_dir_fn(static_keys[k_test[0]], unique_id=run_time)
         cnn_tensorboard_callback = TensorBoard(
             log_dir=log_dir_cnn, histogram_freq=1)
         if (max_splits > 0) and (len(training_results) >= max_splits):
@@ -296,9 +298,10 @@ def train_rgb_cnn(
         print_histogram(wasas, bins=10)
         if predictions_path is not None:
             pd.DataFrame({
-                "test_id": ids,
-                f"wasa{WASA_PERCENT}": wasas
-            }).to_csv(Path(predictions_path) / f"wasa{WASA_PERCENT}.csv")
+                "experiment_id": [run_time],
+                "test_id": [ids[-1]],
+                f"wasa{WASA_PERCENT}": [wasas[-1]]
+            }).to_csv(Path(predictions_path) / f"wasa{WASA_PERCENT}.csv", mode='a', index=False, header=False)
 
 
 
@@ -418,7 +421,7 @@ if __name__ == "__main__":
     # do_preprocessing(big_specgram_process, cache_dir=preprocessed_data_path)
     load_and_train(
         preprocessed_path=preprocessed_data_path, 
-        epochs=12,  # 37 is eyeballed from TesnorBoard
+        epochs=30,  # 37 is eyeballed from TesnorBoard
         batch_size=1, 
         lr=1e-4, 
         use_logits=True, 
