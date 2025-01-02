@@ -65,7 +65,7 @@ WASA_PERCENT = 95
 
 def log_dir_fn(test_id):
     # return f"logs/bfce_gamma_{BFCE_GAMMA}_p_wake_rgb_cnn_{test_id}_{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}"
-    return f"logs/10_minute_kernel_{test_id}_{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}"
+    return f"logs/new_year_0_{test_id}_{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}"
 
 def rgb_gather_reshape(data_bundle: PreparedDataRGB, idx_tensor: np.array, input_shape: tuple, output_shape: tuple) -> tuple | None:
     input_shape_stack = (-1, *input_shape)
@@ -147,6 +147,7 @@ def train_rgb_cnn(
     print(make_segmenter().summary())
 
     wasas = []
+    best_wasa = 0.0
     ids = []
     that_auc = keras.metrics.AUC(from_logits=use_logits, name="AUC")
 
@@ -284,9 +285,10 @@ def train_rgb_cnn(
         # scalar = 10000.0 if use_logits else 1.0 # DONT USE HERE....pushed everything to 0.5, i.e. expit(0)
 
         # save the trained model weights
-        if models_path is not None:
+        if (models_path is not None) and static_wasa > best_wasa:
+            best_wasa = static_wasa
             try:
-                cnn_path = Path(models_path) / f'{test_id}_homebrew.keras'#rgb_path_name(test_id, saved_model_dir=models_path)
+                cnn_path = Path(models_path) / f'{test_id}_homebrew_wasa_{int(100 * best_wasa)}.keras'#rgb_path_name(test_id, saved_model_dir=models_path)
                 cnn.save(cnn_path)
             except:
                 print(f"Error saving model {cnn_path}")

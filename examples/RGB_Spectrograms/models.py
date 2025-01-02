@@ -63,20 +63,14 @@ def decoder_block(x, skip_connection, filters, kernel_size=(3, 3),
 def segmentation_model(input_shape=NEW_INPUT_SHAPE, output_shape=NEW_OUTPUT_SHAPE, num_classes=4, from_logits=False):
     regularization_strength = 0.01
     input = Input(shape=input_shape)
-    # zero-pad:
-    # zeros_to_add = int(2 ** (knp.ceil(knp.log2(input_shape[0]))) - input_shape[0])
-    zeros_to_add = 0
-    print("ZEROS TO ADD:", zeros_to_add)
     x = input
-    if (zeros_to_add > 0):
-        x = keras.layers.ZeroPadding2D(padding=(zeros_to_add // 2, 0))(x)
 
     # Apply Conv2d with strides to downsample frequencies
     pool_size = (2, 2)
     strides = (1, 1)
     # *2
     kernel_horiz_0 = 19 * 2 * 12 # chosen such that 30 seconds corresponds to 1 kernel
-    kernel_horiz_1 = 19 * 2 * 4
+    kernel_horiz_1 = 19 * 2 * 10
     # kernel_horiz = 7
 
     # experiment with more freq pixels
