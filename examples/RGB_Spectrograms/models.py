@@ -26,7 +26,8 @@ def leaky_relu_conv_block(x, filters, kernel_size=(3, 3), strides=(1, 1),
         padding=padding,
         activation='linear',
         kernel_regularizer=l2(regularization_strength),
-        bias_regularizer=l2(regularization_strength)
+        bias_regularizer=l2(regularization_strength),
+        use_bias=not use_batch_norm,
     )(x)
 
     if use_batch_norm:
@@ -98,7 +99,7 @@ def segmentation_model(input_shape=NEW_INPUT_SHAPE, output_shape=NEW_OUTPUT_SHAP
                          regularization_strength=regularization_strength)
     
     # Now apply 2 decoder blocks
-    x = decoder_block(p4, x3, filters=current_filter, kernel_size=kernel_size_1, up_strides=pool_size,)
+    x = decoder_block(p4, x4, filters=current_filter, kernel_size=kernel_size_1, up_strides=pool_size,)
     current_filter //= filters_incr_ratio
     # x = decoder_block(p4, x3, filters=current_filter, kernel_size=kernel_size_1, up_strides=pool_size,)
     # x = p4
