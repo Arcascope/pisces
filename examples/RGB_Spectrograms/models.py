@@ -80,7 +80,7 @@ def segmentation_model(input_shape=NEW_INPUT_SHAPE, output_shape=NEW_OUTPUT_SHAP
     kernel_size_1 = (kernel_horiz_1, kernel_vert)
 
     filters_base = 4
-    filters_incr_ratio = 1.5 # REMEMBER TO int(current_filter) before using it
+    filters_incr_ratio = 2
     current_filter = filters_base
 
     x0, p0 = encoder_block(x, filters=filters_base, pool_size=pool_size, kernel_size=kernel_size_0, strides=strides)
