@@ -82,7 +82,7 @@ def debug_plot(predictions, spectrogram_3d, y_true, weights: np.ndarray | None =
     print("debug plot complete")
 
 
-def create_histogram_rgb(run_mode: str, preprocessed_data_path: Path, saved_output_dir: Path, acc_hz: int = ACC_HZ, TARGET_SLEEP: float = 0.95, sleep_proba: bool = True):
+def create_histogram_rgb(run_mode: str, preprocessed_data_path: Path, saved_output_dir: Path, acc_hz: int = ACC_HZ, TARGET_SLEEP: float = 0.95, sleep_proba: bool = True) -> float:
     start_run = time.time()
 
     # Load stationary data
@@ -288,5 +288,8 @@ def create_histogram_rgb(run_mode: str, preprocessed_data_path: Path, saved_outp
     print(ttest_ind(static_sleep_accuracies, hybrid_sleep_accuracies_static_thresh))
 
     end_run = time.time()
-    print(f"Total time to make triplots: {end_run - start_run} seconds")
+    time_taken = end_run - start_run
+    print(f"Total time to make triplots: {time_taken} seconds")
     print("Done with triplots")
+
+    return time_taken

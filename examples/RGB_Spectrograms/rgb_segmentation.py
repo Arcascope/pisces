@@ -364,7 +364,7 @@ def evaluate_and_save_test(
     
 
 
-def load_and_train(preprocessed_path: Path, max_splits: int = -1, epochs: int = 1, lr: float = 1e-4, batch_size: int = 1, use_logits = False, n_classes=4, predictions_path: str = None, sleep_proba: bool = True):
+def load_and_train(preprocessed_path: Path, max_splits: int = -1, epochs: int = 1, lr: float = 1e-4, batch_size: int = 1, use_logits = False, n_classes=4, predictions_path: str = None, sleep_proba: bool = True) -> float:
 
     static_preprocessed_data = load_preprocessed_data("stationary", preprocessed_path)
     static_keys = list(static_preprocessed_data.keys())
@@ -405,8 +405,10 @@ def load_and_train(preprocessed_path: Path, max_splits: int = -1, epochs: int = 
     )
     # train_logreg(static_keys, static_data_bundle)
     end_time = time.time()
+    time_taken = end_time - start_time
 
-    print(f"Training completed in {end_time - start_time:.2f} seconds")
+    print(f"Training completed in {time_taken:.2f} seconds")
+    return time_taken
 
 if __name__ == "__main__":
     import warnings
@@ -421,8 +423,9 @@ if __name__ == "__main__":
     preprocessed_data_path = local_dir.joinpath("pre_processed_data")
     predictions_path = local_dir.joinpath("saved_outputs")
 
-    # do_preprocessing(big_specgram_process, cache_dir=preprocessed_data_path)
-    load_and_train(
+    total_time = 0
+    total_time += do_preprocessing(big_specgram_process, cache_dir=preprocessed_data_path)
+    total_time += load_and_train(
         preprocessed_path=preprocessed_data_path, 
         epochs=30,  # 37 is eyeballed from TesnorBoard
         batch_size=1, 
@@ -431,11 +434,12 @@ if __name__ == "__main__":
         n_classes=2,
         sleep_proba=True,
         predictions_path=predictions_path)
-    create_histogram_rgb(
+    total_time += create_histogram_rgb(
         "rgb", 
         preprocessed_data_path=preprocessed_data_path,
         saved_output_dir=predictions_path,
         sleep_proba=True)
+    print(f"TOTAL Total time taken: {total_time:.2f} seconds")
 
 
 # 0. focus on sleep wake

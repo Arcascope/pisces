@@ -210,7 +210,7 @@ def print_class_statistics(labels: np.array):
     print("MOST COMMON CLASS:", values[np.argmax(counts)], f"at {counts[np.argmax(counts)]/len(labels)*100:.2f}%")
 
 
-def do_preprocessing(process_data_fn=None, cache_dir: Path | str | None = None):
+def do_preprocessing(process_data_fn=None, cache_dir: Path | str | None = None) -> float:
     # clean_and_save_accelerometer_data()
 
     start_run = time.time()
@@ -265,7 +265,9 @@ def do_preprocessing(process_data_fn=None, cache_dir: Path | str | None = None):
         np.save(f, preprocessed_data_hybrid)
 
     end_run = time.time()
+    time_taken = end_run - start_run
     print(f"Preprocessing took {end_run - start_run} seconds")
+    return time_taken
 
 def prepared_labels_tf(labels: tf.Tensor, mask_value: int = -1, mask_to: int | None = None, pos_class: int = 1) -> np.array:
     prep_labels = tf.where(labels == pos_class, 1, 0)
