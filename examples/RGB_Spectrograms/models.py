@@ -99,12 +99,14 @@ def segmentation_model(input_shape=NEW_INPUT_SHAPE, output_shape=NEW_OUTPUT_SHAP
                          regularization_strength=regularization_strength)
     
     # Now apply 2 decoder blocks
-    x = decoder_block(p4, x4, filters=current_filter, kernel_size=kernel_size_1, up_strides=pool_size,)
+    y = decoder_block(p4, x4, filters=current_filter, kernel_size=kernel_size_1, up_strides=pool_size,)
     current_filter //= filters_incr_ratio
+    y = decoder_block(y, x3, filters=current_filter, kernel_size=kernel_size_1, up_strides=pool_size,)
+    y, q = encoder_block(y, filters=4, pool_size=pool_size, kernel_size=kernel_size_1, strides=strides,)
     # x = decoder_block(p4, x3, filters=current_filter, kernel_size=kernel_size_1, up_strides=pool_size,)
     # x = p4
 
-    reshaped_inputs = Reshape((output_shape[0], -1))(x)
+    reshaped_inputs = Reshape((output_shape[0], -1))(q)
 
 
 

@@ -65,7 +65,7 @@ WASA_PERCENT = 95
 
 def log_dir_fn(test_id, unique_id):
     # return f"logs/bfce_gamma_{BFCE_GAMMA}_p_wake_rgb_cnn_{test_id}_{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}"
-    return f"logs/l2_norm_specgram_{test_id}_{unique_id}"
+    return f"logs/l2_with_decoder_{test_id}_{unique_id}"
 
 def rgb_gather_reshape(data_bundle: PreparedDataRGB, idx_tensor: np.array, input_shape: tuple, output_shape: tuple) -> tuple | None:
     input_shape_stack = (-1, *input_shape)
@@ -385,7 +385,7 @@ def load_and_train(preprocessed_path: Path, max_splits: int = -1, epochs: int = 
     reduce_lr = ReduceLROnPlateau(
         monitor='val_loss',  # Metric to monitor
         factor=0.75,          # Factor by which the learning rate will be reduced
-        patience=8,         # Number of epochs with no improvement after which learning rate will be reduced
+        patience=3,         # Number of epochs with no improvement after which learning rate will be reduced
         min_lr=lr / 8          # Lower bound on the learning rate
     )
 
