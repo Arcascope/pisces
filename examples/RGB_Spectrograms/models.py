@@ -62,7 +62,7 @@ def decoder_block(x, skip_connection, filters, kernel_size=(3, 3),
     return x
 
 def segmentation_model(input_shape=NEW_INPUT_SHAPE, output_shape=NEW_OUTPUT_SHAPE, num_classes=4, from_logits=False):
-    regularization_strength = 0.02
+    regularization_strength = 0.01
     input = Input(shape=input_shape)
     x = input
 
@@ -71,30 +71,34 @@ def segmentation_model(input_shape=NEW_INPUT_SHAPE, output_shape=NEW_OUTPUT_SHAP
     strides = (1, 1)
     # *2
     kernel_horiz_0 = 19 * 2 * 12 # chosen such that 30 seconds corresponds to 1 kernel
-    kernel_horiz_1 = 19 * 2 * 6
+    kernel_horiz_1 = 19 * 2 * 1
     # kernel_horiz = 7
 
     # experiment with more freq pixels
-    kernel_vert = 3
+    kernel_vert = 7
     kernel_size_0 = (kernel_horiz_0, kernel_vert)
     kernel_size_1 = (kernel_horiz_1, kernel_vert)
 
     filters_base = 4
-    filters_incr_ratio = 2
+    filters_incr_ratio = 1.5 # REMEMBER TO int(current_filter) before using it
     current_filter = filters_base
 
     x0, p0 = encoder_block(x, filters=filters_base, pool_size=pool_size, kernel_size=kernel_size_0, strides=strides)
 
     current_filter *= filters_incr_ratio
+    current_filter = int(current_filter)
     x1, p1 = encoder_block(p0, filters=current_filter, pool_size=pool_size, kernel_size=kernel_size_1, strides=strides,
                          regularization_strength=regularization_strength)
     current_filter *= filters_incr_ratio
+    current_filter = int(current_filter)
     x2, p2 = encoder_block(p1, filters=current_filter, pool_size=pool_size, kernel_size=kernel_size_1, strides=strides,
                          regularization_strength=regularization_strength)
     current_filter *= filters_incr_ratio
+    current_filter = int(current_filter)
     x3, p3 = encoder_block(p2, filters=current_filter, pool_size=pool_size, kernel_size=kernel_size_1, strides=strides,
                          regularization_strength=regularization_strength)
     current_filter *= filters_incr_ratio
+    current_filter = int(current_filter)
     x4, p4 = encoder_block(p3, filters=current_filter, pool_size=pool_size, kernel_size=kernel_size_1, strides=strides,
                          regularization_strength=regularization_strength)
     
@@ -117,7 +121,7 @@ def segmentation_model(input_shape=NEW_INPUT_SHAPE, output_shape=NEW_OUTPUT_SHAP
         activation=final_activation,
         kernel_regularizer=l2(regularization_strength),
         bias_regularizer=l2(regularization_strength),
-        use_bias=False,
+        use_bias=True,
         )(reshaped_inputs)
 
 
