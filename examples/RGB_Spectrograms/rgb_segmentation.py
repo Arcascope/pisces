@@ -3,6 +3,8 @@ import os
 
 import pandas as pd
 
+from examples.RGB_Spectrograms.get_git_hash import get_git_commit_hash
+
 # Suppress TF warnings
 # os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
@@ -153,12 +155,19 @@ def train_rgb_cnn(
     ids = []
     that_auc = keras.metrics.AUC(from_logits=use_logits, name="AUC")
     run_time = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
+    commit_hash = ""
+    try:
+        commit_hash = get_git_commit_hash()
+    except Exception as e:
+        print("Error getting git commit hash:", e)
+    unique_id = f'{run_time}_{commit_hash[:8]}'
+    
 
     # Split the data into training and testing sets
     for k_train, k_test in tqdm(split_maker.split(static_keys), desc="Next split", total=len(static_keys)):
         # Configure TensorBoard callback
 
-        log_dir_cnn = local_dir / log_dir_fn(static_keys[k_test[0]], unique_id=run_time)
+        log_dir_cnn = local_dir / log_dir_fn(static_keys[k_test[0]], unique_id=unique_id)
         cnn_tensorboard_callback = TensorBoard(
             log_dir=log_dir_cnn, histogram_freq=1)
         if (max_splits > 0) and (len(training_results) >= max_splits):
@@ -300,7 +309,7 @@ def train_rgb_cnn(
         print_histogram(wasas, bins=10)
         if predictions_path is not None:
             pd.DataFrame({
-                "experiment_id": [run_time],
+                "experiment_id": [unique_id],
                 "test_id": [ids[-1]],
                 f"wasa{WASA_PERCENT}": [wasas[-1]]
             }).to_csv(Path(predictions_path) / f"wasa{WASA_PERCENT}.csv", mode='a', index=False, header=False)

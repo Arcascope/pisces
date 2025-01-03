@@ -71,7 +71,7 @@ def segmentation_model(input_shape=NEW_INPUT_SHAPE, output_shape=NEW_OUTPUT_SHAP
     strides = (1, 1)
     # *2
     kernel_horiz_0 = 19 * 2 * 12 # chosen such that 30 seconds corresponds to 1 kernel
-    kernel_horiz_1 = 19 * 2 * 2
+    kernel_horiz_1 = 19 * 2 * 6
     # kernel_horiz = 7
 
     # experiment with more freq pixels
