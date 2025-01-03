@@ -3,8 +3,9 @@ import json
 import os
 from pathlib import Path
 import time
-from typing import Dict, List
+from typing import Callable, Dict, List, Tuple
 import numpy as np
+from scipy.signal import spectrogram
 from keras.layers import AveragePooling2D
 import tensorflow as tf
 from examples.RGB_Spectrograms.constants import ACC_DIFF_GAP, PSG_MASK_VALUE, SPEC_INPUT_HZ, ACC_HZ, N_OUTPUT_EPOCHS, NEW_INPUT_SHAPE, PSG_DT, NFFT, NOVERLAP, WINDOW_LEN, WINDOW
@@ -89,10 +90,10 @@ def prepare_data(preprocessed_data, n_classes=4, freq_downsample: int = 1) -> Pr
     ])
 
     # clip the spectrogram stack to 0.05 and 0.95 quantiles
-    p_low = 10
-    for i in range(3):
-        p5, p95 = np.percentile(spectrogram_stack[:, :, :, i], [p_low, 100 - p_low])
-        spectrogram_stack[:, :, :, i] = np.clip(spectrogram_stack[:, :, :, i], p5, p95)
+    p_low = 5
+    for i in range(spectrogram_stack.shape[-1]):
+        p5, p95 = np.percentile(spectrogram_stack[..., i], [p_low, 100 - p_low])
+        spectrogram_stack[..., i] = np.clip(spectrogram_stack[..., i], p5, p95)
     
     if freq_downsample > 1:
         # apply avg pooling to downsample the frequency axis
@@ -104,10 +105,53 @@ def prepare_data(preprocessed_data, n_classes=4, freq_downsample: int = 1) -> Pr
         weights=label_weights.astype(np.float32)
     )
 
+def rgb_specgram(accel_xyz: np.array) -> np.array:
+    """
+    Convert accelerometer data to spectrograms
+    """
+    # compute spectrogram with resampled data
+    spectrograms, times, freqs = accelerometer_to_3d_specgram(
+        accel_xyz,
+        nfft=NFFT,
+        window_len=WINDOW_LEN,
+        noverlap=NOVERLAP,
+        window=WINDOW,
+        fs=SPEC_INPUT_HZ)
+    padded_spectrograms = np.zeros(NEW_INPUT_SHAPE)
+    padded_spectrograms[:spectrograms.shape[0],
+                        ...] = spectrograms[:NEW_INPUT_SHAPE[0], ...]
+    return padded_spectrograms, times, freqs
 
+def norm_specgram(accel_xyz: np.array) -> np.array:
+    """
+    Take L2 norm of xyz, then take a specgram
+    """
+    accel_xyz_norm = np.linalg.norm(accel_xyz[:, 1:], axis=1)
+    f, t, Sxx = spectrogram(
+        accel_xyz_norm, 
+        fs=SPEC_INPUT_HZ,  # Sampling frequency after resampling
+        nfft=NFFT, 
+        nperseg=WINDOW_LEN, 
+        noverlap=NOVERLAP, 
+        window=WINDOW)
+    # trim off the last frequency bin, which is probably uninteresting
+    spectrograms = Sxx[:-1].T
+    spectrograms = np.expand_dims(spectrograms, axis=-1)
+    NORM_INPUT_SHAPE = [*NEW_INPUT_SHAPE[:-1], 1]
+    padded_spectrograms = np.zeros(NORM_INPUT_SHAPE)
+    padded_spectrograms[:spectrograms.shape[0],
+                        ...] = spectrograms[:NORM_INPUT_SHAPE[0], ...]
+    return padded_spectrograms, t, f
+    # spectrograms.append(Sxx.T)  # Transpose to shape (time_bins, freq_bins)
+    # times.append(t)
+    # frequencies.append(f)
+
+    # accel_xyz_norm = np.column_stack((accel_xyz[:, 0], accel_xyz_norm))
+    # return rgb_specgram(accel_xyz_norm)
 
 def big_specgram_process(dataset: pds.DataSetObject,
                          subject_id: str,
+                         xyz_accel_to_specgram_fn: Callable[[np.ndarray], Tuple[np.ndarray, np.ndarray, np.ndarray]] | None = None,
                          *args, **kwargs) -> Dict[str, np.ndarray]:
     accel_data = dataset.get_feature_data(
         'accelerometer', subject_id).to_numpy()
@@ -172,16 +216,19 @@ def big_specgram_process(dataset: pds.DataSetObject,
     accel_data_diff[:, 0] = accel_data_resampled[1:, 0]  # put the time back in
 
     # compute spectrogram with resampled data
-    spectrograms, times, freqs = accelerometer_to_3d_specgram(
-        accel_data_diff,
-        nfft=NFFT,
-        window_len=WINDOW_LEN,
-        noverlap=NOVERLAP,
-        window=WINDOW,
-        fs=SPEC_INPUT_HZ)
-    padded_spectrograms = np.zeros(NEW_INPUT_SHAPE)
-    padded_spectrograms[:spectrograms.shape[0],
-                        ...] = spectrograms[:NEW_INPUT_SHAPE[0], ...]
+    spectrograms, times, freqs = rgb_specgram(accel_data_resampled) \
+        if xyz_accel_to_specgram_fn is None \
+            else xyz_accel_to_specgram_fn(accel_data_resampled)
+    # accelerometer_to_3d_specgram(
+    #     accel_data_diff,
+    #     nfft=NFFT,
+    #     window_len=WINDOW_LEN,
+    #     noverlap=NOVERLAP,
+    #     window=WINDOW,
+    #     fs=SPEC_INPUT_HZ)
+    # padded_spectrograms = np.zeros(NEW_INPUT_SHAPE)
+    # padded_spectrograms[:spectrograms.shape[0],
+    #                     ...] = spectrograms[:NEW_INPUT_SHAPE[0], ...]
 
     # Compute activity with resampled data
     activity_time, ads = build_ADS(accel_data_resampled)
@@ -194,7 +241,7 @@ def big_specgram_process(dataset: pds.DataSetObject,
     activity_data = pad_or_truncate(activity_data, int(N_OUTPUT_EPOCHS * 2))
 
 
-    return {"spectrogram": padded_spectrograms,
+    return {"spectrogram": spectrograms,
             "spec_times": times,
             "spec_freqs": freqs,
             "activity": activity_data,
@@ -208,6 +255,7 @@ def print_class_statistics(labels: np.array):
     print("Class statistics:")
     values, *_, counts = np.unique(labels, return_counts=True)
     print("MOST COMMON CLASS:", values[np.argmax(counts)], f"at {counts[np.argmax(counts)]/len(labels)*100:.2f}%")
+    print(f"SLEEP %: {np.sum(labels > 0) / len(labels) * 100:.2f}")
 
 
 def do_preprocessing(process_data_fn=None, cache_dir: Path | str | None = None) -> float:

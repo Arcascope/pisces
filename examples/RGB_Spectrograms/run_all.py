@@ -4,11 +4,15 @@ import numpy as np
 import tensorflow as tf
 
 from examples.RGB_Spectrograms.plotting import create_histogram_rgb
-from examples.RGB_Spectrograms.preprocessing import big_specgram_process, do_preprocessing
+from examples.RGB_Spectrograms.preprocessing import big_specgram_process, do_preprocessing, norm_specgram
 from examples.RGB_Spectrograms.rgb_segmentation import load_and_train
 
 local_dir = Path(__file__).resolve().parent
 print("local_dir: ", local_dir)
+
+from functools import partial
+
+norm_big_specgram_process = partial(big_specgram_process, xyz_accel_to_specgram_fn = norm_specgram)
 
 if __name__ == "__main__":
     import warnings
@@ -24,10 +28,11 @@ if __name__ == "__main__":
     predictions_path = local_dir.joinpath("saved_outputs")
 
     total_time = 0
-    total_time += do_preprocessing(big_specgram_process, cache_dir=preprocessed_data_path)
+    # total_time += do_preprocessing(big_specgram_process, cache_dir=preprocessed_data_path)
+    # total_time += do_preprocessing(norm_big_specgram_process, cache_dir=preprocessed_data_path)
     total_time += load_and_train(
         preprocessed_path=preprocessed_data_path, 
-        epochs=30,  # 37 is eyeballed from TesnorBoard
+        epochs=15,  # 37 is eyeballed from TesnorBoard
         batch_size=1, 
         lr=1e-4, 
         use_logits=True, 

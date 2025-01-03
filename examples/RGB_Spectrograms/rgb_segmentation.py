@@ -65,7 +65,7 @@ WASA_PERCENT = 95
 
 def log_dir_fn(test_id, unique_id):
     # return f"logs/bfce_gamma_{BFCE_GAMMA}_p_wake_rgb_cnn_{test_id}_{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}"
-    return f"logs/new_year_0_{test_id}_{unique_id}"
+    return f"logs/l2_norm_specgram_{test_id}_{unique_id}"
 
 def rgb_gather_reshape(data_bundle: PreparedDataRGB, idx_tensor: np.array, input_shape: tuple, output_shape: tuple) -> tuple | None:
     input_shape_stack = (-1, *input_shape)
@@ -137,6 +137,8 @@ def train_rgb_cnn(
     # experiment with normalizing the input data to the NN without breaking downstream plotting code
     SEG_INPUT_SHAPE = [i for i in INPUT_SHAPE] # copy the list
     SEG_INPUT_SHAPE[-1] = 1
+
+    INPUT_SHAPE = SEG_INPUT_SHAPE
 
     OUTPUT_SHAPE = (N_OUTPUT_EPOCHS, )
 

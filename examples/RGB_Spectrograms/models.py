@@ -61,7 +61,7 @@ def decoder_block(x, skip_connection, filters, kernel_size=(3, 3),
     return x
 
 def segmentation_model(input_shape=NEW_INPUT_SHAPE, output_shape=NEW_OUTPUT_SHAPE, num_classes=4, from_logits=False):
-    regularization_strength = 0.01
+    regularization_strength = 0.02
     input = Input(shape=input_shape)
     x = input
 
@@ -75,29 +75,35 @@ def segmentation_model(input_shape=NEW_INPUT_SHAPE, output_shape=NEW_OUTPUT_SHAP
 
     # experiment with more freq pixels
     kernel_vert = 5
-    kernel_size_0 = (kernel_horiz_1, kernel_vert)
+    kernel_size_0 = (kernel_horiz_0, kernel_vert)
     kernel_size_1 = (kernel_horiz_1, kernel_vert)
 
     filters_base = 4
     filters_incr_ratio = 2
     current_filter = filters_base
 
-    x, p = encoder_block(x, filters=filters_base, pool_size=pool_size, kernel_size=kernel_size_0, strides=strides)
+    x0, p0 = encoder_block(x, filters=filters_base, pool_size=pool_size, kernel_size=kernel_size_0, strides=strides)
 
     current_filter *= filters_incr_ratio
-    x, p = encoder_block(p, filters=current_filter, pool_size=pool_size, kernel_size=kernel_size_1, strides=strides,
+    x1, p1 = encoder_block(p0, filters=current_filter, pool_size=pool_size, kernel_size=kernel_size_1, strides=strides,
                          regularization_strength=regularization_strength)
     current_filter *= filters_incr_ratio
-    x, p = encoder_block(p, filters=current_filter, pool_size=pool_size, kernel_size=kernel_size_1, strides=strides,
+    x2, p2 = encoder_block(p1, filters=current_filter, pool_size=pool_size, kernel_size=kernel_size_1, strides=strides,
                          regularization_strength=regularization_strength)
     current_filter *= filters_incr_ratio
-    x, p = encoder_block(p, filters=current_filter, pool_size=pool_size, kernel_size=kernel_size_1, strides=strides,
+    x3, p3 = encoder_block(p2, filters=current_filter, pool_size=pool_size, kernel_size=kernel_size_1, strides=strides,
                          regularization_strength=regularization_strength)
     current_filter *= filters_incr_ratio
-    x, p = encoder_block(p, filters=current_filter, pool_size=pool_size, kernel_size=kernel_size_1, strides=strides,
+    x4, p4 = encoder_block(p3, filters=current_filter, pool_size=pool_size, kernel_size=kernel_size_1, strides=strides,
                          regularization_strength=regularization_strength)
+    
+    # Now apply 2 decoder blocks
+    x = decoder_block(p4, x3, filters=current_filter, kernel_size=kernel_size_1, up_strides=pool_size,)
+    current_filter //= filters_incr_ratio
+    # x = decoder_block(p4, x3, filters=current_filter, kernel_size=kernel_size_1, up_strides=pool_size,)
+    # x = p4
 
-    reshaped_inputs = Reshape((output_shape[0], -1))(p)
+    reshaped_inputs = Reshape((output_shape[0], -1))(x)
 
 
 
