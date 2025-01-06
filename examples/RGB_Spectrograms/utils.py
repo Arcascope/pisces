@@ -20,4 +20,4 @@ def print_histogram(data, bins: int=10):
         pos_prepend = " "
     for i in range(len(hist)):
         print(f"{bin_edges[i]:.2f} - {bin_edges[i + 1]:.2f}: {'#' * hist[i]}")
-    print(f"min: {data.min():0.3f} max: {data.max():0.3f} mean: {data.mean():0.3f} std: {data.std():0.3f}")
+    print(f"min: {data.min():0.3f} max: {data.max():0.3f} median: {np.median(data):0.3f} std: {data.std():0.3f}")

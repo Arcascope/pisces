@@ -254,18 +254,18 @@ def create_histogram_rgb(run_mode: str, preprocessed_data_path: Path, saved_outp
                               hybrid_sleep_choose_best, hybrid_wake_choose_best, hybrid_tst_choose_best]):
         row = i // 3
         col = i % 3
-        mean_value = np.mean(data)
+        mean_value = np.median(data)
         axs[row, col].axvline(mean_value, color='red',
                               linestyle='dashed', linewidth=1)
-        abs_mean_value = np.mean(np.abs(np.array(data)))
+        abs_mean_value = np.median(np.abs(np.array(data)))
 
         # Add text showing the mean_value above the line
         if mean_value == abs_mean_value:
             axs[row, col].text(mean_value, axs[row, col].get_ylim()[
-                1], f'Mean: {mean_value:.2f}', color='red', ha='center', fontsize=8)
+                1], f'Median: {mean_value:.2f}', color='red', ha='center', fontsize=8)
         else:
             axs[row, col].text(mean_value, axs[row, col].get_ylim()[
-                1], f'Mean: {mean_value:.2f} (Abs. Mean: {abs_mean_value:.2f})', color='red', ha='center', fontsize=8)
+                1], f'Median: {mean_value:.2f} (Abs. Median: {abs_mean_value:.2f})', color='red', ha='center', fontsize=8)
         if col == 2:
             percentage_above = np.sum(np.abs(data) > 30) / len(data) * 100
             axs[row, col].text(
