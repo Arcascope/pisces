@@ -69,7 +69,6 @@ def segmentation_model(input_shape=NEW_INPUT_SHAPE, output_shape=NEW_OUTPUT_SHAP
     # Apply Conv2d with strides to downsample frequencies
     pool_size = (2, 2)
     strides = (1, 1)
-    # *2
     kernel_horiz_0 = 19 * 2 * 12 # chosen such that 30 seconds corresponds to 1 kernel
     kernel_horiz_1 = 19 * 2 * 6
     # kernel_horiz = 7
@@ -97,16 +96,18 @@ def segmentation_model(input_shape=NEW_INPUT_SHAPE, output_shape=NEW_OUTPUT_SHAP
     current_filter = int(current_filter)
     x3, p3 = encoder_block(p2, filters=current_filter, pool_size=pool_size, kernel_size=kernel_size_1, strides=strides,
                          regularization_strength=regularization_strength)
-    current_filter *= filters_incr_ratio
-    current_filter = int(current_filter)
-    x4, p4 = encoder_block(p3, filters=current_filter, pool_size=pool_size, kernel_size=kernel_size_1, strides=strides,
-                         regularization_strength=regularization_strength)
+    # current_filter *= filters_incr_ratio
+    # current_filter = int(current_filter)
+    # x4, p4 = encoder_block(p3, filters=current_filter, pool_size=pool_size, kernel_size=kernel_size_1, strides=strides,
+    #                      regularization_strength=regularization_strength)
     
     # Now apply 2 decoder blocks
-    y = decoder_block(p4, x4, filters=current_filter, kernel_size=kernel_size_1, up_strides=pool_size,)
+    y = decoder_block(p3, x3, filters=current_filter, kernel_size=kernel_size_1, up_strides=pool_size,)
     current_filter //= filters_incr_ratio
     y = decoder_block(y, x3, filters=current_filter, kernel_size=kernel_size_1, up_strides=pool_size,)
-    y, q = encoder_block(y, filters=4, pool_size=pool_size, kernel_size=kernel_size_1, strides=strides,)
+    current_filter //= filters_incr_ratio
+    y = decoder_block(y, x2, filters=current_filter, kernel_size=kernel_size_1, up_strides=pool_size,)
+    y, q = encoder_block(y, filters=4, pool_size=pool_size, kernel_size=(3, 3), strides=strides,)
     # q = p4
 
     reshaped_inputs = Reshape((output_shape[0], -1))(q)
