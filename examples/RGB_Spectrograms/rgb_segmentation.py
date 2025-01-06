@@ -219,7 +219,7 @@ def train_rgb_cnn(
             print("Training data shape", train_data.shape)
             print("val data shape",  val_data.shape)
         else:
-            print("L>>>>>>> Input shape already matches segmentation input shape")
+            print("\n>>>>>>> Input shape already matches segmentation input shape")
             print("INPUT SHAPE: ", INPUT_SHAPE)
             print("SEG INPUT SHAPE: ", SEG_INPUT_SHAPE)
             print("train input shape: ", train_data.shape)
@@ -237,7 +237,7 @@ def train_rgb_cnn(
             optimizer=keras.optimizers.AdamW(learning_rate=lr),
             weighted_metrics=[
                 # wasa_metric
-                keras.metrics.SpecificityAtSensitivity(WASA_FRAC, name=f"WASA{WASA_PERCENT}", num_thresholds=300),
+                keras.metrics.SpecificityAtSensitivity(WASA_FRAC, name=f"WASA{WASA_PERCENT}", num_thresholds=500),
                 that_auc
             ]
         )
