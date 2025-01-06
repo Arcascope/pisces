@@ -67,7 +67,7 @@ WASA_PERCENT = 95
 
 def log_dir_fn(test_id, unique_id):
     # return f"logs/bfce_gamma_{BFCE_GAMMA}_p_wake_rgb_cnn_{test_id}_{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}"
-    return f"logs/homebrew_{test_id}_{unique_id}"
+    return f"logs/symmbrew_{test_id}_{unique_id}"
 
 def rgb_gather_reshape(data_bundle: PreparedDataRGB, idx_tensor: np.array, input_shape: tuple, output_shape: tuple) -> tuple | None:
     input_shape_stack = (-1, *input_shape)

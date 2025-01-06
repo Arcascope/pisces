@@ -104,9 +104,9 @@ def segmentation_model(input_shape=NEW_INPUT_SHAPE, output_shape=NEW_OUTPUT_SHAP
     # Now apply 2 decoder blocks
     y = decoder_block(p3, x3, filters=current_filter, kernel_size=kernel_size_1, up_strides=pool_size,)
     current_filter //= filters_incr_ratio
-    y = decoder_block(y, x3, filters=current_filter, kernel_size=kernel_size_1, up_strides=pool_size,)
-    current_filter //= filters_incr_ratio
     y = decoder_block(y, x2, filters=current_filter, kernel_size=kernel_size_1, up_strides=pool_size,)
+    current_filter //= filters_incr_ratio
+    y = decoder_block(y, x1, filters=current_filter, kernel_size=kernel_size_1, up_strides=pool_size,)
     y, q = encoder_block(y, filters=4, pool_size=pool_size, kernel_size=(3, 3), strides=strides,)
     # q = p4
 
