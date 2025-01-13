@@ -75,8 +75,8 @@ def preprocessed_data_filename(set_name: str, cache_dir: Path | None = None) -> 
 def sw_map_fn(x):
     return np.where(x > 0, 1.0, x)
 
-def apply_mel_scale(spectrogram: np.array) -> np.array:
-    return 1000 / np.log(2) * np.log1p(1 + spectrogram / 1000)
+def apply_mel_scale(spectrogram: np.array, normalizer: float = 10.0) -> np.array:
+    return normalizer / np.log(2) * np.log1p(spectrogram / normalizer)
 
 def prepare_data(preprocessed_data,
                  n_classes=4,
