@@ -75,7 +75,14 @@ def preprocessed_data_filename(set_name: str, cache_dir: Path | None = None) -> 
 def sw_map_fn(x):
     return np.where(x > 0, 1.0, x)
 
-def prepare_data(preprocessed_data, n_classes=4, freq_downsample: int = 1) -> PreparedDataRGB:
+def apply_mel_scale(spectrogram: np.array) -> np.array:
+    return 1000 / np.log(2) * np.log1p(1 + spectrogram / 1000)
+
+def prepare_data(preprocessed_data,
+                 n_classes=4,
+                 freq_downsample: int = 1,
+                 use_mel: bool = False,
+                 p_low: int = 5) -> PreparedDataRGB:
     psg_fn = stages_map if n_classes == 4 else sw_map_fn
     label_stack = np.array([
         psg_fn(preprocessed_data[k]['psg'][:, 1])
@@ -89,8 +96,11 @@ def prepare_data(preprocessed_data, n_classes=4, freq_downsample: int = 1) -> Pr
         for k in list(preprocessed_data.keys())
     ])
 
+    if use_mel:
+        spectrogram_stack = apply_mel_scale(spectrogram_stack)
+
     # clip the spectrogram stack to 0.05 and 0.95 quantiles
-    p_low = 5
+    
     for i in range(spectrogram_stack.shape[-1]):
         p5, p95 = np.percentile(spectrogram_stack[..., i], [p_low, 100 - p_low])
         spectrogram_stack[..., i] = np.clip(spectrogram_stack[..., i], p5, p95)

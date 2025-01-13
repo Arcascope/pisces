@@ -375,18 +375,23 @@ def evaluate_and_save_test(
     
 
 
-def load_and_train(preprocessed_path: Path, max_splits: int = -1, epochs: int = 1, lr: float = 1e-4, batch_size: int = 1, use_logits = False, n_classes=4, predictions_path: str = None, sleep_proba: bool = True) -> float:
+def load_and_train(preprocessed_path: Path,
+                   max_splits: int = -1, epochs: int = 1, lr: float = 1e-4, batch_size: int = 1, use_logits = False, n_classes=4, predictions_path: str = None, sleep_proba: bool = True, use_mel: bool = True) -> float:
 
+    
+    pre_proc_config = {
+        "n_classes": n_classes,
+        "freq_downsample": FREQ_DOWN,
+        "use_mel": use_mel,
+    }
     static_preprocessed_data = load_preprocessed_data("stationary", preprocessed_path)
     static_keys = list(static_preprocessed_data.keys())
     static_data_bundle = prepare_data(static_preprocessed_data, 
-                                      n_classes=n_classes,
-                                      freq_downsample=FREQ_DOWN)
+                                      **pre_proc_config)
 
     hybrid_preprocessed_data = load_preprocessed_data("hybrid", preprocessed_path)
     hybrid_data_bundle = prepare_data(hybrid_preprocessed_data, 
-                                      n_classes=n_classes,
-                                      freq_downsample=FREQ_DOWN)
+                                      **pre_proc_config)
 
     start_time = time.time()
 

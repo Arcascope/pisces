@@ -38,7 +38,8 @@ if __name__ == "__main__":
         use_logits=True, 
         n_classes=2,
         sleep_proba=True,
-        predictions_path=predictions_path)
+        predictions_path=predictions_path,
+        use_mel=True)
     total_time += create_histogram_rgb(
         "rgb", 
         preprocessed_data_path=preprocessed_data_path,
