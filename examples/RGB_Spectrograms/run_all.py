@@ -32,9 +32,9 @@ if __name__ == "__main__":
     # total_time += do_preprocessing(norm_big_specgram_process, cache_dir=preprocessed_data_path)
     total_time += load_and_train(
         preprocessed_path=preprocessed_data_path, 
-        epochs=25,  # 37 is eyeballed from TesnorBoard
+        epochs=30,  # 37 is eyeballed from TesnorBoard
         batch_size=1, 
-        lr=1e-3, 
+        lr=1e-4, 
         use_logits=True, 
         n_classes=2,
         sleep_proba=True,
