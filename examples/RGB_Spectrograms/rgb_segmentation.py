@@ -404,7 +404,7 @@ def load_and_train(preprocessed_path: Path,
         monitor='val_loss',  # Metric to monitor
         factor=0.75,          # Factor by which the learning rate will be reduced
         patience=3,         # Number of epochs with no improvement after which learning rate will be reduced
-        min_lr=lr / 8          # Lower bound on the learning rate
+        min_lr=lr / 1e2          # Lower bound on the learning rate
     )
 
 
