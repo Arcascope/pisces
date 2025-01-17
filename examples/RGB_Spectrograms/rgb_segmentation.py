@@ -137,8 +137,11 @@ def train_rgb_cnn(
     print("INPUT SHAPE: ", INPUT_SHAPE)
 
     # experiment with normalizing the input data to the NN without breaking downstream plotting code
-    SEG_INPUT_SHAPE = [i for i in INPUT_SHAPE] # copy the list
-    SEG_INPUT_SHAPE[-1] = 1
+    SEG_INPUT_SHAPE = list(static_data_bundle.spectrograms[0].shape)
+    SEG_INPUT_SHAPE.append(1)
+
+    # SEG_INPUT_SHAPE = [i for i in INPUT_SHAPE] # copy the list
+    # SEG_INPUT_SHAPE[-1] = 1
 
     INPUT_SHAPE = SEG_INPUT_SHAPE
 
@@ -180,6 +183,7 @@ def train_rgb_cnn(
 
         # network instance to be trained
         cnn = make_segmenter()
+
 
         # Get the data
         train_data, train_labels, train_sample_weights = rgb_gather_reshape(

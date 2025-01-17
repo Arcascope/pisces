@@ -111,7 +111,7 @@ def prepare_data(preprocessed_data,
     # from pisces.deep_unet_support, 
     freqs_selectd = (specgram_freqs >= 0.1) & (specgram_freqs <= 2.1)
 
-    spectrogram_stack = spectrogram_stack[..., freqs_selectd]
+    spectrogram_stack = spectrogram_stack[..., freqs_selectd[:-1], 0]
 
     if use_mel:
         spectrogram_stack = apply_mel_scale(spectrogram_stack)
