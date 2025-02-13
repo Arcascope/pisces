@@ -241,7 +241,7 @@ def train_rgb_cnn(
             optimizer=keras.optimizers.AdamW(learning_rate=lr),
             weighted_metrics=[
                 # wasa_metric
-                keras.metrics.SpecificityAtSensitivity(WASA_FRAC, name=f"WASA{WASA_PERCENT}", num_thresholds=500),
+                keras.metrics.SpecificityAtSensitivity(WASA_FRAC, name=f"WASA{WASA_PERCENT}", num_thresholds=1000),
                 that_auc
             ]
         )

@@ -69,8 +69,8 @@ def segmentation_model(input_shape=NEW_INPUT_SHAPE, output_shape=NEW_OUTPUT_SHAP
     # Apply Conv2d with strides to downsample frequencies
     pool_size = (2, 2)
     strides = (1, 1)
-    kernel_horiz_0 = 19 * 2 * 12 # chosen such that 30 seconds corresponds to 1 kernel
-    kernel_horiz_1 = 19 * 2 * 6
+    kernel_horiz_0 = 1 + 19 * 2 * 24 # chosen such that 30 seconds corresponds to 1 kernel
+    kernel_horiz_1 = 1 + 19 * 2 * 18
     # kernel_horiz = 7
 
     # experiment with more freq pixels
