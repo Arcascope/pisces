@@ -277,38 +277,32 @@ def train_rgb_cnn(
         wasas.append(static_wasa)
 
         # Now do the same with the hybrid data
-        hybrid_test_data, _, hybrid_test_sample_weights = rgb_gather_reshape(
-            hybrid_data_bundle, test_idx_tensor,
-            input_shape=INPUT_SHAPE, output_shape=OUTPUT_SHAPE)
-        
-        if INPUT_SHAPE[-1] != SEG_INPUT_SHAPE[-1]:
-            hybrid_test_data = channel_agg(hybrid_test_data)
-        
-        evaluate_and_save_test(
-            hybrid_test_data,
-            test_labels_pro, # labels SHOULD be the same
-            hybrid_test_sample_weights,
-            cnn,
-            test_id,
-            "hybrid",
-            use_logits,
-            wasa_percent=WASA_PERCENT,
-            predictions_path=predictions_path
-        )
+        try:
+            hybrid_test_data, _, hybrid_test_sample_weights = rgb_gather_reshape(
+                hybrid_data_bundle, test_idx_tensor,
+                input_shape=INPUT_SHAPE, output_shape=OUTPUT_SHAPE)
+            
+            if INPUT_SHAPE[-1] != SEG_INPUT_SHAPE[-1]:
+                hybrid_test_data = channel_agg(hybrid_test_data)
+            
+            evaluate_and_save_test(
+                hybrid_test_data,
+                test_labels_pro, # labels SHOULD be the same
+                hybrid_test_sample_weights,
+                cnn,
+                test_id,
+                "hybrid",
+                use_logits,
+                wasa_percent=WASA_PERCENT,
+                predictions_path=predictions_path
+            )
+        except:
+            pass
 
 
         # Use cnn to predict probabilities
         # Rescale so everything doesn't get set to 0 or 1 in the expit call
         # scalar = 10000.0 if use_logits else 1.0 # DONT USE HERE....pushed everything to 0.5, i.e. expit(0)
-
-        # save the trained model weights
-        if (models_path is not None) and static_wasa > best_wasa:
-            best_wasa = static_wasa
-            try:
-                cnn_path = Path(models_path) / f'{test_id}_homebrew_wasa_{int(100 * best_wasa)}.keras'#rgb_path_name(test_id, saved_model_dir=models_path)
-                cnn.save(cnn_path)
-            except:
-                print(f"Error saving model {cnn_path}")
         
         print_histogram(wasas, bins=10)
         if predictions_path is not None:
@@ -387,6 +381,7 @@ def load_and_train(preprocessed_path: Path,
         "n_classes": n_classes,
         "freq_downsample": FREQ_DOWN,
         "use_mel": use_mel,
+        "p_low": 10,
     }
     static_preprocessed_data = load_preprocessed_data("stationary", preprocessed_path)
     static_keys = list(static_preprocessed_data.keys())
@@ -407,12 +402,23 @@ def load_and_train(preprocessed_path: Path,
         min_lr=lr / 8         # Lower bound on the learning rate
     )
 
+    # Define the model checkpoint callback
+    timestamp = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
+    checkpoint_callback = keras.callbacks.ModelCheckpoint(
+        filepath=f"./outputs/rgb_{timestamp}_wasa95_{{val_WASA95:.4f}}.keras",
+        monitor='val_WASA95',
+        save_best_only=True,
+        mode='max',
+        save_weights_only=False,
+        verbose=1
+    )
+
 
     train_rgb_cnn(
         static_keys,
         static_data_bundle,
         hybrid_data_bundle,
-        fit_callbacks=[reduce_lr],
+        fit_callbacks=[reduce_lr, checkpoint_callback],
         max_splits=max_splits,
         epochs=epochs,
         batch_size=batch_size,
