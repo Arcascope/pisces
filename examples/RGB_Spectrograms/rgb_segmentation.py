@@ -402,7 +402,7 @@ def load_and_train(preprocessed_path: Path,
     that_auc = keras.metrics.AUC(from_logits=use_logits, name=auc_name)
     WASA_PERCENT = int(wasa_sleep_target * 100)
     wasa_name = f"WASA{WASA_PERCENT}"
-    wasa = keras.metrics.SpecificityAtSensitivity(wasa_sleep_target, name=wasa_name, num_thresholds=500),
+    wasa = keras.metrics.SpecificityAtSensitivity(wasa_sleep_target, name=wasa_name, num_thresholds=500)
     auc_watch_name = f"val_{auc_name}"
     wasa_watch_name = f"val_{wasa_name}"
 
