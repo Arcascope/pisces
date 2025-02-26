@@ -254,7 +254,8 @@ def mo_predict_logits(data: tf.Tensor):
 
 def stages_map(input) -> np.ndarray:
     changed = np.zeros_like(input)
-    changed[input < 3] = input[input < 3]
+    changed[input < 2] = input[input < 2]
+    changed[input == 2] = 1
     # N4 -> N3
     changed[input == 3] = 2
     changed[input == 4] = 2
@@ -320,7 +321,7 @@ def compute_evaluations_df(
         cnn_predictors: List[tf.Module]):
     model_types = ['naive', 'finetuning', 'lr']
 
-    evals = {s: 
+    evals = {s:
         {m: [] for m in model_types} 
         for s in SCENARIOS
     }

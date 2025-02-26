@@ -161,3 +161,4 @@ wearOS-sensor-analysis/*
 pisces/cached_models/*.keras
 *.png
 *.keras
+examples/Keras/raw.githubusercontent.com/*

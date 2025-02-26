@@ -1,11 +1,15 @@
+import os
+import time
+from typing import Dict, List
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
-import os
 import matplotlib.pyplot as plt
+
+from src.constants import ACC_HZ as acc_Hz_str
+
 import pisces.data_sets as pds
-import time
-from pisces.utils import build_ADS, resample_accel_data
-from constants import ACC_HZ as acc_Hz_str
 from pisces.data_sets import (
     DataSetObject,
     ModelInputSpectrogram,
@@ -13,12 +17,14 @@ from pisces.data_sets import (
     DataProcessor,
     PSGType
 )
+
+from pisces.utils import build_ADS, pad_or_truncate, resample_accel_data
+
+from examples.NHRC.nhrc_utils.model_definitions import LR_ACTIVITY_INPUTS
 from typing import Dict, List
 from pathlib import Path
 from examples.NHRC.nhrc_utils.model_definitions import LR_ACTIVITY_INPUTS
 
-
-plt.rcParams['font.family'] = 'Arial'
 
 FIXED_LABEL_LENGTH = 1024
 FIXED_SPECGRAM_SHAPE = (15360, 32)
@@ -35,7 +41,8 @@ SECONDS_PER_KERNEL = 5 * 60
 ACTIVITY_KERNEL_WIDTH = SECONDS_PER_KERNEL * ACTIVITY_HZ
 ACTIVITY_KERNEL_WIDTH += 1 - (ACTIVITY_KERNEL_WIDTH % 2)  # Ensure it is odd
 # DATA_LOCATION = Path('/Users/ojwalch/Documents/eric-pisces/datasets')
-DATA_LOCATION = Path('/Users/eric/Engineering/Work/pisces/data')
+# DATA_LOCATION = Path('/Users/eric/Engineering/Work/pisces/data')
+DATA_LOCATION = Path('/home/eric/Engineering/Work/pisces/data')
 
 
 def clean_and_save_accelerometer_data():
@@ -140,34 +147,27 @@ def process_data(dataset: pds.DataSetObject,
 
 def process_data_set(data_set: pds.DataSetObject,
                      ids_to_exclude: List[str],
-                     processor: DataProcessor) -> Dict[str, Dict[str, np.ndarray]]:
+                     process_data_fn) -> Dict[str, Dict[str, np.ndarray]]:
     data = {}
     for subject_id in data_set.ids:
         if subject_id in ids_to_exclude:
             continue
         print(f"Processing {subject_id}")
-        data[subject_id] = process_data(
+        data[subject_id] = process_data_fn(
             data_set,
-            processor,
             subject_id)
     return data
 
+def preprocessed_set_path(cache_dir: Path, set_name: str) -> Path:
+    set_path = cache_dir.joinpath(set_name)
+    os.makedirs(set_path, exist_ok=True)
+    return set_path
 
-def pad_or_truncate(data,
-                    desired_length,
-                    pad_value: float = -1.0):
-    current_length = data.shape[0]
-    if current_length < desired_length:
-        padding = desired_length - current_length
-        pad_width = ((0, padding), (0, 0))
-        data = np.pad(data, pad_width, mode='constant',
-                      constant_values=pad_value)
-    else:
-        data = data[:desired_length, :]
-    return data
+def preprocessed_data_filename(set_name: str, cache_dir: Path | None = None) -> str:
+    base_fn = f"{set_name}_preprocessed_data_{acc_Hz_str}.npy"
+    return base_fn if cache_dir is None else cache_dir.joinpath(base_fn)
 
-
-def do_preprocessing():
+def do_preprocessing(process_data_fn=None, cache_dir: Path | str | None = None):
     # clean_and_save_accelerometer_data()
 
     start_run = time.time()
@@ -198,32 +198,37 @@ def do_preprocessing():
                                          output_type=output_type,
                                          psg_type=PSGType.HAS_N4)
 
+    if process_data_fn is None:
+        def process_data_fn(data_set, subjects_to_exclude):
+            return process_data(data_set, data_processor_walch, subjects_to_exclude, )
+
     # Process the datasets
+    print("PROCESSING WALCH DATA")
     preprocessed_data_walch = process_data_set(
-        walch, subjects_to_exclude_walch, data_processor_walch)
+        walch, subjects_to_exclude_walch, process_data_fn)
+    print("PROCESSING HYBRID DATA")
     preprocessed_data_hybrid = process_data_set(
-        hybrid, subjects_to_exclude_hybrid, data_processor_walch)
+        hybrid, subjects_to_exclude_hybrid, process_data_fn)
+    print("DONE PROCESSING")
 
     CWD = Path(os.getcwd())
-    save_path = CWD.joinpath("pre_processed_data")
+    save_path = CWD.joinpath("pre_processed_data") if cache_dir is None else Path(cache_dir)
 
     hybrid_name = "hybrid"
     stationary_name = "stationary"
 
-    hybrid_path = save_path.joinpath(hybrid_name)
+    hybrid_path = preprocessed_set_path(save_path, hybrid_name)
     os.makedirs(hybrid_path, exist_ok=True)
 
-    walch_path = save_path.joinpath(stationary_name)
+    walch_path = preprocessed_set_path(save_path, stationary_name)
     os.makedirs(walch_path, exist_ok=True)
 
-    save_preprocessing_to = walch_path.joinpath(
-        f"{stationary_name}_preprocessed_data_{acc_Hz_str}.npy")
+    save_preprocessing_to = preprocessed_data_filename(stationary_name, walch_path)
     print(f"Saving to {save_preprocessing_to}...")
     with open(save_preprocessing_to, 'wb') as f:
         np.save(f, preprocessed_data_walch)
 
-    save_preprocessing_to = hybrid_path.joinpath(
-        f"{hybrid_name}_preprocessed_data_{acc_Hz_str}.npy")
+    save_preprocessing_to =  preprocessed_data_filename(hybrid_name, hybrid_path)
     print(f"Saving to {save_preprocessing_to}...")
     with open(save_preprocessing_to, 'wb') as f:
         np.save(f, preprocessed_data_hybrid)
