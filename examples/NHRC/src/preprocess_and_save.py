@@ -21,6 +21,9 @@ from pisces.data_sets import (
 from pisces.utils import build_ADS, pad_or_truncate, resample_accel_data
 
 from examples.NHRC.nhrc_utils.model_definitions import LR_ACTIVITY_INPUTS
+from typing import Dict, List
+from pathlib import Path
+from examples.NHRC.nhrc_utils.model_definitions import LR_ACTIVITY_INPUTS
 
 
 FIXED_LABEL_LENGTH = 1024
@@ -142,7 +145,6 @@ def process_data(dataset: pds.DataSetObject,
             "psg": psg_data}
 
 
-
 def process_data_set(data_set: pds.DataSetObject,
                      ids_to_exclude: List[str],
                      process_data_fn) -> Dict[str, Dict[str, np.ndarray]]:
@@ -195,6 +197,7 @@ def do_preprocessing(process_data_fn=None, cache_dir: Path | str | None = None):
                                          model_input,
                                          output_type=output_type,
                                          psg_type=PSGType.HAS_N4)
+
     if process_data_fn is None:
         def process_data_fn(data_set, subjects_to_exclude):
             return process_data(data_set, data_processor_walch, subjects_to_exclude, )
