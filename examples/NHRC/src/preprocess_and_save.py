@@ -7,7 +7,6 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-from src.constants import ACC_HZ as acc_Hz_str
 
 import pisces.data_sets as pds
 from pisces.data_sets import (
@@ -41,8 +40,8 @@ SECONDS_PER_KERNEL = 5 * 60
 ACTIVITY_KERNEL_WIDTH = SECONDS_PER_KERNEL * ACTIVITY_HZ
 ACTIVITY_KERNEL_WIDTH += 1 - (ACTIVITY_KERNEL_WIDTH % 2)  # Ensure it is odd
 # DATA_LOCATION = Path('/Users/ojwalch/Documents/eric-pisces/datasets')
-# DATA_LOCATION = Path('/Users/eric/Engineering/Work/pisces/data')
-DATA_LOCATION = Path('/home/eric/Engineering/Work/pisces/data')
+DATA_LOCATION = Path('/Users/eric/Engineering/Work/pisces/data')
+# DATA_LOCATION = Path('/home/eric/Engineering/Work/pisces/data')
 
 
 def clean_and_save_accelerometer_data():
@@ -112,14 +111,8 @@ def process_data(dataset: pds.DataSetObject,
 
     # Convert accelerometer data to spectrograms
 
-    sample_rate = 50
-    if acc_Hz_str == "dyn":
-        int_hz = int(avg_time_hz)
-        print("dynamic rate:", int_hz)
-        sample_rate = int_hz
-    else:
-        sample_rate = int(acc_Hz_str)
-        print("fixed rate:", sample_rate)
+    sample_rate = ACC_RAW_HZ
+    print("fixed rate:", sample_rate)
     accel_data_resampled = resample_accel_data(
         accel_data, original_fs=sample_rate, target_fs=ACC_INPUT_HZ)
 
@@ -164,7 +157,7 @@ def preprocessed_set_path(cache_dir: Path, set_name: str) -> Path:
     return set_path
 
 def preprocessed_data_filename(set_name: str, cache_dir: Path | None = None) -> str:
-    base_fn = f"{set_name}_preprocessed_data_{acc_Hz_str}.npy"
+    base_fn = f"{set_name}_preprocessed_data_{ACC_RAW_HZ}.npy"
     return base_fn if cache_dir is None else cache_dir.joinpath(base_fn)
 
 def do_preprocessing(process_data_fn=None, cache_dir: Path | str | None = None):
