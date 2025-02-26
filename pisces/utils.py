@@ -473,7 +473,7 @@ def resample_accel_data(accel_data: np.ndarray, original_fs: int, target_fs: int
 # %% ../nbs/00_utils.ipynb 18
 from scipy.signal import spectrogram
 
-def accelerometer_to_3d_specgram(data, nfft=512, window_len=320, noverlap=256, window='blackman', fs=32):
+def accelerometer_to_3d_specgram(data, nfft=512, window_len=320, noverlap=256, window='blackman'):
     """
     Converts resampled accelerometer data into spectrograms for each axis.
     
@@ -489,34 +489,19 @@ def accelerometer_to_3d_specgram(data, nfft=512, window_len=320, noverlap=256, w
     """
     axes = ['x', 'y', 'z']  # Acceleration axes
     spectrograms = []
-    times = []
-    frequencies = []
     
     for i in range(1, 4):  # Columns 1, 2, 3 correspond to x, y, z
-        """
-        From the source code:
-        ```
-        time = np.arange(nperseg/2, x.shape[-1] - nperseg/2 + 1,
-                    nperseg - noverlap)/float(fs)
-        if boundary is not None:
-            time -= (nperseg/2) / fs
-        ```
-        """
         f, t, Sxx = spectrogram(
             data[:, i], 
-            fs=fs,  # Sampling frequency after resampling
+            fs=32,  # Sampling frequency after resampling
             nfft=nfft, 
             nperseg=window_len, 
             noverlap=noverlap, 
             window=window
         )
         spectrograms.append(Sxx.T)  # Transpose to shape (time_bins, freq_bins)
-        times.append(t)
-        frequencies.append(f)
-    return (np.stack(spectrograms, axis=-1)[:, 1:], # Shape (time_bins, freq_bins, 3)
-            np.array(times[0]), 
-            np.array(frequencies[0]))
-
+    
+    return np.stack(spectrograms, axis=-1)[:, 1:]  # Shape (time_bins, freq_bins, 3)
 
 
 # %% ../nbs/00_utils.ipynb 20
