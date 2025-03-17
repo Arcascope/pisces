@@ -14,12 +14,13 @@ class STFT:
     f: np.ndarray
     t: np.ndarray
     Zxx: np.ndarray
+    specgram: np.ndarray = None
 
     @property
     def shape(self):
         return self.Zxx.shape
     
-    def specgram(self, freq_n_tile_clamp: float = 0.0):
+    def compute_specgram(self, freq_n_tile_clamp: float = 0.05):
         """Produces the absolute value of the STFT, 
         with optional clamping of the values according to
         the given percentile from top/bottom
@@ -29,12 +30,15 @@ class STFT:
             abs_array = np.clip(abs_array, 
                                 np.percentile(abs_array, freq_n_tile_clamp),
                                 np.percentile(abs_array, 100 - freq_n_tile_clamp))
+        self.specgram = abs_array
         return abs_array
     
     def plot(self, ax=None) -> plt.Axes:
         if ax is None:
             fig, ax = plt.subplots()
-        ax.imshow(self.specgram(freq_n_tile_clamp=0.05), 
+        if self.specgram is None:
+            self.compute_specgram()
+        ax.imshow(self.specgram, 
                   aspect='auto', origin='lower', extent=[self.t[0], self.t[-1], self.f[0], self.f[-1]])
         ax.set_ylabel('Frequency [Hz]')
         ax.set_xlabel('Time [s]')
@@ -61,6 +65,7 @@ class STFT:
 
 @dataclass
 class Preprocessed:
+    idno: str
     x: np.ndarray
     y: np.ndarray
     x_spec: STFT = None

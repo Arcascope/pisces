@@ -9,7 +9,7 @@ import seaborn as sns
 import numpy as np
 import polars as pl
 from examples.dreamt_acc.constants import *
-from examples.dreamt_acc.conv2d_net import train_loocv
+from examples.dreamt_acc.conv2d_net import TrainingResult, train_loocv
 from examples.dreamt_acc.preprocess import Preprocessed
 from pisces.data_sets import DataSetObject
 from tqdm import tqdm
@@ -69,7 +69,7 @@ def preprocess_data(
         print(f" => {len(x) / TIMESTAMP_HZ / 3600:.1f} hours of data")
         x_pickled_c = compress_in_memory(x)
         y_pickled_c = compress_in_memory(y)
-        prepro_data[d] = Preprocessed(x_pickled_c, y_pickled_c)
+        prepro_data[d] = Preprocessed(d, x_pickled_c, y_pickled_c)
         del x_pickled_c, y_pickled_c
 
     print("Saving preprocessed data")
@@ -77,8 +77,11 @@ def preprocess_data(
 
     print(f"Written to {output_filename}")
 
-def make_beautiful_specgram_plot(prepro_x_y: Preprocessed):
-    fig, ax = plt.subplots(nrows=2, figsize=(20, 10))
+def sigmoid(x):
+    return 1 / (1 + np.exp(-x))
+
+def make_beautiful_specgram_plot(prepro_x_y: Preprocessed, training_res: TrainingResult = None):
+    fig, ax = plt.subplots(nrows=3, figsize=(20, 10))
     if prepro_x_y.x_spec is None:
         prepro_x_y.compute_specgram()
     prepro_x_y.x_spec.plot(ax[0])
@@ -91,7 +94,18 @@ def make_beautiful_specgram_plot(prepro_x_y: Preprocessed):
     ax[1].set_yticklabels(['Missing', 'W', 'Light', 'Deep', 'REM'])
     ax[1].set_xlabel('Time [s]')
     ax[1].set_ylabel('Sleep Stage')
+
+    if training_res is not None:
+        sleep_proba = sigmoid(training_res.sleep_logits)
+        sns.lineplot(sleep_proba, ax=ax[2])
+        sns.lineplot(training_res.test_y, ax=ax[2])
+        ax[2].set_xlim(0, len(training_res.sleep_logits))
+        ax[2].set_ylim(-1.1, 1.1)
+        ax[2].set_yticks([-1, 0, 1])
+        ax[2].set_yticklabels(['Missing', 'Wake', 'Sleep'])
+        ax[2].axhline(sigmoid(training_res.logits_threshold), "--", color='black', linewidth=0.5, label=f'WASA={training_res.specificity:.3f}')
     return fig, ax
+
 
 if __name__ == '__main__':
     EXCLUDE_THRESHOLD = 18.0
@@ -100,7 +114,7 @@ if __name__ == '__main__':
 
     sets = DataSetObject.find_data_sets(DATA_DIR)
     dreamt = sets['dreamt']
-    dreamt.parse_data_sets(id_templates='<<ID>>_whole_df.csv')
+    dreamt.parse_data(id_templates='<<ID>>_whole_df.csv')
 
     quality_analysis_file = dreamt.path / 'quality_analysis' / 'quality_scores_per_subject.csv'
     quality_df = pl.read_csv(quality_analysis_file)
@@ -123,7 +137,7 @@ if __name__ == '__main__':
         y = decompress_in_memory(v.y)
 
         
-        prepro_k = Preprocessed(x, y)
+        prepro_k = Preprocessed(v.idno, x, y)
         prepro_k.compute_specgram()
         print(k, prepro_k.x_spec.shape, prepro_k.y.shape)
         if prepro_k.x_spec.shape[0] != PSG_MAX_IDX:
@@ -139,8 +153,19 @@ if __name__ == '__main__':
     
     # stack = np.array([prepro_data[k].x_spec.Zxx for k in prepro_data])
 
+    prepro_values = list(prepro_data.values())
     results = train_loocv(
-        list(prepro_data.values()), 
+        prepro_values, 
         num_epochs=20, 
+        batch_size=4,
         lr=1e-3
     )
+
+    np.savez('dreamt_results.npz', results)
+
+    for (inputs, outputs) in zip(prepro_values, results):
+        fig, ax = make_beautiful_specgram_plot(inputs, outputs)
+        print("Saving image to", images_dir)
+        plt.savefig(images_dir /  f'{inputs.idno}_specgram.png', dpi=300)
+        plt.close(fig)
+
