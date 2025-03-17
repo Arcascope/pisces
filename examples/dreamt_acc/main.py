@@ -43,7 +43,8 @@ def preprocess_data(
             print(f"Skipping {d} due to {excluded}% > {EXCLUDE_THRESHOLD}% of excludes")
             continue
 
-        df = data_set.get_feature_data('dfs', d)
+        # don't keep in memory, easily OOM with the number of subjects
+        df = data_set.get_feature_data('dfs', d, keep_in_memory=False)
         df = df[SELECT_COLS]
         df = df.join(mapping_df, on=LABEL_COL).drop(LABEL_COL)
         x = df[FEATURE_COLS].to_numpy()
