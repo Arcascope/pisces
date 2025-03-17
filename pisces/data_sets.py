@@ -247,7 +247,19 @@ class DataSetObject:
         self.ids: List[str] = []
 
         # keeps track of the files for each feature and user
+        # eg:
+        # {
+        #     'psg': {
+        #         '001': '001_psg.csv',
+        #         '002': '002_psg.csv',
+        #     },
+        #     'eeg': {
+        #         '001': '001_eeg.csv',
+        #         '002': '002_eeg.csv',
+        #     }
+        # }
         self._feature_map: DefaultDict[str, Dict[str, str]] = defaultdict(dict)
+        # mirrors the structure of _feature_map, but stores the dataframes instead of file names
         self._feature_cache: DefaultDict[str, Dict[str, pl.DataFrame]] = defaultdict(dict)
     
     @property
@@ -256,8 +268,18 @@ class DataSetObject:
     
     def __str__(self):
         return f"{self.name}: {self.path}"
+    
+    def drop_feature_data(self, feature: str, id: str):
+        if feature not in self.features:
+            warnings.warn(f"Feature {feature} not found in {self.name}.")
+        self._feature_cache[feature].pop(id, None)
 
-    def get_feature_data(self, feature: str, id: str) -> pl.DataFrame | None:
+    def get_feature_data(
+            self,
+            feature: str,
+            id: str,
+            keep_in_memory: bool = True  # should the data be kept in memory? Setting to False is useful when processing large datasets, so the data is discarded once loaded for processing.
+            ) -> pl.DataFrame | None:
         if feature not in self.features:
             warnings.warn(f"Feature {feature} not found in {self.name}. Returning None.")
             return None
@@ -280,7 +302,8 @@ class DataSetObject:
                 return None
             # sort by time when loading
             df.sort(df.columns[0])
-            self._feature_cache[feature][id] = df
+            if keep_in_memory:
+                self._feature_cache[feature][id] = df
         return df
 
     def get_filename(self, feature: str, id: str) -> Path | None:
@@ -335,6 +358,7 @@ class DataSetObject:
     @classmethod
     def find_data_sets(cls, 
                        root: str | Path,
+                       try_parse: bool = True
                        ) -> Dict[str, 'DataSetObject']:
         root = str(root).replace("\\", "/") # Use consistent separators
 
@@ -352,14 +376,19 @@ class DataSetObject:
                     data_sets[data_set.name] = data_set
                 else:
                     data_sets[data_set_name]._feature_map[feature_name] = {}
+        if try_parse:
+            for data_set in data_sets.values():
+                data_set.parse_data()
         return data_sets
 
-    def parse_data_sets(self, 
+    def parse_data(self, 
                         ignore_startswith: List=["."], # Ignore files starting with these strings 
                         ignore_endswith: List=[".tmp"], # Ignore files ending with these strings 
                         id_templates: Dict[str, str] | str | None=None, # The template for extracting IDs from the file names. A template per feature can be provided as a dictionary 
                         id_symbol: str="<<ID>>",
                         ):
+        """Analyzes the files found within a data set and extracts the IDs and file names for each feature. If your data set appears to have no data or `.ids` is empty, you probably need to call this function on the set.
+        """
         for feature in self.features:
             feature_path = self.get_feature_path(feature)
             if not feature_path.exists():
