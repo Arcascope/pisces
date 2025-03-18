@@ -28,7 +28,7 @@ def dynamic_padding(kernel_size):
 class ConvSegmenterUNet(nn.Module):
     def __init__(self, num_classes=2):
         super(ConvSegmenterUNet, self).__init__()
-        self.kernel = (3, 3)
+        self.kernel = (60 * 15 + 1, 19)#(3, 3)
         self.stride = (1, 2)
         pad = dynamic_padding(self.kernel)
         # Encoder: using stride (1,2) so the first dimension (N) remains the same.
@@ -58,6 +58,9 @@ class ConvSegmenterUNet(nn.Module):
         # (B, num_classes, N)
         # DO NOT PERMUTE THE DIMENSIONS
         return x
+
+
+
 import subprocess
 
 def get_git_commit_hash():
@@ -209,11 +212,11 @@ def train_loocv(data_list: List[Preprocessed],
 
         
         # Training loop for the current fold.
+        best_wasa = 0.0
+        best_wasa_result = {}
+        best_threshold = 0.0
         for epoch in tqdm(range(num_epochs)):
             running_loss = 0.0
-            best_wasa = 0.0
-            best_wasa_result = {}
-            best_threshold = 0.0
             for batch_idx in range(0, X_train_tensor.size(0), batch_size):
                 # Get batch
                 batch_X = X_train_tensor[batch_idx:batch_idx+batch_size]
@@ -271,7 +274,7 @@ def train_loocv(data_list: List[Preprocessed],
 
         print(f"Fold {fold+1} Test: At threshold {best_threshold:.2f}, Sensitivity = {tpr:.2f}, Specificity = {specificity_at_target:.2f}")
 
-        test_outputs = model(X_test_tensor)[0].cpu().numpy()
+        test_outputs = model(X_test_tensor)[0].cpu().detach().numpy()
         this_fold_result = TrainingResult(
             idno=test_subject.idno,
             fold=fold,
@@ -292,7 +295,7 @@ def train_loocv(data_list: List[Preprocessed],
                         fold)
         
         print_histogram([
-            f.specifiticy for f in fold_results
+            f.specificity for f in fold_results
         ], bins=10)
     
     return fold_results

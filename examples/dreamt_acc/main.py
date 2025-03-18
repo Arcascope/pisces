@@ -81,7 +81,9 @@ def sigmoid(x):
     return 1 / (1 + np.exp(-x))
 
 def make_beautiful_specgram_plot(prepro_x_y: Preprocessed, training_res: TrainingResult = None):
-    fig, ax = plt.subplots(nrows=3, figsize=(20, 10))
+    N_ROWS = 3 if training_res is not None else 2
+    fig, ax = plt.subplots(nrows=N_ROWS, figsize=(20, 10))
+    fig.tight_layout()
     if prepro_x_y.x_spec is None:
         prepro_x_y.compute_specgram()
     prepro_x_y.x_spec.plot(ax[0])
@@ -96,14 +98,17 @@ def make_beautiful_specgram_plot(prepro_x_y: Preprocessed, training_res: Trainin
     ax[1].set_ylabel('Sleep Stage')
 
     if training_res is not None:
-        sleep_proba = sigmoid(training_res.sleep_logits)
-        sns.lineplot(sleep_proba, ax=ax[2])
-        sns.lineplot(training_res.test_y, ax=ax[2])
-        ax[2].set_xlim(0, len(training_res.sleep_logits))
+        sleep_proba = sigmoid(training_res.sleep_logits)[1]
+        sleep_plot_x = np.arange(len(sleep_proba))
+        sns.lineplot(x=sleep_plot_x, y=sleep_proba, ax=ax[2])
+        sns.lineplot(x=sleep_plot_x, y=training_res.test_y, ax=ax[2])
+        ax[2].set_xlim(sleep_plot_x[0], sleep_plot_x[-1])
         ax[2].set_ylim(-1.1, 1.1)
         ax[2].set_yticks([-1, 0, 1])
         ax[2].set_yticklabels(['Missing', 'Wake', 'Sleep'])
-        ax[2].axhline(sigmoid(training_res.logits_threshold), "--", color='black', linewidth=0.5, label=f'WASA={training_res.specificity:.3f}')
+        threshold_proba = sigmoid(training_res.logits_threshold)
+        ax[2].axhline(threshold_proba, linestyle="--", color='black', linewidth=0.5, label=f'WASA={training_res.specificity:.3f}')
+        ax[2].legend()
     return fig, ax
 
 
@@ -161,9 +166,11 @@ if __name__ == '__main__':
         lr=1e-3
     )
 
-    np.savez('dreamt_results.npz', results)
+    # np.savez('dreamt_results.npz', results)
+    results = np.load('dreamt_results.npz', allow_pickle=True)['arr_0'] 
 
     for (inputs, outputs) in zip(prepro_values, results):
+        print(inputs.idno)
         fig, ax = make_beautiful_specgram_plot(inputs, outputs)
         print("Saving image to", images_dir)
         plt.savefig(images_dir /  f'{inputs.idno}_specgram.png', dpi=300)

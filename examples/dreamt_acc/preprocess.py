@@ -38,7 +38,7 @@ class STFT:
             fig, ax = plt.subplots()
         if self.specgram is None:
             self.compute_specgram()
-        ax.imshow(self.specgram, 
+        ax.imshow(self.specgram.T, 
                   aspect='auto', origin='lower', extent=[self.t[0], self.t[-1], self.f[0], self.f[-1]])
         ax.set_ylabel('Frequency [Hz]')
         ax.set_xlabel('Time [s]')
