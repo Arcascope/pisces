@@ -9,7 +9,7 @@ import seaborn as sns
 import numpy as np
 import polars as pl
 from examples.dreamt_acc.constants import *
-from examples.dreamt_acc.conv2d_net import TrainingResult, train_loocv
+from examples.dreamt_acc.conv2d_net import TrainingResult, make_beautiful_specgram_plot, train_loocv
 from examples.dreamt_acc.preprocess import Preprocessed
 from pisces.data_sets import DataSetObject
 from tqdm import tqdm
@@ -76,41 +76,6 @@ def preprocess_data(
     np.savez('dreamt_prepro_data.npz', prepro_data)
 
     print(f"Written to {output_filename}")
-
-def sigmoid(x):
-    return 1 / (1 + np.exp(-x))
-
-def make_beautiful_specgram_plot(prepro_x_y: Preprocessed, training_res: TrainingResult = None):
-    N_ROWS = 3 if training_res is not None else 2
-    fig, ax = plt.subplots(nrows=N_ROWS, figsize=(20, 10))
-    fig.tight_layout()
-    if prepro_x_y.x_spec is None:
-        prepro_x_y.compute_specgram()
-    prepro_x_y.x_spec.plot(ax[0])
-    print("Spec shape:", prepro_x_y.x_spec.shape)
-
-    y_plot = prepro_x_y.y
-    sns.lineplot(x=np.arange(len(y_plot)), y=y_plot, ax=ax[1])
-    ax[1].set_xlim(0, len(y_plot))
-    ax[1].set_yticks([-1, 0, 1, 2, 3])
-    ax[1].set_yticklabels(['Missing', 'W', 'Light', 'Deep', 'REM'])
-    ax[1].set_xlabel('Time [s]')
-    ax[1].set_ylabel('Sleep Stage')
-
-    if training_res is not None:
-        sleep_proba = sigmoid(training_res.sleep_logits)[1]
-        sleep_plot_x = np.arange(len(sleep_proba))
-        sns.lineplot(x=sleep_plot_x, y=sleep_proba, ax=ax[2])
-        sns.lineplot(x=sleep_plot_x, y=training_res.test_y, ax=ax[2])
-        ax[2].set_xlim(sleep_plot_x[0], sleep_plot_x[-1])
-        ax[2].set_ylim(-1.1, 1.1)
-        ax[2].set_yticks([-1, 0, 1])
-        ax[2].set_yticklabels(['Missing', 'Wake', 'Sleep'])
-        threshold_proba = sigmoid(training_res.logits_threshold)
-        ax[2].axhline(threshold_proba, linestyle="--", color='black', linewidth=0.5, label=f'WASA={training_res.specificity:.3f}')
-        ax[2].legend()
-    return fig, ax
-
 
 if __name__ == '__main__':
     EXCLUDE_THRESHOLD = 18.0

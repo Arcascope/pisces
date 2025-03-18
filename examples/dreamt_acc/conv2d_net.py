@@ -3,11 +3,14 @@ from hashlib import sha256
 import os
 from pathlib import Path
 from typing import List
+from matplotlib import pyplot as plt
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import numpy as np
 from sklearn.metrics import roc_curve
+import seaborn as sns
+
 
 from torch.cuda.amp import autocast, GradScaler
 from tqdm import tqdm
@@ -163,8 +166,44 @@ class TrainingResult:
     test_y: np.ndarray
     sleep_logits: np.ndarray
 
+def sigmoid(x):
+    return 1 / (1 + np.exp(-x))
+
+def make_beautiful_specgram_plot(prepro_x_y: Preprocessed, training_res: TrainingResult = None):
+    N_ROWS = 3 if training_res is not None else 2
+    fig, ax = plt.subplots(nrows=N_ROWS, figsize=(20, 10))
+    fig.tight_layout()
+    if prepro_x_y.x_spec is None:
+        prepro_x_y.compute_specgram()
+    prepro_x_y.x_spec.plot(ax[0])
+    print("Spec shape:", prepro_x_y.x_spec.shape)
+
+    y_plot = prepro_x_y.y
+    sns.lineplot(x=np.arange(len(y_plot)), y=y_plot, ax=ax[1])
+    ax[1].set_xlim(0, len(y_plot))
+    ax[1].set_yticks([-1, 0, 1, 2, 3])
+    ax[1].set_yticklabels(['Missing', 'W', 'Light', 'Deep', 'REM'])
+    ax[1].set_xlabel('Time [s]')
+    ax[1].set_ylabel('Sleep Stage')
+
+    if training_res is not None:
+        sleep_proba = sigmoid(training_res.sleep_logits)[1]
+        sleep_plot_x = np.arange(len(sleep_proba))
+        sns.lineplot(x=sleep_plot_x, y=sleep_proba, ax=ax[2])
+        sns.lineplot(x=sleep_plot_x, y=training_res.test_y, ax=ax[2])
+        ax[2].set_xlim(sleep_plot_x[0], sleep_plot_x[-1])
+        ax[2].set_ylim(-1.1, 1.1)
+        ax[2].set_yticks([-1, 0, 1])
+        ax[2].set_yticklabels(['Missing', 'Wake', 'Sleep'])
+        threshold_proba = sigmoid(training_res.logits_threshold)
+        ax[2].axhline(threshold_proba, linestyle="--", color='black', linewidth=0.5, label=f'WASA={training_res.specificity:.3f}')
+        ax[2].legend()
+    return fig, ax
+
+
 def train_loocv(data_list: List[Preprocessed], 
                 num_epochs=20, lr=1e-3, batch_size=1,
+                plot=True,
                 device=torch.device("cuda" if torch.cuda.is_available() else "cpu")) -> List[TrainingResult]:
     print("Training using", torch.cuda.get_device_name() if torch.cuda.is_available() else "CPU")
     num_folds = len(data_list)
@@ -337,6 +376,11 @@ def train_loocv(data_list: List[Preprocessed],
         print_histogram([
             f.specificity for f in fold_results
         ], bins=10)
+        if plot:
+            fig, ax = make_beautiful_specgram_plot(test_subject, this_fold_result)
+            plot_dir = training_dir / f'{test_subject.idno}_result.png'
+            plt.savefig(plot_dir, dpi=300)
+            plt.close(fig)
     
     return fold_results
 
