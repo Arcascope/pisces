@@ -26,38 +26,66 @@ def dynamic_padding(kernel_size):
         return kernel_size // 2
 
 class ConvSegmenterUNet(nn.Module):
-    def __init__(self, num_classes=2):
+    def __init__(self, num_classes=2, negative_slope=0.1):
         super(ConvSegmenterUNet, self).__init__()
-        self.kernel = (60 * 15 + 1, 19)#(3, 3)
+        self.kernel = (60 * 15 + 1, 19)
         self.stride = (1, 2)
         pad = dynamic_padding(self.kernel)
-        # Encoder: using stride (1,2) so the first dimension (N) remains the same.
+        
+        # Encoder layers
         self.enc_conv1 = nn.Conv2d(1, 32, kernel_size=self.kernel, stride=self.stride, padding=pad)
+        self.enc_bn1   = nn.BatchNorm2d(32)
         self.enc_conv2 = nn.Conv2d(32, 64, kernel_size=self.kernel, stride=self.stride, padding=pad)
+        self.enc_bn2   = nn.BatchNorm2d(64)
         self.enc_conv3 = nn.Conv2d(64, 128, kernel_size=self.kernel, stride=self.stride, padding=pad)
-        # Decoder: mirror the encoder.
-        self.dec_deconv1 = nn.ConvTranspose2d(128, 64, kernel_size=self.kernel, stride=self.stride, padding=pad, output_padding=(0,0))
-        self.dec_deconv2 = nn.ConvTranspose2d(64, 32, kernel_size=self.kernel, stride=self.stride, padding=pad, output_padding=(0,0))
-        self.dec_deconv3 = nn.ConvTranspose2d(32, num_classes, kernel_size=self.kernel, stride=self.stride, padding=pad, output_padding=(0,0))
+        self.enc_bn3   = nn.BatchNorm2d(128)
+        
+        # Decoder layers
+        self.dec_deconv1 = nn.ConvTranspose2d(128, 64, kernel_size=self.kernel, stride=self.stride, 
+                                              padding=pad, output_padding=(0,0))
+        self.dec_bn1     = nn.BatchNorm2d(64)
+        self.dec_deconv2 = nn.ConvTranspose2d(64, 32, kernel_size=self.kernel, stride=self.stride, 
+                                              padding=pad, output_padding=(0,0))
+        self.dec_bn2     = nn.BatchNorm2d(32)
+        self.dec_deconv3 = nn.ConvTranspose2d(32, num_classes, kernel_size=self.kernel, stride=self.stride, 
+                                              padding=pad, output_padding=(0,0))
+        
+        # LeakyReLU activation
+        self.leaky_relu = nn.LeakyReLU(negative_slope)
     
     def forward(self, x):
         # x: (B, N, 129) -> add a channel dimension to get (B, 1, N, 129)
         x = x.unsqueeze(1)
-        # Encoder
-        x = torch.relu(self.enc_conv1(x))  # shape: (B, 32, N, ~65)
-        x = torch.relu(self.enc_conv2(x))  # shape: (B, 64, N, ~33)
-        x = torch.relu(self.enc_conv3(x))  # shape: (B, 128, N, ~17)
-        # Decoder
-        x = torch.relu(self.dec_deconv1(x))  # shape: (B, 64, N, ~33)
-        x = torch.relu(self.dec_deconv2(x))  # shape: (B, 32, N, ~65)
-        x = self.dec_deconv3(x)              # shape: (B, num_classes, N, 129)
+        
+        # Encoder: conv -> BN -> LeakyReLU
+        x = self.enc_conv1(x)
+        x = self.enc_bn1(x)
+        x = self.leaky_relu(x)
+        
+        x = self.enc_conv2(x)
+        x = self.enc_bn2(x)
+        x = self.leaky_relu(x)
+        
+        x = self.enc_conv3(x)
+        x = self.enc_bn3(x)
+        x = self.leaky_relu(x)
+        
+        # Decoder: deconv -> BN -> LeakyReLU (except final layer)
+        x = self.dec_deconv1(x)
+        x = self.dec_bn1(x)
+        x = self.leaky_relu(x)
+        
+        x = self.dec_deconv2(x)
+        x = self.dec_bn2(x)
+        x = self.leaky_relu(x)
+        
+        x = self.dec_deconv3(x)  # output logits for each class
+        
         # Collapse the width dimension by averaging over the 129-dimension.
         x = x.mean(dim=3)   # shape: (B, num_classes, N)
-
-        # this is the correct format for the torch CrossEntropyLoss
-        # (B, num_classes, N)
-        # DO NOT PERMUTE THE DIMENSIONS
+        
         return x
+
 
 
 
