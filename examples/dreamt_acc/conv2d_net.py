@@ -155,7 +155,7 @@ def wasa(model, X_test_tensor, y_test_tensor, target_sleep_acc) -> WASAResult:
 
         y_true = y_test_flat[valid_mask].cpu().numpy()  # ground truth labels
         
-        raw_outputs = torch.sigmoid(test_outputs, dim=1).cpu().numpy()      # predicted probabilities for class 1
+        raw_outputs = torch.softmax(test_outputs, dim=1).cpu().numpy()      # predicted probabilities for class 1
         valid_outputs = raw_outputs[0, 1, valid_mask]  # shape: (N,)
 
         # Use a binary search on threshold, starting halfway between probs.max() and probs.min()
