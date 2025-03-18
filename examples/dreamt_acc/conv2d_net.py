@@ -28,7 +28,7 @@ def dynamic_padding(kernel_size):
 class ConvSegmenterUNet(nn.Module):
     def __init__(self, num_classes=2, negative_slope=0.1):
         super(ConvSegmenterUNet, self).__init__()
-        self.kernel = (60 * 15 + 1, 19)
+        self.kernel = (15, 17)
         self.stride = (1, 2)
         pad = dynamic_padding(self.kernel)
         
@@ -245,7 +245,12 @@ def train_loocv(data_list: List[Preprocessed],
         best_threshold = 0.0
         for epoch in tqdm(range(num_epochs)):
             running_loss = 0.0
+            # shuffle data
+            indices = torch.randperm(X_train_tensor.size(0))
+            X_train_tensor = X_train_tensor[indices]
+            y_train_tensor = y_train_tensor[indices]
             for batch_idx in range(0, X_train_tensor.size(0), batch_size):
+                print(f'Epoch {epoch+1}/{num_epochs}, Batch {batch_idx+1}/{X_train_tensor.size(0)}')
                 # Get batch
                 batch_X = X_train_tensor[batch_idx:batch_idx+batch_size]
                 batch_y = y_train_tensor[batch_idx:batch_idx+batch_size]
@@ -293,6 +298,11 @@ def train_loocv(data_list: List[Preprocessed],
                     best_threshold = epoch_wasa_result['threshold']
                     best_wasa_result = epoch_wasa_result
                     torch.save(model.state_dict(), best_model_path)
+                
+                # adjust learning rate
+                if epoch % 10 == 0:
+                    for param_group in optimizer.param_groups:
+                        param_group['lr'] *= 0.9
                 
         
         # --- Evaluation on the Test Subject ---
