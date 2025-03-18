@@ -203,8 +203,8 @@ class TrainingResult:
     test_y: np.ndarray
     sleep_logits: np.ndarray
 
-def softmax(x):
-    return np.exp(x) / np.sum(np.exp(x), axis=0)
+def softmax(x, axis=1):
+    return np.exp(x) / np.sum(np.exp(x), axis=axis)
 
 def make_beautiful_specgram_plot(prepro_x_y: Preprocessed, training_res: TrainingResult = None, staging: bool = False, from_logits: bool = True):
     N_ROWS = 1
@@ -342,7 +342,7 @@ def train_loocv(data_list: List[Preprocessed],
                         print("Warning: NaN values detected in input batch")
                         
                     outputs = model(batch_X)
-                    sig_outputs = torch.softmax(outputs)
+                    sig_outputs = torch.softmax(outputs, dim=1)
                     
                     # Check for NaNs in output
                     if torch.isnan(sig_outputs).any():
