@@ -161,7 +161,7 @@ if __name__ == '__main__':
     prepro_values = list(prepro_data.values())
     results = train_loocv(
         prepro_values, 
-        num_epochs=2, 
+        num_epochs=1, 
         batch_size=4,
         lr=1e-3
     )

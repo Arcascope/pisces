@@ -162,3 +162,4 @@ pisces/cached_models/*.keras
 *.png
 *.keras
 examples/Keras/raw.githubusercontent.com/*
+dreamt_training_logs/*

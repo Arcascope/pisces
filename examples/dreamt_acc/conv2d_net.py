@@ -250,7 +250,9 @@ def train_loocv(data_list: List[Preprocessed],
             X_train_tensor = X_train_tensor[indices]
             y_train_tensor = y_train_tensor[indices]
             for batch_idx in range(0, X_train_tensor.size(0), batch_size):
-                print(f'Epoch {epoch+1}/{num_epochs}, Batch {batch_idx+1}/{X_train_tensor.size(0)}')
+                print_batch = batch_idx // batch_size
+                batches = X_train_tensor.size(0) // batch_size
+                print(f'Epoch {epoch+1}/{num_epochs}, Batch {print_batch+1}/{batches}')
                 # Get batch
                 batch_X = X_train_tensor[batch_idx:batch_idx+batch_size]
                 batch_y = y_train_tensor[batch_idx:batch_idx+batch_size]
