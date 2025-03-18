@@ -259,12 +259,6 @@ def train_loocv(data_list: List[Preprocessed],
             data_subject.y > 0,
             1,
             data_subject.y)
-    # X_train = np.zeros((num_folds-1, PSG_MAX_IDX, 129), dtype=np.float32)
-    # y_train = np.zeros((num_folds-1, PSG_MAX_IDX), dtype=np.int64)
-    # X_test = np.zeros((1, PSG_MAX_IDX, 129), dtype=np.float32)
-    # y_test = np.zeros((1, PSG_MAX_IDX), dtype=np.int64)
-    # default `log_dir` is "runs" - we'll be more specific here
-    
 
     commit_hash = get_git_commit_hash()
     training_dir = Path(os.getcwd()).resolve() / 'dreamt_training_logs' / commit_hash
@@ -285,13 +279,6 @@ def train_loocv(data_list: List[Preprocessed],
 
         best_model_path = training_dir / f'{test_subject.idno}_best_model_fold.pth'
 
-        # for i, train_subject in enumerate(train_subjects):
-        #     X_train[i, :train_subject.x_spec.shape[0]] = train_subject.x_spec
-        #     y_train[i, :train_subject.y.shape[0]] = train_subject.y
-        
-        # # Prepare training tensors:
-        # X_test[0, :test_subject.x_spec.shape[0]] = test_subject.x_spec  # shape: (1, N, 129)
-        # y_test[0, :test_subject.y.shape[0]] = test_subject.y         # shape: (1, N)
         X_train = np.array([
             train_subject.x_spec.specgram
             for train_subject in train_subjects
@@ -314,7 +301,9 @@ def train_loocv(data_list: List[Preprocessed],
         # Initialize model, optimizer, and loss function.
         model = ConvSegmenterUNet(num_classes=2).to(device)
         optimizer = optim.Adam(model.parameters(), lr=lr)
-        ce_loss = nn.CrossEntropyLoss(ignore_index=MASK_VALUE)
+        balancing_weights = torch.tensor(1/np.bincount(y_train.flatten()), dtype=torch.float32, device=device)
+
+        ce_loss = nn.CrossEntropyLoss(ignore_index=MASK_VALUE, weight=balancing_weights)
 
 
         
@@ -326,15 +315,15 @@ def train_loocv(data_list: List[Preprocessed],
             running_loss = 0.0
             # shuffle data
             indices = torch.randperm(X_train_tensor.size(0))
-            X_train_tensor = X_train_tensor[indices]
-            y_train_tensor = y_train_tensor[indices]
-            for batch_idx in range(0, X_train_tensor.size(0), batch_size):
+            epoch_X = X_train_tensor[indices]
+            epoch_y = y_train_tensor[indices]
+            for batch_idx in range(0, epoch_X.size(0), batch_size):
                 print_batch = batch_idx // batch_size + 1
-                print_n_batches = X_train_tensor.size(0) // batch_size + 1
+                print_n_batches = epoch_X.size(0) // batch_size + 1
                 print(f'Epoch {epoch+1}/{num_epochs}, Batch {print_batch}/{print_n_batches}')
                 # Get batch
-                batch_X = X_train_tensor[batch_idx:batch_idx+batch_size]
-                batch_y = y_train_tensor[batch_idx:batch_idx+batch_size]
+                batch_X = epoch_X[batch_idx:batch_idx+batch_size]
+                batch_y = epoch_y[batch_idx:batch_idx+batch_size]
                 
                 # Forward pass with mixed precision
                 with torch.amp.autocast('cuda'):
@@ -355,14 +344,13 @@ def train_loocv(data_list: List[Preprocessed],
                         print("Warning: NaN loss detected")
                         continue  # Skip this batch
                 
-                # print(f'Epoch {epoch+1}/{num_epochs}, Batch {batch_idx+1}/{X_train_tensor.size(0)}, Loss: {loss.item()}')
                 # Backward and optimize with scaling
                 optimizer.zero_grad()
                 scaler.scale(loss).backward()
                 scaler.step(optimizer)
                 scaler.update()
                 running_loss += loss.item()
-                if batch_idx % report_freq == -1 % report_freq:
+                if (batch_idx + 1) % report_freq == 0:
                     # ...log the running loss
                     writer.add_scalar('training loss',
                                     running_loss / report_freq,
@@ -381,7 +369,7 @@ def train_loocv(data_list: List[Preprocessed],
                     torch.save(model.state_dict(), best_model_path)
                 
                 # adjust learning rate
-                if epoch % 10 == 0:
+                if (batch_idx + 1) % 10 == 0:
                     for param_group in optimizer.param_groups:
                         param_group['lr'] *= 0.9
                 
