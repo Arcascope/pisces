@@ -129,9 +129,15 @@ def true_false_rates_from_threshold(y_true, y_pred, threshold):
     """Calculate the true positive rate and false positive rate given a threshold."""
     y_pred_binary = (y_pred > threshold).astype(int)
     tn, fp, fn, tp = np.bincount(y_true * 2 + y_pred_binary, minlength=4)
-    tpr = tp / (tp + fn)
-    fpr = fp / (fp + tn)
+    # if no examples, perfect accuracy
+    tpr = 1.0
+    fpr = 1.0
+    if (tp + fn):
+        tpr = tp / (tp + fn)
+    if (fp + tn):
+        fpr = tn / (fp + tn)
     return tpr, fpr
+
 
 def wasa(model, X_test_tensor, y_test_tensor, target_sleep_acc) -> WASAResult:
     """Wake Accuracy when Sleep Accuracy is approx WASA_ACC.
@@ -145,12 +151,11 @@ def wasa(model, X_test_tensor, y_test_tensor, target_sleep_acc) -> WASAResult:
         test_outputs = model(X_test_tensor)  # shape: (1, 2, N)
         y_test_flat = y_test_tensor.reshape(-1)  # shape: (N,)
         # Get predicted probability for class 1.
-        outputs_flat = test_outputs[0, 1].reshape(-1) # shape: (N,)
         
         # Create a mask to ignore -1 labels.
         valid_mask = (y_test_flat != -1)
         if valid_mask.sum() == 0:
-            warning.warn("No valid test labels available; skipping evaluation for this fold.")
+            warning("No valid test labels available; skipping evaluation for this fold.")
             return WASAResult(wake_acc=0.0, sleep_acc=0.0, threshold=0.0)
 
         y_true = y_test_flat[valid_mask].cpu().numpy()  # ground truth labels
