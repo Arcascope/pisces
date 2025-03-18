@@ -154,17 +154,20 @@ def wasa(model, X_test_tensor, y_test_tensor, wasa_key, WASA_ACC) -> WASAResult:
             best_threshold = None
         else:
             y_true = y_test_flat[valid_mask].cpu().numpy()  # ground truth labels
-            raw_outputs = outputs_flat[valid_mask].cpu().numpy()      # predicted probabilities for class 1
+            
+            raw_outputs = torch.sigmoid_(outputs_flat[valid_mask]).cpu().numpy()      # predicted probabilities for class 1
 
             # Use a binary search on threshold, starting halfway between probs.max() and probs.min()
             # Note that we're using logits potentially so we don't assume probs are in [0, 1].
-            lower = raw_outputs.min()
-            upper = raw_outputs.max()
+            # lower = raw_outputs.min()
+            # upper = raw_outputs.max()
+            lower = 0.0
+            upper = 1.0
             best_threshold = (lower + upper) / 2
             best_wasa = 0.0
             tol = 1e-3
             binary_search_iterations = 0
-            max_iterations = 50
+            max_iterations = 100
             while (abs(best_wasa - WASA_ACC) > tol) and (binary_search_iterations < max_iterations):
                 binary_search_iterations += 1
                 threshold = (lower + upper) / 2
@@ -174,7 +177,7 @@ def wasa(model, X_test_tensor, y_test_tensor, wasa_key, WASA_ACC) -> WASAResult:
                     # decrease the threshold, to classify more wake as sleep
                     upper = threshold
                 if sleep_acc < WASA_ACC - tol:
-                    # increase the threshold, to classify more sleep as wake
+                    # increase the threshold, to classify wake as wake
                     lower = threshold
                 best_threshold = threshold
                 best_wasa = wake_acc 
@@ -203,7 +206,10 @@ class TrainingResult:
 def sigmoid(x):
     return 1 / (1 + np.exp(-x))
 
-def make_beautiful_specgram_plot(prepro_x_y: Preprocessed, training_res: TrainingResult = None, staging: bool = False):
+def softmax(x):
+    return np.exp(x) / np.sum(np.exp(x), axis=0)
+
+def make_beautiful_specgram_plot(prepro_x_y: Preprocessed, training_res: TrainingResult = None, staging: bool = False, from_logits: bool = True):
     N_ROWS = 1
     if staging:
         N_ROWS += 1
@@ -226,7 +232,9 @@ def make_beautiful_specgram_plot(prepro_x_y: Preprocessed, training_res: Trainin
         ax[1].set_ylabel('Sleep Stage')
 
     if training_res is not None:
-        sleep_proba = sigmoid(training_res.sleep_logits)[1]
+        wake_sleep_proba = softmax(training_res.sleep_logits) if from_logits else training_res.sleep_logits
+        sleep_proba = wake_sleep_proba[1]
+
         sleep_plot_x = np.arange(len(sleep_proba))
         sns.lineplot(x=sleep_plot_x, y=sleep_proba, ax=ax[-1])
         sns.lineplot(x=sleep_plot_x, y=training_res.test_y, ax=ax[-1])
@@ -303,7 +311,7 @@ def train_loocv(data_list: List[Preprocessed],
         optimizer = optim.Adam(model.parameters(), lr=lr)
         flat_y = y_train.flatten()
         balancing_weights = torch.tensor(
-            1/np.bincount(flat_y[flat_y != MASK_VALUE]),
+            2.0/(np.bincount(flat_y[flat_y != MASK_VALUE]) / len(flat_y[flat_y != MASK_VALUE])),
             dtype=torch.float32,
             device=device)
 
@@ -313,7 +321,7 @@ def train_loocv(data_list: List[Preprocessed],
         
         # Training loop for the current fold.
         best_wasa = 0.0
-        best_wasa_result = {}
+        best_wasa_result: WASAResult
         best_threshold = 0.0
         for epoch in range(num_epochs):
             running_loss = 0.0
@@ -337,12 +345,13 @@ def train_loocv(data_list: List[Preprocessed],
                         print("Warning: NaN values detected in input batch")
                         
                     outputs = model(batch_X)
+                    sig_outputs = torch.softmax(outputs)
                     
                     # Check for NaNs in output
-                    if torch.isnan(outputs).any():
+                    if torch.isnan(sig_outputs).any():
                         print("Warning: NaN values detected in model output")
                         
-                    loss = ce_loss(outputs, batch_y)
+                    loss = ce_loss(sig_outputs, batch_y)
                     
                     # Check for NaNs in loss
                     if torch.isnan(loss):
@@ -410,7 +419,7 @@ def train_loocv(data_list: List[Preprocessed],
             f.wake_acc for f in fold_results
         ], bins=10)
         if plot:
-            fig, ax = make_beautiful_specgram_plot(test_subject, this_fold_result)
+            fig, ax = make_beautiful_specgram_plot(test_subject, this_fold_result, from_logits=True)
             plot_dir = training_dir / f'{test_subject.idno}_result.png'
             plt.savefig(plot_dir, dpi=300)
             plt.close(fig)
