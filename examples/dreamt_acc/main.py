@@ -127,7 +127,7 @@ if __name__ == '__main__':
     results = train_loocv(
         prepro_values, 
         num_epochs=1, 
-        batch_size=8,
+        batch_size=6,
         lr=1e-3
     )
 
