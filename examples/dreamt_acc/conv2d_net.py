@@ -162,8 +162,7 @@ def wasa(model, X_test_tensor, y_test_tensor, wasa_key, WASA_ACC) -> WASAResult:
             upper = raw_outputs.max()
             best_threshold = (lower + upper) / 2
             best_wasa = 0.0
-            best_threshold = 0.5
-            tol = sys.epsilon
+            tol = 1e-3
             binary_search_iterations = 0
             max_iterations = 50
             while (abs(best_wasa - WASA_ACC) > tol) and (binary_search_iterations < max_iterations):
@@ -270,8 +269,9 @@ def train_loocv(data_list: List[Preprocessed],
     print(f"Training with {num_folds} subjects")
     print(f"Results will appear in {training_dir}")
 
-    for fold in range(num_folds):
-        print(f"\nStarting fold {fold+1}/{num_folds}")
+    fold_tqdm = tqdm(range(num_folds))
+    for fold in fold_tqdm:
+        fold_tqdm.set_description_str(f"\nWorking on fold {fold+1}/{num_folds}")
         
         # Use subject `fold` as the test set; the rest are training.
         test_subject = data_list[fold]
@@ -315,16 +315,17 @@ def train_loocv(data_list: List[Preprocessed],
         best_wasa = 0.0
         best_wasa_result = {}
         best_threshold = 0.0
-        for epoch in tqdm(range(num_epochs)):
+        for epoch in range(num_epochs):
             running_loss = 0.0
             # shuffle data
             indices = torch.randperm(X_train_tensor.size(0))
             epoch_X = X_train_tensor[indices]
             epoch_y = y_train_tensor[indices]
-            for batch_idx in range(0, epoch_X.size(0), batch_size):
+            batch_tqdm = tqdm(range(0, epoch_X.size(0), batch_size))
+            for batch_idx in batch_tqdm:
                 print_batch = batch_idx // batch_size + 1
                 print_n_batches = epoch_X.size(0) // batch_size + 1
-                print(f'Epoch {epoch+1}/{num_epochs}, Batch {print_batch}/{print_n_batches}')
+                batch_tqdm.set_description_str(f'Batch {print_batch}/{print_n_batches}')
                 # Get batch
                 batch_X = epoch_X[batch_idx:batch_idx+batch_size]
                 batch_y = epoch_y[batch_idx:batch_idx+batch_size]
