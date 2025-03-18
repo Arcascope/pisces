@@ -371,7 +371,7 @@ def train_loocv(data_list: List[Preprocessed],
                                     running_loss / report_freq,
                                     epoch * len(data_list) + batch_idx)
                     running_loss = 0.0
-                epoch_wasa_result = wasa(model, X_test_tensor, y_test_tensor, wasa_key, WASA_ACC)
+                epoch_wasa_result = wasa(model, X_test_tensor, y_test_tensor, WASA_ACC)
                 epoch_wasa = epoch_wasa_result.wake_acc
                 writer.add_scalar(f'training {wasa_key}',
                                 epoch_wasa,
