@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from hashlib import sha256
+from logging import warning
 import os
 from pathlib import Path
 import sys
@@ -132,7 +133,7 @@ def true_false_rates_from_threshold(y_true, y_pred, threshold):
     fpr = fp / (fp + tn)
     return tpr, fpr
 
-def wasa(model, X_test_tensor, y_test_tensor, wasa_key, WASA_ACC) -> WASAResult:
+def wasa(model, X_test_tensor, y_test_tensor, target_sleep_acc) -> WASAResult:
     """Wake Accuracy when Sleep Accuracy is approx WASA_ACC.
     Returns the specificity at the target sensitivity, and the best threshold.
 
@@ -149,40 +150,42 @@ def wasa(model, X_test_tensor, y_test_tensor, wasa_key, WASA_ACC) -> WASAResult:
         # Create a mask to ignore -1 labels.
         valid_mask = (y_test_flat != -1)
         if valid_mask.sum() == 0:
-            print("No valid test labels available; skipping evaluation for this fold.")
-            specificity_at_target = None
-            best_threshold = None
-        else:
-            y_true = y_test_flat[valid_mask].cpu().numpy()  # ground truth labels
+            warning.warn("No valid test labels available; skipping evaluation for this fold.")
+            return WASAResult(wake_acc=0.0, sleep_acc=0.0, threshold=0.0)
+
+        y_true = y_test_flat[valid_mask].cpu().numpy()  # ground truth labels
+        
+        raw_outputs = torch.sigmoid(test_outputs, dim=1).cpu().numpy()      # predicted probabilities for class 1
+        valid_outputs = raw_outputs[0, 1, valid_mask]  # shape: (N,)
+
+        # Use a binary search on threshold, starting halfway between probs.max() and probs.min()
+        # Note that we're using logits potentially so we don't assume probs are in [0, 1].
+        # lower = raw_outputs.min()
+        # upper = raw_outputs.max()
+        lower = 0.0
+        upper = 1.0
+        best_wasa = 0.0
+        tol = 1e-3
+        binary_search_iterations = 0
+        max_iterations = 50
+        while (abs(best_wasa - target_sleep_acc) > tol) and (binary_search_iterations < max_iterations):
+            binary_search_iterations += 1
+            threshold = (lower + upper) / 2
+            # sleep, wake because true positive is true sleep
+            sleep_acc, wake_acc = true_false_rates_from_threshold(y_true, valid_outputs, threshold)
+
+            if sleep_acc >= target_sleep_acc + tol:
+                # sleep accuracy too high, want to classify more sleep as wake
+                # since we score SLEEP (1) when sleep_proba > threshold, we want to increase threshold
+                lower = threshold  # threshold = (lower + upper) / 2 will be higher next time
+            if sleep_acc <= target_sleep_acc - tol:
+                # scoring too much sleep as wake, decrease threshold to get more sleep
+                upper = threshold
             
-            raw_outputs = torch.sigmoid_(outputs_flat[valid_mask]).cpu().numpy()      # predicted probabilities for class 1
-
-            # Use a binary search on threshold, starting halfway between probs.max() and probs.min()
-            # Note that we're using logits potentially so we don't assume probs are in [0, 1].
-            # lower = raw_outputs.min()
-            # upper = raw_outputs.max()
-            lower = 0.0
-            upper = 1.0
-            best_threshold = (lower + upper) / 2
-            best_wasa = 0.0
-            tol = 1e-3
-            binary_search_iterations = 0
-            max_iterations = 100
-            while (abs(best_wasa - WASA_ACC) > tol) and (binary_search_iterations < max_iterations):
-                binary_search_iterations += 1
-                threshold = (lower + upper) / 2
-                # sleep, wake because true positive is true sleep
-                sleep_acc, wake_acc = true_false_rates_from_threshold(y_true, raw_outputs, threshold)
-
-                if sleep_acc >= WASA_ACC + tol:
-                    # increase the threshold, to classify wake as wake
-                    lower = threshold
-                if sleep_acc < WASA_ACC - tol:
-                    # decrease the threshold, to classify more wake as sleep
-                    upper = threshold
-                best_threshold = threshold
-                best_wasa = wake_acc 
-        sleep_acc, wake_acc = true_false_rates_from_threshold(y_true, raw_outputs, best_threshold)
+            best_wasa = wake_acc 
+        
+        best_threshold = (lower + upper) / 2
+        sleep_acc, wake_acc = true_false_rates_from_threshold(y_true, valid_outputs, best_threshold)
         print("Declaring victory with sleep accuracy", sleep_acc, "at threshold", best_threshold)
         print(f"This gives a wake acc of {wake_acc}. {binary_search_iterations} iters taken.")
             
