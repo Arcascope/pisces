@@ -301,7 +301,11 @@ def train_loocv(data_list: List[Preprocessed],
         # Initialize model, optimizer, and loss function.
         model = ConvSegmenterUNet(num_classes=2).to(device)
         optimizer = optim.Adam(model.parameters(), lr=lr)
-        balancing_weights = torch.tensor(1/np.bincount(y_train.flatten()), dtype=torch.float32, device=device)
+        flat_y = y_train.flatten()
+        balancing_weights = torch.tensor(
+            1/np.bincount(flat_y[flat_y != MASK_VALUE]),
+            dtype=torch.float32,
+            device=device)
 
         ce_loss = nn.CrossEntropyLoss(ignore_index=MASK_VALUE, weight=balancing_weights)
 
