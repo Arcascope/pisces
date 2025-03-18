@@ -171,17 +171,18 @@ def wasa(model, X_test_tensor, y_test_tensor, wasa_key, WASA_ACC) -> WASAResult:
             while (abs(best_wasa - WASA_ACC) > tol) and (binary_search_iterations < max_iterations):
                 binary_search_iterations += 1
                 threshold = (lower + upper) / 2
-                wake_acc, sleep_acc = true_false_rates_from_threshold(y_true, raw_outputs, threshold)
+                # sleep, wake because true positive is true sleep
+                sleep_acc, wake_acc = true_false_rates_from_threshold(y_true, raw_outputs, threshold)
 
                 if sleep_acc >= WASA_ACC + tol:
-                    # decrease the threshold, to classify more wake as sleep
-                    upper = threshold
-                if sleep_acc < WASA_ACC - tol:
                     # increase the threshold, to classify wake as wake
                     lower = threshold
+                if sleep_acc < WASA_ACC - tol:
+                    # decrease the threshold, to classify more wake as sleep
+                    upper = threshold
                 best_threshold = threshold
                 best_wasa = wake_acc 
-        wake_acc, sleep_acc = true_false_rates_from_threshold(y_true, raw_outputs, best_threshold)
+        sleep_acc, wake_acc = true_false_rates_from_threshold(y_true, raw_outputs, best_threshold)
         print("Declaring victory with sleep accuracy", sleep_acc, "at threshold", best_threshold)
         print(f"This gives a wake acc of {wake_acc}. {binary_search_iterations} iters taken.")
             
