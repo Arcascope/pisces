@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from hashlib import sha256
 import os
 from pathlib import Path
+import sys
 from typing import List
 from matplotlib import pyplot as plt
 import torch
@@ -115,13 +116,35 @@ def print_histogram(data, bins: int=10):
         print(f"{bin_edges[i]:.2f} - {bin_edges[i + 1]:.2f}: {'#' * hist[i]}")
     print(f"min: {data.min():0.3f} max: {data.max():0.3f} median: {np.median(data):0.3f} std: {data.std():0.3f}")
 
-def wasa(model, X_test_tensor, y_test_tensor, wasa_key, WASA_ACC):
+# --- WASA Calculation ---
+
+@dataclass
+class WASAResult:
+    wake_acc: float
+    sleep_acc: float
+    threshold: float
+
+def true_false_rates_from_threshold(y_true, y_pred, threshold):
+    """Calculate the true positive rate and false positive rate given a threshold."""
+    y_pred_binary = (y_pred > threshold).astype(int)
+    tn, fp, fn, tp = np.bincount(y_true * 2 + y_pred_binary, minlength=4)
+    tpr = tp / (tp + fn)
+    fpr = fp / (fp + tn)
+    return tpr, fpr
+
+def wasa(model, X_test_tensor, y_test_tensor, wasa_key, WASA_ACC) -> WASAResult:
+    """Wake Accuracy when Sleep Accuracy is approx WASA_ACC.
+    Returns the specificity at the target sensitivity, and the best threshold.
+
+    NB: the meaning of specificity is inverted when wake is class 1, or if we mix outputs of sleep logits with wake as class 1.
+    To remove confusion, we use the term WASA instead of the more common Sensitivity at Specificity.
+    """
     model.eval()
     with torch.no_grad():
         test_outputs = model(X_test_tensor)  # shape: (1, 2, N)
         y_test_flat = y_test_tensor.reshape(-1)  # shape: (N,)
         # Get predicted probability for class 1.
-        probs_flat = test_outputs[0, 1].reshape(-1) # shape: (N,)
+        outputs_flat = test_outputs[0, 1].reshape(-1) # shape: (N,)
         
         # Create a mask to ignore -1 labels.
         valid_mask = (y_test_flat != -1)
@@ -131,26 +154,38 @@ def wasa(model, X_test_tensor, y_test_tensor, wasa_key, WASA_ACC):
             best_threshold = None
         else:
             y_true = y_test_flat[valid_mask].cpu().numpy()  # ground truth labels
-            probs = probs_flat[valid_mask].cpu().numpy()      # predicted probabilities for class 1
+            raw_outputs = outputs_flat[valid_mask].cpu().numpy()      # predicted probabilities for class 1
+
+            # Use a binary search on threshold, starting halfway between probs.max() and probs.min()
+            # Note that we're using logits potentially so we don't assume probs are in [0, 1].
+            lower = raw_outputs.min()
+            upper = raw_outputs.max()
+            best_threshold = (lower + upper) / 2
+            best_wasa = 0.0
+            best_threshold = 0.5
+            tol = sys.epsilon
+            binary_search_iterations = 0
+            max_iterations = 50
+            while (abs(best_wasa - WASA_ACC) > tol) and (binary_search_iterations < max_iterations):
+                binary_search_iterations += 1
+                threshold = (lower + upper) / 2
+                wake_acc, sleep_acc = true_false_rates_from_threshold(y_true, raw_outputs, threshold)
+
+                if sleep_acc >= WASA_ACC + tol:
+                    # decrease the threshold, to classify more wake as sleep
+                    upper = threshold
+                if sleep_acc < WASA_ACC - tol:
+                    # increase the threshold, to classify more sleep as wake
+                    lower = threshold
+                best_threshold = threshold
+                best_wasa = wake_acc 
+        wake_acc, sleep_acc = true_false_rates_from_threshold(y_true, raw_outputs, best_threshold)
+        print("Declaring victory with sleep accuracy", sleep_acc, "at threshold", best_threshold)
+        print(f"This gives a wake acc of {wake_acc}. {binary_search_iterations} iters taken.")
             
-            # Compute ROC curve for the positive class.
-            fpr, tpr, thresholds = roc_curve(y_true, probs, pos_label=1)
-            indices = np.where(tpr >= WASA_ACC)[0]
-            if len(indices) == 0:
-                specificity_at_target = 0.0
-                best_threshold = 1.0
-                print(f"Error! Sensitivity of {WASA_ACC} not reached; specificity set to 0.")
-            else:
-                idx = indices[0]
-                specificity_at_target = 1 - fpr[idx]  # specificity = 1 - false positive rate
-                sensitivity_at_target = tpr[idx]
-                best_threshold = thresholds[idx]
+        
+    return WASAResult(wake_acc=wake_acc, sleep_acc=sleep_acc, threshold=best_threshold)
     
-    return {
-        wasa_key: specificity_at_target,
-        'senstivity': sensitivity_at_target,
-        'threshold': best_threshold
-    }
 
 # --- LOOCV Training Loop with Specificity at Sensitivity 0.95 ---
 @dataclass
@@ -158,10 +193,10 @@ class TrainingResult:
     idno: str
     fold: int
     logits_threshold: float
-    specificity: float
-    sensitivity: float
+    wake_acc: float
+    sleep_acc: float
     best_model_path: str
-    wasa_result: dict
+    wasa_result: WASAResult
     test_X: np.ndarray
     test_y: np.ndarray
     sleep_logits: np.ndarray
@@ -169,8 +204,12 @@ class TrainingResult:
 def sigmoid(x):
     return 1 / (1 + np.exp(-x))
 
-def make_beautiful_specgram_plot(prepro_x_y: Preprocessed, training_res: TrainingResult = None):
-    N_ROWS = 3 if training_res is not None else 2
+def make_beautiful_specgram_plot(prepro_x_y: Preprocessed, training_res: TrainingResult = None, staging: bool = False):
+    N_ROWS = 1
+    if staging:
+        N_ROWS += 1
+    if training_res is not None:
+        N_ROWS += 1
     fig, ax = plt.subplots(nrows=N_ROWS, figsize=(20, 10))
     fig.tight_layout()
     if prepro_x_y.x_spec is None:
@@ -179,25 +218,26 @@ def make_beautiful_specgram_plot(prepro_x_y: Preprocessed, training_res: Trainin
     print("Spec shape:", prepro_x_y.x_spec.shape)
 
     y_plot = prepro_x_y.y
-    sns.lineplot(x=np.arange(len(y_plot)), y=y_plot, ax=ax[1])
-    ax[1].set_xlim(0, len(y_plot))
-    ax[1].set_yticks([-1, 0, 1, 2, 3])
-    ax[1].set_yticklabels(['Missing', 'W', 'Light', 'Deep', 'REM'])
-    ax[1].set_xlabel('Time [s]')
-    ax[1].set_ylabel('Sleep Stage')
+    if staging:
+        sns.lineplot(x=np.arange(len(y_plot)), y=y_plot, ax=ax[1])
+        ax[1].set_xlim(0, len(y_plot))
+        ax[1].set_yticks([-1, 0, 1, 2, 3])
+        ax[1].set_yticklabels(['Missing', 'W', 'Light', 'Deep', 'REM'])
+        ax[1].set_xlabel('Time [s]')
+        ax[1].set_ylabel('Sleep Stage')
 
     if training_res is not None:
         sleep_proba = sigmoid(training_res.sleep_logits)[1]
         sleep_plot_x = np.arange(len(sleep_proba))
-        sns.lineplot(x=sleep_plot_x, y=sleep_proba, ax=ax[2])
-        sns.lineplot(x=sleep_plot_x, y=training_res.test_y, ax=ax[2])
-        ax[2].set_xlim(sleep_plot_x[0], sleep_plot_x[-1])
-        ax[2].set_ylim(-1.1, 1.1)
-        ax[2].set_yticks([-1, 0, 1])
-        ax[2].set_yticklabels(['Missing', 'Wake', 'Sleep'])
+        sns.lineplot(x=sleep_plot_x, y=sleep_proba, ax=ax[-1])
+        sns.lineplot(x=sleep_plot_x, y=training_res.test_y, ax=ax[-1])
+        ax[-1].set_xlim(sleep_plot_x[0], sleep_plot_x[-1])
+        ax[-1].set_ylim(-1.1, 1.1)
+        ax[-1].set_yticks([-1, 0, 1])
+        ax[-1].set_yticklabels(['Missing', 'Wake', 'Sleep'])
         threshold_proba = sigmoid(training_res.logits_threshold)
-        ax[2].axhline(threshold_proba, linestyle="--", color='black', linewidth=0.5, label=f'WASA={training_res.specificity:.3f}')
-        ax[2].legend()
+        ax[-1].axhline(threshold_proba, linestyle="--", color='black', linewidth=0.5, label=f'WASA={training_res.wake_acc:.3f}')
+        ax[-1].legend()
     return fig, ax
 
 
@@ -289,9 +329,9 @@ def train_loocv(data_list: List[Preprocessed],
             X_train_tensor = X_train_tensor[indices]
             y_train_tensor = y_train_tensor[indices]
             for batch_idx in range(0, X_train_tensor.size(0), batch_size):
-                print_batch = batch_idx // batch_size
-                batches = X_train_tensor.size(0) // batch_size
-                print(f'Epoch {epoch+1}/{num_epochs}, Batch {print_batch+1}/{batches}')
+                print_batch = batch_idx // batch_size + 1
+                print_n_batches = X_train_tensor.size(0) // batch_size + 1
+                print(f'Epoch {epoch+1}/{num_epochs}, Batch {print_batch}/{print_n_batches}')
                 # Get batch
                 batch_X = X_train_tensor[batch_idx:batch_idx+batch_size]
                 batch_y = y_train_tensor[batch_idx:batch_idx+batch_size]
@@ -329,14 +369,14 @@ def train_loocv(data_list: List[Preprocessed],
                                     epoch * len(data_list) + batch_idx)
                     running_loss = 0.0
                 epoch_wasa_result = wasa(model, X_test_tensor, y_test_tensor, wasa_key, WASA_ACC)
-                epoch_wasa = epoch_wasa_result[wasa_key]
+                epoch_wasa = epoch_wasa_result.wake_acc
                 writer.add_scalar(f'training {wasa_key}',
                                 epoch_wasa,
                                 epoch * len(data_list) + batch_idx)
                 if epoch_wasa > best_wasa:
                     print("NEW BEST WASA", epoch_wasa)
                     best_wasa = epoch_wasa
-                    best_threshold = epoch_wasa_result['threshold']
+                    best_threshold = epoch_wasa_result.threshold
                     best_wasa_result = epoch_wasa_result
                     torch.save(model.state_dict(), best_model_path)
                 
@@ -347,19 +387,19 @@ def train_loocv(data_list: List[Preprocessed],
                 
         
         # --- Evaluation on the Test Subject ---
-        best_threshold = best_wasa_result['threshold']
-        specificity_at_target = best_wasa_result[wasa_key]
-        tpr = best_wasa_result['senstivity']
+        best_threshold = best_wasa_result.threshold
+        wake_acc = best_wasa_result.wake_acc
+        sleep_acc = best_wasa_result.sleep_acc
 
-        print(f"Fold {fold+1} Test: At threshold {best_threshold:.2f}, Sensitivity = {tpr:.2f}, Specificity = {specificity_at_target:.2f}")
+        print(f"Fold {fold+1} Test: At threshold {best_threshold:.2f}, Sensitivity = {sleep_acc:.2f}, Specificity = {wake_acc:.2f}")
 
         test_outputs = model(X_test_tensor)[0].cpu().detach().numpy()
         this_fold_result = TrainingResult(
             idno=test_subject.idno,
             fold=fold,
             logits_threshold=best_threshold,
-            specificity=specificity_at_target,
-            sensitivity=tpr,
+            wake_acc=wake_acc,
+            sleep_acc=sleep_acc,
             best_model_path=best_model_path,
             wasa_result=best_wasa_result,
             test_X=test_subject.x_spec.specgram,
@@ -370,11 +410,11 @@ def train_loocv(data_list: List[Preprocessed],
         fold_results.append(this_fold_result)
 
         writer.add_scalar(f'test specificity at {WASA_ACC} sensitivity',
-                        specificity_at_target,
+                        wake_acc,
                         fold)
         
         print_histogram([
-            f.specificity for f in fold_results
+            f.wake_acc for f in fold_results
         ], bins=10)
         if plot:
             fig, ax = make_beautiful_specgram_plot(test_subject, this_fold_result)
