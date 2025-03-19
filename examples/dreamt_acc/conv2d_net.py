@@ -130,7 +130,11 @@ def true_pos_neg_rates_from_threshold(y_true, y_pred, threshold):
     
     For us, true positives tend to be true sleeps, and true negatives are true wakes."""
     y_pred_binary = (y_pred > threshold).astype(int)
-    tn, fp, fn, tp = np.bincount(y_true * 2 + y_pred_binary, minlength=4)
+    # tn, fp, fn, tp = np.bincount(y_true * 2 + y_pred_binary, minlength=4)
+    tn = np.sum((y_true == 0) & (y_pred_binary == 0))
+    fp = np.sum((y_true == 0) & (y_pred_binary == 1))
+    fn = np.sum((y_true == 1) & (y_pred_binary == 0))
+    tp = np.sum((y_true == 1) & (y_pred_binary == 1))
     # if no examples, perfect accuracy
     tpr = 1.0
     tnr = 1.0
@@ -167,20 +171,31 @@ def wasa(model, X_test_tensor, y_test_tensor, target_sleep_acc) -> WASAResult:
 
         # Use a binary search on threshold, starting halfway between probs.max() and probs.min()
         # Note that we're using logits potentially so we don't assume probs are in [0, 1].
+        print("=== WASA Calculation ===")
+        valid_min = valid_outputs.min()
+        valid_max = valid_outputs.max()
+        print(valid_outputs.min(), "---", valid_outputs.max())
+        print(valid_outputs.mean(), "+/-", valid_outputs.std())
         # lower = raw_outputs.min()
         # upper = raw_outputs.max()
-        lower = 0.0
-        upper = 1.0
+        lower = valid_min
+        upper = valid_max
         best_sleep_acc = 0.0
-        tol = 1e-3
+        threshold = 0
+        tol = (upper - lower) / 100
         binary_search_iterations = 0
         max_iterations = 50
         while (abs(best_sleep_acc - target_sleep_acc) > tol) \
             and (binary_search_iterations < max_iterations):
             binary_search_iterations += 1
-            threshold = (lower + upper) / 2
+            new_threshold = (lower + upper) / 2
+            if abs(new_threshold - threshold) < tol:
+                break
+            threshold = new_threshold
             # sleep, wake because true positive is true sleep
             sleep_acc, wake_acc = true_pos_neg_rates_from_threshold(y_true, valid_outputs, threshold)
+            print(f"Threshold {threshold:.3f}: Sleep acc {sleep_acc:.3f}, Wake acc {wake_acc:.3f}")
+            print("Lower", lower, "Upper", upper)
 
             if sleep_acc >= target_sleep_acc + tol:
                 # sleep accuracy too high, want to classify more sleep as wake
@@ -320,12 +335,15 @@ def train_loocv(data_list: List[Preprocessed],
         model = ConvSegmenterUNet(num_classes=2).to(device)
         optimizer = optim.Adam(model.parameters(), lr=lr)
         flat_y = y_train.flatten()
+        valid_y = flat_y[flat_y != MASK_VALUE]
         balancing_weights = torch.tensor(
-            2.0/(np.bincount(flat_y[flat_y != MASK_VALUE]) / len(flat_y[flat_y != MASK_VALUE])),
+            [0.9, 0.1],
             dtype=torch.float32,
             device=device)
 
-        ce_loss = nn.CrossEntropyLoss(ignore_index=MASK_VALUE, weight=balancing_weights)
+        ce_loss = nn.CrossEntropyLoss(
+            ignore_index=MASK_VALUE,)
+            # weight=balancing_weights)
 
 
         
@@ -355,7 +373,8 @@ def train_loocv(data_list: List[Preprocessed],
                         print("Warning: NaN values detected in input batch")
                         
                     outputs = model(batch_X)
-                    sig_outputs = torch.softmax(outputs, dim=1)
+                    # sig_outputs = torch.softmax(outputs, dim=1)
+                    sig_outputs = outputs
                     
                     # Check for NaNs in output
                     if torch.isnan(sig_outputs).any():
