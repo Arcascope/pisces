@@ -174,12 +174,13 @@ def wasa(model, X_test_tensor, y_test_tensor, target_sleep_acc) -> WASAResult:
 
         # Check for special cases
         # Case 1: All sleep samples
+        default = WASAResult(wake_acc=1.0, sleep_acc=1.0, threshold=0.5)
         if np.all(y_true == 1):
-            return WASAResult(wake_acc=1.0, sleep_acc=1.0, threshold=0.5)
+            return default
         
         # Case 2: All wake samples  
         if np.all(y_true == 0):
-            return WASAResult(wake_acc=1.0, sleep_acc=1.0, threshold=0.5)
+            return default
 
         # Use a binary search on threshold, starting halfway between probs.max() and probs.min()
         # Note that we're using logits potentially so we don't assume probs are in [0, 1].
