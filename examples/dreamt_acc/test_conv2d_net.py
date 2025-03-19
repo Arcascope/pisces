@@ -2,7 +2,7 @@ import pytest
 import torch
 import numpy as np
 from unittest.mock import Mock
-from examples.dreamt_acc.conv2d_net import wasa, true_false_rates_from_threshold, WASAResult
+from examples.dreamt_acc.conv2d_net import wasa, true_pos_neg_rates_from_threshold, WASAResult
 
 class TestWASA:
     
@@ -12,7 +12,7 @@ class TestWASA:
         y_pred = np.array([0.1, 0.3, 0.7, 0.8, 0.9, 0.4, 0.2, 0.6])
         
         # Test with threshold 0.5
-        tpr, fpr = true_false_rates_from_threshold(y_true, y_pred, 0.5)
+        tpr, fpr = true_pos_neg_rates_from_threshold(y_true, y_pred, 0.5)
         # TPR: 3/4 = 0.75 (3 true positives out of 4 positive samples)
         # FPR: 1/4 = 0.25 (1 false positive out of 4 negative samples)
         assert np.isclose(tpr, 0.75)
@@ -24,7 +24,7 @@ class TestWASA:
         y_pred = np.ones(10, dtype=float)
         
         # All predictions are true, so TPR and FPR should be 1.0
-        tpr, fpr = true_false_rates_from_threshold(y_true, y_pred, 0.5)
+        tpr, fpr = true_pos_neg_rates_from_threshold(y_true, y_pred, 0.5)
         assert np.isclose(tpr, 1.0)
         assert np.isclose(fpr, 1.0)
     
@@ -34,7 +34,7 @@ class TestWASA:
         y_pred = np.zeros(10, dtype=float)
         
         # All predictions are false, so TPR and FPR should be 0.0
-        tpr, fpr = true_false_rates_from_threshold(y_true, y_pred, 0.5)
+        tpr, fpr = true_pos_neg_rates_from_threshold(y_true, y_pred, 0.5)
         assert np.isclose(tpr, 1.0)
         assert np.isclose(fpr, 0.0)
     

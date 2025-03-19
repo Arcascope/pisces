@@ -125,18 +125,20 @@ class WASAResult:
     sleep_acc: float
     threshold: float
 
-def true_false_rates_from_threshold(y_true, y_pred, threshold):
-    """Calculate the true positive rate and false positive rate given a threshold."""
+def true_pos_neg_rates_from_threshold(y_true, y_pred, threshold):
+    """Calculate the true positive rate and true negative rate given a threshold.
+    
+    For us, true positives tend to be true sleeps, and true negatives are true wakes."""
     y_pred_binary = (y_pred > threshold).astype(int)
     tn, fp, fn, tp = np.bincount(y_true * 2 + y_pred_binary, minlength=4)
     # if no examples, perfect accuracy
     tpr = 1.0
-    fpr = 1.0
+    tnr = 1.0
     if (tp + fn):
         tpr = tp / (tp + fn)
     if (fp + tn):
-        fpr = tn / (fp + tn)
-    return tpr, fpr
+        tnr = tn / (fp + tn)
+    return tpr,tnr 
 
 
 def wasa(model, X_test_tensor, y_test_tensor, target_sleep_acc) -> WASAResult:
@@ -169,15 +171,16 @@ def wasa(model, X_test_tensor, y_test_tensor, target_sleep_acc) -> WASAResult:
         # upper = raw_outputs.max()
         lower = 0.0
         upper = 1.0
-        best_wasa = 0.0
+        best_sleep_acc = 0.0
         tol = 1e-3
         binary_search_iterations = 0
         max_iterations = 50
-        while (abs(best_wasa - target_sleep_acc) > tol) and (binary_search_iterations < max_iterations):
+        while (abs(best_sleep_acc - target_sleep_acc) > tol) \
+            and (binary_search_iterations < max_iterations):
             binary_search_iterations += 1
             threshold = (lower + upper) / 2
             # sleep, wake because true positive is true sleep
-            sleep_acc, wake_acc = true_false_rates_from_threshold(y_true, valid_outputs, threshold)
+            sleep_acc, wake_acc = true_pos_neg_rates_from_threshold(y_true, valid_outputs, threshold)
 
             if sleep_acc >= target_sleep_acc + tol:
                 # sleep accuracy too high, want to classify more sleep as wake
@@ -187,10 +190,11 @@ def wasa(model, X_test_tensor, y_test_tensor, target_sleep_acc) -> WASAResult:
                 # scoring too much sleep as wake, decrease threshold to get more sleep
                 upper = threshold
             
-            best_wasa = wake_acc 
+            if (abs(best_sleep_acc - target_sleep_acc) > abs(sleep_acc - target_sleep_acc)):
+                best_sleep_acc = sleep_acc 
         
         best_threshold = (lower + upper) / 2
-        sleep_acc, wake_acc = true_false_rates_from_threshold(y_true, valid_outputs, best_threshold)
+        sleep_acc, wake_acc = true_pos_neg_rates_from_threshold(y_true, valid_outputs, best_threshold)
         print("Declaring victory with sleep accuracy", sleep_acc, "at threshold", best_threshold)
         print(f"This gives a wake acc of {wake_acc}. {binary_search_iterations} iters taken.")
             
