@@ -172,6 +172,15 @@ def wasa(model, X_test_tensor, y_test_tensor, target_sleep_acc) -> WASAResult:
         raw_outputs = test_outputs
         valid_outputs = raw_outputs[:, 1].cpu().numpy()  # shape: (B, N,)
 
+        # Check for special cases
+        # Case 1: All sleep samples
+        if np.all(y_true == 1):
+            return WASAResult(wake_acc=1.0, sleep_acc=1.0, threshold=0.5)
+        
+        # Case 2: All wake samples  
+        if np.all(y_true == 0):
+            return WASAResult(wake_acc=1.0, sleep_acc=1.0, threshold=0.5)
+
         # Use a binary search on threshold, starting halfway between probs.max() and probs.min()
         # Note that we're using logits potentially so we don't assume probs are in [0, 1].
         print("=== WASA Calculation === ... valid shape: ", valid_outputs.shape)
@@ -236,7 +245,8 @@ class TrainingResult:
     sleep_logits: np.ndarray
 
 def softmax(x, axis=1):
-    return np.exp(x) / np.sum(np.exp(x), axis=axis)
+    exp_x = np.exp(x - np.max(x, axis=axis, keepdims=True))
+    return exp_x / np.sum(exp_x, axis=axis, keepdims=True)
 
 def softmax_value_for_vector(logits_val: float, vector: np.ndarray):
     """When you compute a threshold with respect to logits, you need to convert it to a probability value.
