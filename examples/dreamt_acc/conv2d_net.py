@@ -281,19 +281,27 @@ def make_beautiful_specgram_plot(prepro_x_y: Preprocessed, training_res: Trainin
         wake_sleep_proba = softmax(training_res.sleep_logits) if from_logits else training_res.sleep_logits
         sleep_proba = wake_sleep_proba[1]
 
+
         sleep_plot_x = np.arange(len(sleep_proba))
-        sns.lineplot(x=sleep_plot_x, y=sleep_proba, ax=ax[-1])
         sns.lineplot(x=sleep_plot_x, y=training_res.test_y, ax=ax[-1])
-        ax[-1].set_xlim(sleep_plot_x[0], sleep_plot_x[-1])
-        ax[-1].set_ylim(-1.1, 1.1)
-        ax[-1].set_yticks([-1, 0, 1])
-        ax[-1].set_yticklabels(['Missing', 'Wake', 'Sleep'])
+
+        # Plot the sleep probabilities
+        # The scale on these changes a lot; split off a separate axis that shares the x.
+        # useful for debugging to have htis respond to the data rather than our belief about the model outputs
+        ax_res_rev = ax[-1].twinx()
+        sns.lineplot(x=sleep_plot_x, y=sleep_proba, ax=ax_res_rev)
         threshold_proba = softmax_value_for_vector(
                 training_res.logits_threshold,
                 training_res.sleep_logits) \
             if from_logits \
                 else training_res.logits_threshold
-        ax[-1].axhline(threshold_proba, linestyle="--", color='black', linewidth=0.5, label=f'WASA{int(100 * training_res.sleep_acc)}={training_res.wake_acc:.3f}')
+        ax_res_rev.axhline(threshold_proba, linestyle="--", color='black', linewidth=0.5, label=f'WASA{100 * training_res.sleep_acc:.0f}={training_res.wake_acc:.3f}, 𝜭 = {threshold_proba:.3f}')
+
+        ax[-1].set_xlim(sleep_plot_x[0], sleep_plot_x[-1])
+        missing_y_value = -0.1
+        ax[-1].set_ylim(missing_y_value, 1.1)
+        ax[-1].set_yticks([missing_y_value, 0, 1])
+        ax[-1].set_yticklabels(['Missing', 'Wake', 'Sleep'])
         ax[-1].legend()
     return fig, ax
 
@@ -409,7 +417,7 @@ def train_loocv(data_list: List[Preprocessed],
                         
                     loss = ce_loss(sig_outputs, batch_y)
 
-                    print("Loss", loss.item())
+                    print(" Loss", loss.item())
                     
                     # Check for NaNs in loss
                     if torch.isnan(loss):
@@ -477,7 +485,7 @@ def train_loocv(data_list: List[Preprocessed],
             f.wake_acc for f in fold_results
         ], bins=10)
         if plot:
-            fig, ax = make_beautiful_specgram_plot(test_subject, this_fold_result, from_logits=True)
+            fig, ax = make_beautiful_specgram_plot(test_subject, this_fold_result, from_logits=False)
             plot_dir = training_dir / f'{test_subject.idno}_result.png'
             plt.savefig(plot_dir, dpi=300)
             plt.close(fig)
