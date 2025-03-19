@@ -299,7 +299,7 @@ def make_beautiful_specgram_plot(prepro_x_y: Preprocessed, training_res: Trainin
                            linestyle=":", 
                            color='tab:orange', 
                            linewidth=0.5, 
-                           label=f'WASA{100 * training_res.sleep_acc:.0f}={training_res.wake_acc:.3f}, 𝜭 = {threshold_proba:.3f}')
+                           label=f'WASA{100 * training_res.sleep_acc:.0f}={training_res.wake_acc:.3f}, t = {threshold_proba:.3f}')
 
         ax[-1].set_xlim(sleep_plot_x[0], sleep_plot_x[-1])
         missing_y_value = -0.1
