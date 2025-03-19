@@ -131,11 +131,11 @@ def true_pos_neg_rates_from_threshold(y_true, y_pred, threshold):
     
     For us, true positives tend to be true sleeps, and true negatives are true wakes."""
     y_pred_binary = (y_pred > threshold).astype(int)
-    # tn, fp, fn, tp = np.bincount(y_true * 2 + y_pred_binary, minlength=4)
-    tn = np.sum((y_true == 0) & (y_pred_binary == 0))
-    fp = np.sum((y_true == 0) & (y_pred_binary == 1))
-    fn = np.sum((y_true == 1) & (y_pred_binary == 0))
-    tp = np.sum((y_true == 1) & (y_pred_binary == 1))
+    tn, fp, fn, tp = np.bincount(y_true * 2 + y_pred_binary, minlength=4)
+    # tn = np.sum((y_true == 0) & (y_pred_binary == 0))
+    # fp = np.sum((y_true == 0) & (y_pred_binary == 1))
+    # fn = np.sum((y_true == 1) & (y_pred_binary == 0))
+    # tp = np.sum((y_true == 1) & (y_pred_binary == 1))
     # if no examples, perfect accuracy
     tpr = 1.0
     tnr = 1.0
@@ -355,9 +355,11 @@ def train_loocv(data_list: List[Preprocessed],
         for epoch in range(num_epochs):
             running_loss = 0.0
             # shuffle data
-            indices = torch.randperm(X_train_tensor.size(0))
-            epoch_X = X_train_tensor[indices]
-            epoch_y = y_train_tensor[indices]
+            # indices = torch.randperm(X_train_tensor.size(0))
+            # epoch_X = X_train_tensor[indices]
+            # epoch_y = y_train_tensor[indices]
+            epoch_X = X_train_tensor
+            epoch_y = y_train_tensor
             batch_tqdm = tqdm(range(0, epoch_X.size(0), batch_size))
             for batch_idx in batch_tqdm:
                 print_batch = batch_idx // batch_size + 1
