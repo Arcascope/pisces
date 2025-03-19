@@ -262,7 +262,7 @@ def make_beautiful_specgram_plot(prepro_x_y: Preprocessed, training_res: Trainin
     if training_res is not None:
         N_ROWS += 1
     fig, ax = plt.subplots(nrows=N_ROWS, figsize=(20, 10))
-    fig.tight_layout()
+    fig.tight_layout(w_pad=2.0)
     if prepro_x_y.x_spec is None:
         prepro_x_y.compute_specgram()
     prepro_x_y.x_spec.plot(ax[0])
@@ -289,20 +289,24 @@ def make_beautiful_specgram_plot(prepro_x_y: Preprocessed, training_res: Trainin
         # The scale on these changes a lot; split off a separate axis that shares the x.
         # useful for debugging to have htis respond to the data rather than our belief about the model outputs
         ax_res_rev = ax[-1].twinx()
-        sns.lineplot(x=sleep_plot_x, y=sleep_proba, ax=ax_res_rev)
+        sns.lineplot(x=sleep_plot_x, y=sleep_proba, ax=ax_res_rev, color='tab:orange', label='(Unscaled) Sleep Logits/Probas')
         threshold_proba = softmax_value_for_vector(
                 training_res.logits_threshold,
                 training_res.sleep_logits) \
             if from_logits \
                 else training_res.logits_threshold
-        ax_res_rev.axhline(threshold_proba, linestyle="--", color='black', linewidth=0.5, label=f'WASA{100 * training_res.sleep_acc:.0f}={training_res.wake_acc:.3f}, 𝜭 = {threshold_proba:.3f}')
+        ax_res_rev.axhline(threshold_proba, 
+                           linestyle=":", 
+                           color='tab:orange', 
+                           linewidth=0.5, 
+                           label=f'WASA{100 * training_res.sleep_acc:.0f}={training_res.wake_acc:.3f}, 𝜭 = {threshold_proba:.3f}')
 
         ax[-1].set_xlim(sleep_plot_x[0], sleep_plot_x[-1])
         missing_y_value = -0.1
         ax[-1].set_ylim(missing_y_value, 1.1)
         ax[-1].set_yticks([missing_y_value, 0, 1])
         ax[-1].set_yticklabels(['Missing', 'Wake', 'Sleep'])
-        ax[-1].legend()
+        ax_res_rev.legend()
     return fig, ax
 
 
@@ -337,7 +341,8 @@ def train_loocv(data_list: List[Preprocessed],
 
     fold_tqdm = tqdm(range(num_folds))
     for fold in fold_tqdm:
-        fold_tqdm.set_description_str(f"\nWorking on fold {fold+1}/{num_folds}")
+        fold_str = f"Fold {fold+1}/{num_folds}"
+        fold_tqdm.set_description_str(f"\nSTART OF {fold_str}")
         
         # Use subject `fold` as the test set; the rest are training.
         test_subject = data_list[fold]
@@ -396,7 +401,7 @@ def train_loocv(data_list: List[Preprocessed],
             for batch_idx in batch_tqdm:
                 print_batch = batch_idx // batch_size + 1
                 print_n_batches = epoch_X.size(0) // batch_size + 1
-                batch_tqdm.set_description_str(f'Batch {print_batch}/{print_n_batches}')
+                batch_tqdm.set_description_str(f'{fold_str} Batch {print_batch}/{print_n_batches}')
                 # Get batch
                 batch_X = epoch_X[batch_idx:batch_idx+batch_size]
                 batch_y = epoch_y[batch_idx:batch_idx+batch_size]
@@ -459,7 +464,7 @@ def train_loocv(data_list: List[Preprocessed],
         wake_acc = best_wasa_result.wake_acc
         sleep_acc = best_wasa_result.sleep_acc
 
-        print(f"Fold {fold+1} Test: At threshold {best_threshold:.2f}, Sensitivity = {sleep_acc:.2f}, Specificity = {wake_acc:.2f}")
+        print(f"Fold {fold+1} Test: At threshold {best_threshold:.2f}, Sleep Acc = {sleep_acc:.2f}, Wake Acc = {wake_acc:.2f}")
 
         test_outputs = model(X_test_tensor)[0].cpu().detach().numpy()
         this_fold_result = TrainingResult(
