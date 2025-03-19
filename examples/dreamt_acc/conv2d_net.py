@@ -37,24 +37,36 @@ class ConvSegmenterUNet(nn.Module):
         self.stride = (1, 2)
         pad = dynamic_padding(self.kernel)
         
-        # Encoder layers
-        self.enc_conv1 = nn.Conv2d(1, 32, kernel_size=self.kernel, stride=self.stride, padding=pad)
-        self.enc_bn1   = nn.BatchNorm2d(32)
-        self.enc_conv2 = nn.Conv2d(32, 64, kernel_size=self.kernel, stride=self.stride, padding=pad)
-        self.enc_bn2   = nn.BatchNorm2d(64)
-        self.enc_conv3 = nn.Conv2d(64, 128, kernel_size=self.kernel, stride=self.stride, padding=pad)
-        self.enc_bn3   = nn.BatchNorm2d(128)
+        # Initialize channel dimensions for layers
+        self.channels = [32, 64, 128]
         
-        # Decoder layers
-        self.dec_deconv1 = nn.ConvTranspose2d(128, 64, kernel_size=self.kernel, stride=self.stride, 
-                                              padding=pad, output_padding=(0,0))
-        self.dec_bn1     = nn.BatchNorm2d(64)
-        self.dec_deconv2 = nn.ConvTranspose2d(64, 32, kernel_size=self.kernel, stride=self.stride, 
-                                              padding=pad, output_padding=(0,0))
-        self.dec_bn2     = nn.BatchNorm2d(32)
-        self.dec_deconv3 = nn.ConvTranspose2d(32, num_classes, kernel_size=self.kernel, stride=self.stride, 
-                                              padding=pad, output_padding=(0,0))
+        # Encoder layers as ModuleLists
+        self.enc_conv = nn.ModuleList()
+        self.enc_bn = nn.ModuleList()
         
+        # Input channel is 1 (grayscale spectrogram)
+        in_channels = 1
+        
+        # Create encoder layers
+        for out_channels in self.channels:
+            self.enc_conv.append(nn.Conv2d(in_channels, out_channels, kernel_size=self.kernel, 
+                          stride=self.stride, padding=pad))
+            self.enc_bn.append(nn.BatchNorm2d(out_channels))
+            in_channels = out_channels
+        
+        # Decoder layers as ModuleLists
+        self.dec_deconv = nn.ModuleList()
+        self.dec_bn = nn.ModuleList()
+        
+        # Create decoder layers
+        for i in range(len(self.channels) - 1, -1, -1):
+            out_channels = self.channels[i-1] if i > 0 else num_classes
+            self.dec_deconv.append(nn.ConvTranspose2d(self.channels[i], out_channels, 
+                                kernel_size=self.kernel, stride=self.stride,
+                                padding=pad, output_padding=(0,0)))
+            if i > 0:  # No batch norm on final output layer
+                self.dec_bn.append(nn.BatchNorm2d(out_channels))
+
         # LeakyReLU activation
         self.leaky_relu = nn.LeakyReLU(negative_slope)
     
@@ -171,7 +183,7 @@ def wasa(model, X_test_tensor, y_test_tensor, target_sleep_acc) -> WASAResult:
 
         # Use a binary search on threshold, starting halfway between probs.max() and probs.min()
         # Note that we're using logits potentially so we don't assume probs are in [0, 1].
-        print("=== WASA Calculation ===")
+        print("=== WASA Calculation === ... valid shape: ", valid_outputs.shape)
         valid_min = valid_outputs.min()
         valid_max = valid_outputs.max()
         print(valid_outputs.min(), "---", valid_outputs.max())
@@ -267,7 +279,7 @@ def make_beautiful_specgram_plot(prepro_x_y: Preprocessed, training_res: Trainin
         ax[-1].set_ylim(-1.1, 1.1)
         ax[-1].set_yticks([-1, 0, 1])
         ax[-1].set_yticklabels(['Missing', 'Wake', 'Sleep'])
-        threshold_proba = sigmoid(training_res.logits_threshold)
+        threshold_proba = softmax(training_res.logits_threshold)
         ax[-1].axhline(threshold_proba, linestyle="--", color='black', linewidth=0.5, label=f'WASA={training_res.wake_acc:.3f}')
         ax[-1].legend()
     return fig, ax
@@ -337,13 +349,13 @@ def train_loocv(data_list: List[Preprocessed],
         flat_y = y_train.flatten()
         valid_y = flat_y[flat_y != MASK_VALUE]
         balancing_weights = torch.tensor(
-            [0.9, 0.1],
+            [1.0, 1.0],
             dtype=torch.float32,
             device=device)
 
         ce_loss = nn.CrossEntropyLoss(
-            ignore_index=MASK_VALUE,)
-            # weight=balancing_weights)
+            ignore_index=MASK_VALUE,
+            weight=balancing_weights)
 
 
         

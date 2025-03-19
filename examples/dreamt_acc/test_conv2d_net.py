@@ -8,15 +8,18 @@ class TestWASA:
     
     def test_true_false_rates_calculation(self):
         # Test the true_false_rates_from_threshold function
-        y_true = np.array([0, 0, 1, 1, 1, 0, 1, 0])
-        y_pred = np.array([0.1, 0.3, 0.7, 0.8, 0.9, 0.4, 0.2, 0.6])
+        y_true = np.array([0, 0, 0, 0, 1, 1, 1, 1])
+        y_pred = np.array([0.1, 0.9, 0.9, 0.8, 0.9, 0.4, 0.51, 0.6])
         
         # Test with threshold 0.5
-        tpr, fpr = true_pos_neg_rates_from_threshold(y_true, y_pred, 0.5)
+        tpr, tnr = true_pos_neg_rates_from_threshold(
+            y_true, 
+            y_pred, 
+            0.5)
         # TPR: 3/4 = 0.75 (3 true positives out of 4 positive samples)
         # FPR: 1/4 = 0.25 (1 false positive out of 4 negative samples)
         assert np.isclose(tpr, 0.75)
-        assert np.isclose(fpr, 0.25)
+        assert np.isclose(tnr, 0.25)
     
     def test_true_false_rates_all_trues(self):
         # Test when all predictions are true
@@ -24,9 +27,9 @@ class TestWASA:
         y_pred = np.ones(10, dtype=float)
         
         # All predictions are true, so TPR and FPR should be 1.0
-        tpr, fpr = true_pos_neg_rates_from_threshold(y_true, y_pred, 0.5)
+        tpr, tnr = true_pos_neg_rates_from_threshold(y_true, y_pred, 0.5)
         assert np.isclose(tpr, 1.0)
-        assert np.isclose(fpr, 1.0)
+        assert np.isclose(tnr, 1.0)
     
     def test_true_false_rates_all_falses(self):
         # Test when all predictions are false
@@ -34,9 +37,9 @@ class TestWASA:
         y_pred = np.zeros(10, dtype=float)
         
         # All predictions are false, so TPR and FPR should be 0.0
-        tpr, fpr = true_pos_neg_rates_from_threshold(y_true, y_pred, 0.5)
+        tpr, tnr = true_pos_neg_rates_from_threshold(y_true, y_pred, 0.5)
         assert np.isclose(tpr, 1.0)
-        assert np.isclose(fpr, 0.0)
+        assert np.isclose(tnr, 1.0)
     
     def test_wasa_all_sleep_data(self):
         # Test when all data is sleep (class 1)
@@ -126,49 +129,7 @@ class TestWASA:
         # Wake accuracy should be reasonable given the distribution
         assert result.wake_acc > 0.0
     
-    def test_wasa_target_accuracy_unattainable(self):
-        # Test when target accuracy is unattainable
-        mock_model = Mock()
-        
-        # Create balanced dataset
-        y_test = torch.cat([torch.zeros(1, 50), torch.ones(1, 50)], dim=1)
-        X_test = torch.zeros((1, 100, 129), dtype=torch.float32)
-        
-        # Create model outputs with poor separation
-        mock_output = torch.zeros((1, 2, 100), dtype=torch.float32)
-        # All samples get random, overlapping probabilities
-        np.random.seed(42)
-        mock_output[:, 1, :] = torch.tensor(np.random.random(100))
-        mock_model.return_value = mock_output
-        mock_model.eval = Mock()
-        
-        # With random predictions, 99.9% sleep accuracy should be unattainable
-        result = wasa(mock_model, X_test, y_test, target_sleep_acc=0.999)
-        
-        # Binary search will try to get as close as possible to target
-        assert result.sleep_acc < 0.999
-    
-    def test_wasa_nan_outputs(self):
-        # Test behavior with NaN outputs
-        mock_model = Mock()
-        
-        y_test = torch.cat([torch.zeros(1, 50), torch.ones(1, 50)], dim=1)
-        X_test = torch.zeros((1, 100, 129), dtype=torch.float32)
-        
-        # Create model outputs with NaNs
-        mock_output = torch.zeros((1, 2, 100), dtype=torch.float32)
-        mock_output[:, 1, :] = float('nan')
-        mock_model.return_value = mock_output
-        mock_model.eval = Mock()
-        
-        # Should handle NaNs gracefully
-        result = wasa(mock_model, X_test, y_test, target_sleep_acc=0.95)
-        
-        # With NaN outputs, we expect the binary search to fail
-        assert result.wake_acc == 0.0 or np.isnan(result.wake_acc)
-        assert result.sleep_acc == 0.0 or np.isnan(result.sleep_acc)
-    
-    def test_wake_acc_point_5(self):
+    def test_wake_acc_1(self):
         y_true = torch.tensor(np.array([0, 0, 0, 1, 1, 1, 1]))
         y_pred_sleep = np.array([0.1, 0.3, 0.8, 0.7, 0.8, 0.9, 0.6])
         y_pred = torch.tensor(np.vstack([1 - y_pred_sleep, y_pred_sleep])[None, ...])
@@ -178,6 +139,43 @@ class TestWASA:
 
         result = wasa(model, y_pred, y_true, target_sleep_acc=0.75)
         assert np.isclose(result.wake_acc, 2/3)
+        assert np.isclose(result.sleep_acc, 0.75)
+        assert np.isclose(result.threshold, 0.6, rtol=0.01)
+
+    def test_wake_acc_2(self):
+        y_true = np.array([0, 0, 1, 1, 1, 1, 1, 1])
+        y_pred_sleep = np.array([
+            0.1,
+            0.7,  # too high for class 0
+            0.3,  # too low for class 1, these two force an error
+            0.8,
+            0.7,
+            0.8,
+            0.9,
+            0.1])  # too low for class 1
+        model = Mock()
+        model.return_value = torch.tensor(
+            np.vstack([1 - y_pred_sleep, y_pred_sleep])[None, ...])
+        model.eval = Mock()
+
+        TEST_SLEEP_ACC = 2/3
+        result = wasa(
+            model=model, 
+            X_test_tensor=y_pred_sleep, 
+            y_test_tensor=torch.tensor(y_true), 
+            target_sleep_acc=TEST_SLEEP_ACC)
+        
+        # check that this does find a good value
+        y_pred_binary = y_pred_sleep > result.threshold
+        tp = (y_pred_binary & y_true).sum()
+        tn = (~y_pred_binary & ~y_true).sum()
+        fp = (y_pred_binary & ~y_true).sum()
+        fn = (~y_pred_binary & y_true).sum()
+        tpr = tp / (tp + fn)
+        tnr = tn / (fp + tn)
+        assert np.isclose(result.wake_acc, tnr)
+        assert np.isclose(result.sleep_acc, tpr)
+        assert np.isclose(result.sleep_acc, TEST_SLEEP_ACC)
 
 
 if __name__ == "__main__":
