@@ -75,28 +75,17 @@ class ConvSegmenterUNet(nn.Module):
         x = x.unsqueeze(1)
         
         # Encoder: conv -> BN -> LeakyReLU
-        x = self.enc_conv1(x)
-        x = self.enc_bn1(x)
-        x = self.leaky_relu(x)
-        
-        x = self.enc_conv2(x)
-        x = self.enc_bn2(x)
-        x = self.leaky_relu(x)
-        
-        x = self.enc_conv3(x)
-        x = self.enc_bn3(x)
-        x = self.leaky_relu(x)
+        for i in range(len(self.channels)):
+            x = self.enc_conv[i](x)
+            x = self.enc_bn[i](x)
+            x = self.leaky_relu(x)
         
         # Decoder: deconv -> BN -> LeakyReLU (except final layer)
-        x = self.dec_deconv1(x)
-        x = self.dec_bn1(x)
-        x = self.leaky_relu(x)
-        
-        x = self.dec_deconv2(x)
-        x = self.dec_bn2(x)
-        x = self.leaky_relu(x)
-        
-        x = self.dec_deconv3(x)  # output logits for each class
+        for i in range(len(self.channels)):
+            x = self.dec_deconv[i](x)
+            if i < len(self.channels) - 1:
+                x = self.dec_bn[i](x)
+                x = self.leaky_relu(x)
         
         # Collapse the width dimension by averaging over the 129-dimension.
         x = x.mean(dim=3)   # shape: (B, num_classes, N)
