@@ -131,11 +131,12 @@ def true_pos_neg_rates_from_threshold(y_true, y_pred, threshold):
     
     For us, true positives tend to be true sleeps, and true negatives are true wakes."""
     y_pred_binary = (y_pred > threshold).astype(int)
-    tn, fp, fn, tp = np.bincount(y_true * 2 + y_pred_binary, minlength=4)
-    # tn = np.sum((y_true == 0) & (y_pred_binary == 0))
-    # fp = np.sum((y_true == 0) & (y_pred_binary == 1))
-    # fn = np.sum((y_true == 1) & (y_pred_binary == 0))
-    # tp = np.sum((y_true == 1) & (y_pred_binary == 1))
+    # tn, fp, fn, tp = np.bincount(y_true * 2 + y_pred_binary, minlength=4)
+    # write it this way, which is compatible with -1 labels
+    tn = np.sum((y_true == 0) & (y_pred_binary == 0))
+    fp = np.sum((y_true == 0) & (y_pred_binary == 1))
+    fn = np.sum((y_true == 1) & (y_pred_binary == 0))
+    tp = np.sum((y_true == 1) & (y_pred_binary == 1))
     # if no examples, perfect accuracy
     tpr = 1.0
     tnr = 1.0
@@ -155,20 +156,21 @@ def wasa(model, X_test_tensor, y_test_tensor, target_sleep_acc) -> WASAResult:
     """
     model.eval()
     with torch.no_grad():
-        test_outputs = model(X_test_tensor)  # shape: (1, 2, N)
-        y_test_flat = y_test_tensor.reshape(-1)  # shape: (N,)
+        test_outputs = model(X_test_tensor)  # shape: (B, 2, N)
+        y_test_flat = y_test_tensor  # shape: (B, N,)
         # Get predicted probability for class 1.
         
         # Create a mask to ignore -1 labels.
-        valid_mask = (y_test_flat != -1)
-        if valid_mask.sum() == 0:
-            warning("No valid test labels available; skipping evaluation for this fold.")
-            return WASAResult(wake_acc=0.0, sleep_acc=0.0, threshold=0.0)
+        # valid_mask = (y_test_flat != -1)
+        # if valid_mask.sum() == 0:
+        #     warning("No valid test labels available; skipping evaluation for this fold.")
+        #     return WASAResult(wake_acc=0.0, sleep_acc=0.0, threshold=0.0)
 
-        y_true = y_test_flat[valid_mask].cpu().numpy()  # ground truth labels
+        y_true = y_test_flat.cpu().numpy()  # ground truth labels
         
-        raw_outputs = torch.softmax(test_outputs, dim=1)      # predicted probabilities for class 1
-        valid_outputs = raw_outputs[0, 1, valid_mask].cpu().numpy()  # shape: (N,)
+        # raw_outputs = torch.softmax(test_outputs, dim=1)
+        raw_outputs = test_outputs
+        valid_outputs = raw_outputs[:, 1].cpu().numpy()  # shape: (B, N,)
 
         # Use a binary search on threshold, starting halfway between probs.max() and probs.min()
         # Note that we're using logits potentially so we don't assume probs are in [0, 1].
@@ -183,11 +185,12 @@ def wasa(model, X_test_tensor, y_test_tensor, target_sleep_acc) -> WASAResult:
         upper = valid_max
         best_sleep_acc = 0.0
         threshold = 0
-        tol = (upper - lower) / 100
+        tol = min((upper - lower) / 100, 0.0001)
         binary_search_iterations = 0
         max_iterations = 50
         while (abs(best_sleep_acc - target_sleep_acc) > tol) \
-            and (binary_search_iterations < max_iterations):
+            and (binary_search_iterations < max_iterations) \
+                and (lower < upper): # once ==, stop
             binary_search_iterations += 1
             new_threshold = (lower + upper) / 2
             if abs(new_threshold - threshold) < tol:
@@ -235,6 +238,12 @@ class TrainingResult:
 def softmax(x, axis=1):
     return np.exp(x) / np.sum(np.exp(x), axis=axis)
 
+def softmax_value_for_vector(logits_val: float, vector: np.ndarray):
+    """When you compute a threshold with respect to logits, you need to convert it to a probability value.
+    This function does that, by inverting the softmax.
+    """
+    return np.exp(logits_val - np.sum(np.exp(vector)))
+
 def make_beautiful_specgram_plot(prepro_x_y: Preprocessed, training_res: TrainingResult = None, staging: bool = False, from_logits: bool = True):
     N_ROWS = 1
     if staging:
@@ -268,8 +277,12 @@ def make_beautiful_specgram_plot(prepro_x_y: Preprocessed, training_res: Trainin
         ax[-1].set_ylim(-1.1, 1.1)
         ax[-1].set_yticks([-1, 0, 1])
         ax[-1].set_yticklabels(['Missing', 'Wake', 'Sleep'])
-        threshold_proba = softmax(training_res.logits_threshold)
-        ax[-1].axhline(threshold_proba, linestyle="--", color='black', linewidth=0.5, label=f'WASA={training_res.wake_acc:.3f}')
+        threshold_proba = softmax_value_for_vector(
+                training_res.logits_threshold,
+                training_res.sleep_logits) \
+            if from_logits \
+                else training_res.logits_threshold
+        ax[-1].axhline(threshold_proba, linestyle="--", color='black', linewidth=0.5, label=f'WASA{int(100 * training_res.sleep_acc)}={training_res.wake_acc:.3f}')
         ax[-1].legend()
     return fig, ax
 
@@ -384,6 +397,8 @@ def train_loocv(data_list: List[Preprocessed],
                         print("Warning: NaN values detected in model output")
                         
                     loss = ce_loss(sig_outputs, batch_y)
+
+                    print("Loss", loss.item())
                     
                     # Check for NaNs in loss
                     if torch.isnan(loss):
