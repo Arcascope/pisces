@@ -368,7 +368,7 @@ def train_loocv(data_list: List[Preprocessed],
             1,
             data_subject.y)
     
-    maxes_keep = [i for i in range(num_folds) if maxes[i] >= min_spec_max]
+    maxes_keep = [i for i, m in enumerate(maxes) if m >= min_spec_max]
     data_list = [data_list[i] for i in maxes_keep]
     num_folds = len(data_list)
     fig, ax = plt.subplots(ncols=1, figsize=(10, 5))
