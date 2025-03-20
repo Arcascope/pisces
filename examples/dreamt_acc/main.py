@@ -2,6 +2,7 @@ from dataclasses import dataclass
 import os
 from pathlib import Path
 import pickle
+import time
 import zlib
 
 import matplotlib.pyplot as plt
@@ -125,6 +126,7 @@ if __name__ == '__main__':
     # stack = np.array([prepro_data[k].x_spec.Zxx for k in prepro_data])
 
     prepro_values = list(prepro_data.values())
+    time_start = time.time()
     results = train_loocv(
         prepro_values, 
         num_epochs=2, 
@@ -132,6 +134,8 @@ if __name__ == '__main__':
         experiment_results_csv=Path(os.getcwd()) / 'dreamt_results.csv',
         lr=1e-3
     )
+    time_end = time.time()
+    print(f"Training took {time_end - time_start:.1f} seconds // {(time_end - time_start) / 60:.1f} minutes")
 
     np.savez('dreamt_results.npz', results)
     results = np.load('dreamt_results.npz', allow_pickle=True)['arr_0'] 
