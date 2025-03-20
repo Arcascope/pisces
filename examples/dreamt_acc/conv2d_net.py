@@ -373,7 +373,7 @@ def train_loocv(data_list: List[Preprocessed],
     num_folds = len(data_list)
     fig, ax = plt.subplots(ncols=1, figsize=(10, 5))
     sns.histplot(maxes, bins=10, ax=ax)
-    ax[0].set_title("Maxes")
+    ax.set_title("Maxes")
     fig.savefig("max_min_hist.png")
 
     commit_hash = get_git_commit_hash()
