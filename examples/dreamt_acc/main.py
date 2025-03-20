@@ -133,7 +133,7 @@ if __name__ == '__main__':
         lr=1e-3
     )
 
-    # np.savez('dreamt_results.npz', results)
+    np.savez('dreamt_results.npz', results)
     results = np.load('dreamt_results.npz', allow_pickle=True)['arr_0'] 
 
     for (inputs, outputs) in zip(prepro_values, results):

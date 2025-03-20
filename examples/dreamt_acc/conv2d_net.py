@@ -125,7 +125,7 @@ def write_folds(fold_results, file_path):
                 'logits_threshold': result.logits_threshold,
                 'wake_acc': result.wake_acc,
                 'sleep_acc': result.sleep_acc,
-                'best_model_path': f'"{result.best_model_path}"'
+                'best_model_path': f'{result.best_model_path}'
             })
 
 def print_histogram(data, bins: int=10):
