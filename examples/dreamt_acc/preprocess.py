@@ -22,7 +22,7 @@ class STFT:
     
     def compute_specgram(self,
                          freq_n_tile_clamp: float = 0.05,
-                         normalization_window_idx: int | None = 5) -> np.ndarray:
+                         normalization_window_idx: int | None = None) -> np.ndarray:
         """Produces the absolute value of the STFT, 
         with optional clamping of the values according to
         the given percentile from top/bottom
