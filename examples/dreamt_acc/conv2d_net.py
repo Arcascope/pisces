@@ -322,16 +322,27 @@ def train_loocv(data_list: List[Preprocessed],
     num_folds = len(data_list)
     fold_results: List[TrainingResult] = []
     scaler = torch.amp.GradScaler()
+    maxes = []
+    mins = []
     for data_subject in data_list:
         # Compute spectrograms for all subjects.
         # this speeds up per-split X_train, X_test computation.
-        data_subject.x_spec.compute_specgram(normalization_window_idx=5)
+        data_subject.x_spec.compute_specgram(normalization_window_idx=None)
+
+        maxes.append(data_subject.x_spec.specgram.max())
+        mins.append(data_subject.x_spec.specgram.min())
 
         # Convert to binary labels: 0, 1, leaving -1 masks as is.
         data_subject.y = np.where(
             data_subject.y > 0,
             1,
             data_subject.y)
+    fig, ax = plt.subplots(ncols=2, figsize=(10, 5))
+    sns.histplot(maxes, bins=10, ax=ax[0])
+    sns.histplot(mins, bins=10, ax=ax[1])
+    ax[0].set_title("Maxes")
+    ax[1].set_title("Mins")
+    fig.savefig("max_min_hist.png")
 
     commit_hash = get_git_commit_hash()
     training_dir = Path(os.getcwd()).resolve() / 'dreamt_training_logs' / commit_hash
@@ -346,7 +357,9 @@ def train_loocv(data_list: List[Preprocessed],
     fold_tqdm = tqdm(range(num_folds))
     for fold in fold_tqdm:
         fold_str = f"Fold {fold+1}/{num_folds}"
-        fold_tqdm.set_description_str(f"\nSTART OF {fold_str}")
+        fold_tqdm.set_description_str(f"\nSTART OF\n{fold_str}")
+        
+        fold_test_spec_max = maxes[fold]
         
         # Use subject `fold` as the test set; the rest are training.
         test_subject = data_list[fold]
@@ -462,7 +475,8 @@ def train_loocv(data_list: List[Preprocessed],
         wake_acc = best_wasa_result.wake_acc
         sleep_acc = best_wasa_result.sleep_acc
 
-        print(f"Fold {fold+1} Test: At threshold {best_threshold:.2f}, Sleep Acc = {sleep_acc:.2f}, Wake Acc = {wake_acc:.2f}")
+        print(f"Fold {fold+1} Test: At threshold {best_threshold:.2f}, Sleep Acc = {sleep_acc:.2f}, Wake Acc = {wake_acc:.2f}, Spec max: {fold_test_spec_max:.3f}")
+        
 
         test_outputs = model(X_test_tensor)[0].cpu().detach().numpy()
         this_fold_result = TrainingResult(
@@ -479,6 +493,16 @@ def train_loocv(data_list: List[Preprocessed],
         )
     
         fold_results.append(this_fold_result)
+
+        plt.close()
+        fig, max_vs_wasa_ax = plt.subplots(figsize=(10, 5))
+        fold_maxes = maxes[:fold+1]
+        fold_wasas = [f.wake_acc for f in fold_results]
+        sns.scatterplot(x=fold_maxes, y=fold_wasas, ax=max_vs_wasa_ax)
+        sns.regplot(x=fold_maxes, y=fold_wasas, ax=max_vs_wasa_ax)
+        max_vs_wasa_ax.set_xlabel('Spectrogram Maximum Value')
+        max_vs_wasa_ax.set_ylabel('Wake Accuracy')
+        fig.savefig(training_dir / 'max_vs_wasa.png')
 
         writer.add_scalar(f'test specificity at {WASA_ACC} sensitivity',
                         wake_acc,
