@@ -109,12 +109,15 @@ def get_git_commit_hash():
 def write_folds(fold_results, file_path):
     """Write fold results to a CSV file."""
     import csv
+
+    write_header = not file_path.exists()
     
     with open(file_path, 'a', newline='') as csvfile:
         fieldnames = ['idno', 'fold', 'logits_threshold', 'wake_acc', 'sleep_acc', 'best_model_path']
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
         
-        writer.writeheader()
+        if write_header:
+            writer.writeheader()
         for result in fold_results:
             writer.writerow({
                 'idno': result.idno,
@@ -122,7 +125,7 @@ def write_folds(fold_results, file_path):
                 'logits_threshold': result.logits_threshold,
                 'wake_acc': result.wake_acc,
                 'sleep_acc': result.sleep_acc,
-                'best_model_path': str(result.best_model_path)
+                'best_model_path': f'"{result.best_model_path}"'
             })
 
 def print_histogram(data, bins: int=10):
