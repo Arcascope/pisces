@@ -43,6 +43,7 @@ class ConvSegmenterUNet(nn.Module):
         # Encoder layers as ModuleLists
         self.enc_conv = nn.ModuleList()
         self.enc_bn = nn.ModuleList()
+        self.first_bn = nn.BatchNorm2d(1)
         
         # Input channel is 1 (grayscale spectrogram)
         in_channels = 1
@@ -73,6 +74,8 @@ class ConvSegmenterUNet(nn.Module):
     def forward(self, x):
         # x: (B, N, 129) -> add a channel dimension to get (B, 1, N, 129)
         x = x.unsqueeze(1)
+
+        x = self.first_bn(x)
         
         # Encoder: conv -> BN -> LeakyReLU
         for i in range(len(self.channels)):
@@ -285,7 +288,7 @@ def make_beautiful_specgram_plot(
         N_ROWS += 1
     if training_res is not None:
         N_ROWS += 1
-    fig, ax = plt.subplots(nrows=N_ROWS, figsize=(20, 10))
+    fig, ax = plt.subplots(nrows=N_ROWS, figsize=(20, 10), sharex=True)
     fig.tight_layout(w_pad=2.0)
     if prepro_x_y.x_spec is None:
         prepro_x_y.compute_specgram()
