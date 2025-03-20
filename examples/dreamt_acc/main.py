@@ -127,7 +127,7 @@ if __name__ == '__main__':
     prepro_values = list(prepro_data.values())
     results = train_loocv(
         prepro_values, 
-        num_epochs=1, 
+        num_epochs=2, 
         batch_size=6,
         experiment_results_csv=Path(os.getcwd()) / 'dreamt_results.csv',
         lr=1e-3
