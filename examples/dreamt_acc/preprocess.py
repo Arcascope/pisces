@@ -20,18 +20,35 @@ class STFT:
     def shape(self):
         return self.Zxx.shape
     
-    def compute_specgram(self, freq_n_tile_clamp: float = 0.05):
+    def compute_specgram(self,
+                         freq_n_tile_clamp: float = 0.05,
+                         normalization_window_idx: int | None = 5) -> np.ndarray:
         """Produces the absolute value of the STFT, 
         with optional clamping of the values according to
         the given percentile from top/bottom
         """
         abs_array = np.log10(np.abs(self.Zxx) ** 2 + 1e-6)
-        if freq_n_tile_clamp > 0:
-            abs_array = np.clip(abs_array, 
-                                np.percentile(abs_array, freq_n_tile_clamp),
-                                np.percentile(abs_array, 100 - freq_n_tile_clamp))
         self.specgram = abs_array
+        if freq_n_tile_clamp > 0:
+            self.specgram = np.clip(self.specgram, 
+                                np.percentile(self.specgram, freq_n_tile_clamp),
+                                np.percentile(self.specgram, 100 - freq_n_tile_clamp))
+        if normalization_window_idx is not None:
+            self.apply_local_stdnorm_to_specgram(normalization_window_idx)
         return abs_array
+    
+    def apply_local_stdnorm_to_specgram(self, window_size: int = 5) -> np.ndarray:
+        """Applies local standardization to the specgram
+        """
+        means_array = np.zeros_like(self.specgram)
+        stdevs_array = np.zeros_like(self.specgram)
+        for i in range(self.specgram.shape[0]):
+            specgram_window = self.specgram[max(0, i - window_size):i + window_size, :]
+            means_array[i, :] = np.mean(specgram_window, axis=0)
+            stdevs_array[i, :] = np.std(specgram_window, axis=0) + 1e-6
+        self.specgram = (self.specgram - means_array) / stdevs_array
+        return self.specgram
+
     
     def plot(self, ax=None) -> plt.Axes:
         if ax is None:
@@ -49,7 +66,7 @@ class STFT:
                  x: np.ndarray, 
                  fs: float = None, 
                  nperseg: int = None, 
-                 noverlap: int = None):
+                 noverlap: int = None) -> 'STFT':
         fs = fs or TIMESTAMP_HZ
         nperseg = nperseg or 4 * fs
         noverlap = nperseg - fs

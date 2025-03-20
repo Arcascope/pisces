@@ -255,7 +255,11 @@ def softmax_value_for_vector(logits_val: float, vector: np.ndarray):
     """
     return np.exp(logits_val - np.sum(np.exp(vector)))
 
-def make_beautiful_specgram_plot(prepro_x_y: Preprocessed, training_res: TrainingResult = None, staging: bool = False, from_logits: bool = True):
+def make_beautiful_specgram_plot(
+        prepro_x_y: Preprocessed,
+        training_res: TrainingResult = None,
+        staging: bool = False,
+        from_logits: bool = True):
     N_ROWS = 1
     if staging:
         N_ROWS += 1
@@ -321,7 +325,7 @@ def train_loocv(data_list: List[Preprocessed],
     for data_subject in data_list:
         # Compute spectrograms for all subjects.
         # this speeds up per-split X_train, X_test computation.
-        data_subject.x_spec.compute_specgram()
+        data_subject.x_spec.compute_specgram(normalization_window_idx=5)
 
         # Convert to binary labels: 0, 1, leaving -1 masks as is.
         data_subject.y = np.where(
@@ -452,12 +456,6 @@ def train_loocv(data_list: List[Preprocessed],
                     best_threshold = epoch_wasa_result.threshold
                     best_wasa_result = epoch_wasa_result
                     torch.save(model.state_dict(), best_model_path)
-                
-                # adjust learning rate
-                if (batch_idx + 1) % 10 == 0:
-                    for param_group in optimizer.param_groups:
-                        param_group['lr'] *= 0.9
-                
         
         # --- Evaluation on the Test Subject ---
         best_threshold = best_wasa_result.threshold
@@ -494,6 +492,8 @@ def train_loocv(data_list: List[Preprocessed],
             plot_dir = training_dir / f'{test_subject.idno}_result.png'
             plt.savefig(plot_dir, dpi=300)
             plt.close(fig)
+        
+        del model, X_test_tensor, y_test_tensor, X_train_tensor, y_train_tensor
     
     return fold_results
 
