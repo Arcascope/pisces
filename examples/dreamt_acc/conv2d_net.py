@@ -230,8 +230,6 @@ def wasa(model, X_test_tensor, y_test_tensor, target_sleep_acc) -> WASAResult:
             threshold = new_threshold
             # sleep, wake because true positive is true sleep
             sleep_acc, wake_acc = true_pos_neg_rates_from_threshold(y_true, valid_outputs, threshold)
-            print(f"Threshold {threshold:.3f}: Sleep acc {sleep_acc:.3f}, Wake acc {wake_acc:.3f}")
-            print("Lower", lower, "Upper", upper)
 
             if sleep_acc >= target_sleep_acc + tol:
                 # sleep accuracy too high, want to classify more sleep as wake
@@ -246,8 +244,8 @@ def wasa(model, X_test_tensor, y_test_tensor, target_sleep_acc) -> WASAResult:
         
         best_threshold = (lower + upper) / 2
         sleep_acc, wake_acc = true_pos_neg_rates_from_threshold(y_true, valid_outputs, best_threshold)
-        print("Declaring victory with sleep accuracy", sleep_acc, "at threshold", best_threshold)
-        print(f"This gives a wake acc of {wake_acc}. {binary_search_iterations} iters taken.")
+        # print("Declaring victory with sleep accuracy", sleep_acc, "at threshold", best_threshold)
+        # print(f"This gives a wake acc of {wake_acc}. {binary_search_iterations} iters taken.")
             
         
     return WASAResult(wake_acc=wake_acc, sleep_acc=sleep_acc, threshold=best_threshold)
