@@ -313,17 +313,19 @@ def make_beautiful_specgram_plot(
         # The scale on these changes a lot; split off a separate axis that shares the x.
         # useful for debugging to have htis respond to the data rather than our belief about the model outputs
         ax_res_rev = ax[-1].twinx()
-        sns.lineplot(x=sleep_plot_x, y=sleep_proba, ax=ax_res_rev, color='tab:orange', label='(Unscaled) Sleep Logits/Probas')
-        threshold_proba = softmax_value_for_vector(
-                training_res.logits_threshold,
-                training_res.sleep_logits) \
-            if from_logits \
-                else training_res.logits_threshold
-        ax_res_rev.axhline(threshold_proba, 
-                           linestyle=":", 
-                           color='tab:orange', 
-                           linewidth=0.5, 
-                           label=f'WASA{100 * training_res.sleep_acc:.0f}={training_res.wake_acc:.3f}, t = {threshold_proba:.3f}')
+        sns.lineplot(
+            x=sleep_plot_x,
+            y=sleep_proba,
+            ax=ax_res_rev,
+            color='tab:orange',
+            # label='(Unscaled) Sleep Logits/Probas')
+            label=f'WASA{100 * training_res.sleep_acc:.0f}={training_res.wake_acc:.3f}')
+        # threshold_proba = training_res.logits_threshold
+        # ax_res_rev.axhline(threshold_proba, 
+        #                    linestyle=":", 
+        #                    color='tab:orange', 
+        #                    linewidth=0.5, 
+        #                    label=f'WASA{100 * training_res.sleep_acc:.0f}={training_res.wake_acc:.3f}, t = {threshold_proba:.3f}')
 
         ax[-1].set_xlim(sleep_plot_x[0], sleep_plot_x[-1])
         missing_y_value = -0.1
