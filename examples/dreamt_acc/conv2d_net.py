@@ -38,7 +38,7 @@ class ConvSegmenterUNet(nn.Module):
         pad = dynamic_padding(self.kernel)
         
         # Initialize channel dimensions for layers
-        self.channels = [32, 64, 128]
+        self.channels = [16, 32, 64, 128]
         
         # Encoder layers as ModuleLists
         self.enc_conv = nn.ModuleList()
