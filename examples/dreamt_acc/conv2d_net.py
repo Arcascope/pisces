@@ -522,7 +522,7 @@ def train_loocv(data_list: List[Preprocessed],
         fold_maxes = maxes[:fold+1]
         fold_wasas = [f.wake_acc for f in fold_results]
         sns.scatterplot(x=fold_maxes, y=fold_wasas, ax=max_vs_wasa_ax)
-        sns.lmplot(x=fold_maxes, y=fold_wasas, ax=max_vs_wasa_ax, order=2)
+        sns.lmplot(x=fold_maxes, y=fold_wasas, order=2)
         max_vs_wasa_ax.set_xlabel('Spectrogram Maximum Value')
         max_vs_wasa_ax.set_ylabel('Wake Accuracy')
         fig.savefig(training_dir / 'max_vs_wasa.png')
