@@ -349,6 +349,7 @@ def train_loocv(data_list: List[Preprocessed],
         # this speeds up per-split X_train, X_test computation.
         data_subject.x_spec.compute_specgram(normalization_window_idx=None,
                                              freq_max=10)
+        print("Frequency filtered specgram size: ", data_subject.x_spec.specgram.shape)
 
         maxes.append(data_subject.x_spec.specgram.max())
         mins.append(data_subject.x_spec.specgram.min())
