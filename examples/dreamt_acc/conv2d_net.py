@@ -209,11 +209,11 @@ def wasa(model, X_test_tensor, y_test_tensor, target_sleep_acc) -> WASAResult:
 
         # Use a binary search on threshold, starting halfway between probs.max() and probs.min()
         # Note that we're using logits potentially so we don't assume probs are in [0, 1].
-        print("=== WASA Calculation === ... valid shape: ", valid_outputs.shape)
+        # print("=== WASA Calculation === ... valid shape: ", valid_outputs.shape)
         valid_min = valid_outputs.min()
         valid_max = valid_outputs.max()
-        print(valid_outputs.min(), "---", valid_outputs.max())
-        print(valid_outputs.mean(), "+/-", valid_outputs.std())
+        # print(valid_outputs.min(), "---", valid_outputs.max())
+        # print(valid_outputs.mean(), "+/-", valid_outputs.std())
         # lower = raw_outputs.min()
         # upper = raw_outputs.max()
         lower = valid_min
