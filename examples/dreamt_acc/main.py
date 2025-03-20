@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import os
 from pathlib import Path
 import pickle
 import zlib
@@ -128,6 +129,7 @@ if __name__ == '__main__':
         prepro_values, 
         num_epochs=1, 
         batch_size=6,
+        experiment_results_csv=Path(os.getcwd()) / 'dreamt_results.csv',
         lr=1e-3
     )
 

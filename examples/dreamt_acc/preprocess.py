@@ -21,7 +21,9 @@ class STFT:
         return self.Zxx.shape
     
     def compute_specgram(self,
-                         freq_n_tile_clamp: float = 0.05,
+                         freq_min: float | None = None,
+                         freq_max: float | None = None,
+                         n_tile_clamp: float = 0.05,
                          normalization_window_idx: int | None = None) -> np.ndarray:
         """Produces the absolute value of the STFT, 
         with optional clamping of the values according to
@@ -29,12 +31,18 @@ class STFT:
         """
         abs_array = np.log10(np.abs(self.Zxx) ** 2 + 1e-6)
         self.specgram = abs_array
-        if freq_n_tile_clamp > 0:
+        if n_tile_clamp > 0:
             self.specgram = np.clip(self.specgram, 
-                                np.percentile(self.specgram, freq_n_tile_clamp),
-                                np.percentile(self.specgram, 100 - freq_n_tile_clamp))
+                                np.percentile(self.specgram, n_tile_clamp),
+                                np.percentile(self.specgram, 100 - n_tile_clamp))
         if normalization_window_idx is not None:
             self.apply_local_stdnorm_to_specgram(normalization_window_idx)
+        if freq_min is not None:
+            self.specgram = self.specgram[self.f >= freq_min, :]
+            self.f = self.f[self.f >= freq_min]
+        if freq_max is not None:
+            self.specgram = self.specgram[self.f <= freq_max, :]
+            self.f = self.f[self.f <= freq_max]
         return abs_array
     
     def apply_local_stdnorm_to_specgram(self, window_size: int = 5) -> np.ndarray:

@@ -33,7 +33,7 @@ def dynamic_padding(kernel_size):
 class ConvSegmenterUNet(nn.Module):
     def __init__(self, num_classes=2, negative_slope=0.1):
         super(ConvSegmenterUNet, self).__init__()
-        self.kernel = (15, 17)
+        self.kernel = (15, 5)
         self.stride = (1, 2)
         pad = dynamic_padding(self.kernel)
         
@@ -105,6 +105,25 @@ def get_git_commit_hash():
     except subprocess.CalledProcessError as e:
         # return a hash of the error message
         return sha256(str(e).encode()).hexdigest()
+
+def write_folds(fold_results, file_path):
+    """Write fold results to a CSV file."""
+    import csv
+    
+    with open(file_path, 'a', newline='') as csvfile:
+        fieldnames = ['idno', 'fold', 'logits_threshold', 'wake_acc', 'sleep_acc', 'best_model_path']
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+        
+        writer.writeheader()
+        for result in fold_results:
+            writer.writerow({
+                'idno': result.idno,
+                'fold': result.fold,
+                'logits_threshold': result.logits_threshold,
+                'wake_acc': result.wake_acc,
+                'sleep_acc': result.sleep_acc,
+                'best_model_path': str(result.best_model_path)
+            })
 
 def print_histogram(data, bins: int=10):
     """prints a text histogram into the terminal"""
@@ -316,6 +335,7 @@ def make_beautiful_specgram_plot(
 
 def train_loocv(data_list: List[Preprocessed], 
                 num_epochs=20, lr=1e-3, batch_size=1,
+                experiment_results_csv: Path = None,
                 plot=True,
                 device=torch.device("cuda" if torch.cuda.is_available() else "cpu")) -> List[TrainingResult]:
     print("Training using", torch.cuda.get_device_name() if torch.cuda.is_available() else "CPU")
@@ -327,7 +347,8 @@ def train_loocv(data_list: List[Preprocessed],
     for data_subject in data_list:
         # Compute spectrograms for all subjects.
         # this speeds up per-split X_train, X_test computation.
-        data_subject.x_spec.compute_specgram(normalization_window_idx=None)
+        data_subject.x_spec.compute_specgram(normalization_window_idx=None,
+                                             freq_max=10)
 
         maxes.append(data_subject.x_spec.specgram.max())
         mins.append(data_subject.x_spec.specgram.min())
@@ -493,13 +514,14 @@ def train_loocv(data_list: List[Preprocessed],
         )
     
         fold_results.append(this_fold_result)
+        write_folds(fold_results, experiment_results_csv)
 
         plt.close()
         fig, max_vs_wasa_ax = plt.subplots(figsize=(10, 5))
         fold_maxes = maxes[:fold+1]
         fold_wasas = [f.wake_acc for f in fold_results]
         sns.scatterplot(x=fold_maxes, y=fold_wasas, ax=max_vs_wasa_ax)
-        sns.regplot(x=fold_maxes, y=fold_wasas, ax=max_vs_wasa_ax)
+        sns.lmplot(x=fold_maxes, y=fold_wasas, ax=max_vs_wasa_ax, order=2)
         max_vs_wasa_ax.set_xlabel('Spectrogram Maximum Value')
         max_vs_wasa_ax.set_ylabel('Wake Accuracy')
         fig.savefig(training_dir / 'max_vs_wasa.png')
