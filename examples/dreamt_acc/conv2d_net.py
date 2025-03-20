@@ -342,34 +342,38 @@ def make_beautiful_specgram_plot(
 def train_loocv(data_list: List[Preprocessed], 
                 num_epochs=20, lr=1e-3, batch_size=1,
                 experiment_results_csv: Path = None,
+                min_spec_max: float = 0.1,  # we will filter out subjects with specgram max < this. Excludes poor quality data.
                 plot=True,
                 device=torch.device("cuda" if torch.cuda.is_available() else "cpu")) -> List[TrainingResult]:
     print("Training using", torch.cuda.get_device_name() if torch.cuda.is_available() else "CPU")
-    num_folds = len(data_list)
     fold_results: List[TrainingResult] = []
     scaler = torch.amp.GradScaler()
     maxes = []
-    mins = []
     for data_subject in data_list:
         # Compute spectrograms for all subjects.
         # this speeds up per-split X_train, X_test computation.
         data_subject.x_spec.compute_specgram(normalization_window_idx=None,
                                              freq_max=10)
         print("Frequency filtered specgram size: ", data_subject.x_spec.specgram.shape)
+        spec_max = data_subject.x_spec.specgram.max()
+        if spec_max < min_spec_max:
+            print(f"Skipping subject {data_subject.idno} with specgram max {spec_max:.3f}")
+            
 
         maxes.append(data_subject.x_spec.specgram.max())
-        mins.append(data_subject.x_spec.specgram.min())
 
         # Convert to binary labels: 0, 1, leaving -1 masks as is.
         data_subject.y = np.where(
             data_subject.y > 0,
             1,
             data_subject.y)
-    fig, ax = plt.subplots(ncols=2, figsize=(10, 5))
+    
+    maxes_keep = [i for i in range(num_folds) if maxes[i] >= min_spec_max]
+    data_list = [data_list[i] for i in maxes_keep]
+    num_folds = len(data_list)
+    fig, ax = plt.subplots(ncols=1, figsize=(10, 5))
     sns.histplot(maxes, bins=10, ax=ax[0])
-    sns.histplot(mins, bins=10, ax=ax[1])
     ax[0].set_title("Maxes")
-    ax[1].set_title("Mins")
     fig.savefig("max_min_hist.png")
 
     commit_hash = get_git_commit_hash()
