@@ -562,7 +562,7 @@ def train_loocv(data_list: List[Preprocessed],
         best_wasa_result: WASAResult
         best_threshold = 0.0
         for epoch in range(num_epochs):
-            print(f"Epoch {epoch+1}/{num_epochs}")
+            print("="*4, f"\nEpoch {epoch+1}/{num_epochs}\n", "="*4)
             running_loss = 0.0
             # shuffle data
             indices = torch.randperm(X_train_tensor.size(0))
