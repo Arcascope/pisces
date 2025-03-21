@@ -642,7 +642,12 @@ def train_loocv(data_list: List[Preprocessed],
             wasa_result=best_wasa_result,
             test_X=test_subject.x_spec.specgram,
             test_y=test_subject.y,
-            sleep_logits=test_outputs
+            sleep_logits=test_outputs,
+            max_X=fold_test_spec_max,
+            min_X=test_subject.x_spec.specgram.min(),
+            mean_X=test_subject.x_spec.specgram.mean(),
+            median_X=np.median(test_subject.x_spec.specgram),
+            std_X=test_subject.x_spec.specgram.std()
         )
     
         fold_results.append(this_fold_result)
