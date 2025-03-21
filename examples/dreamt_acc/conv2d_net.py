@@ -23,6 +23,11 @@ from torch.utils.tensorboard import SummaryWriter
 from examples.dreamt_acc.constants import MASK_VALUE, PSG_MAX_IDX
 from examples.dreamt_acc.preprocess import STFT, Preprocessed
 
+
+import torch
+import torch.nn as nn
+from typing import List
+
 # --- Model Definition ---
 def dynamic_padding(kernel_size):
     if isinstance(kernel_size, tuple):
@@ -30,72 +35,126 @@ def dynamic_padding(kernel_size):
     else:
         return kernel_size // 2
 
+class UNetEncoderBlock(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size, stride, padding, negative_slope=0.1):
+        super(UNetEncoderBlock, self).__init__()
+        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size, stride=stride, padding=padding)
+        self.bn = nn.BatchNorm2d(out_channels)
+        self.leaky_relu = nn.LeakyReLU(negative_slope)
+        self.out_channels = out_channels
+
+    def forward(self, x):
+        x = self.conv(x)
+        x = self.bn(x)
+        x = self.leaky_relu(x)
+        return x
+
+class UNetDecoderBlock(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size, stride, padding, output_padding, negative_slope=0.1, apply_bn=True):
+        super(UNetDecoderBlock, self).__init__()
+        self.deconv = nn.ConvTranspose2d(in_channels, out_channels, kernel_size=kernel_size, stride=stride, padding=padding, output_padding=output_padding)
+        self.apply_bn = apply_bn
+        if apply_bn:
+            self.bn = nn.BatchNorm2d(out_channels)
+        self.leaky_relu = nn.LeakyReLU(negative_slope)
+        self.out_channels = out_channels
+
+    def forward(self, x):
+        x = self.deconv(x)
+        if self.apply_bn:
+            x = self.bn(x)
+            x = self.leaky_relu(x)
+        return x
+
+class UNetEncoder(nn.Module):
+    def __init__(self, in_channels, channels: List[int], kernel_size, stride, padding, negative_slope=0.1):
+        super(UNetEncoder, self).__init__()
+        self.blocks = nn.ModuleList()
+        current_channels = in_channels
+        
+        for out_channels in channels:
+            self.blocks.append(UNetEncoderBlock(current_channels, out_channels, kernel_size, stride, padding, negative_slope))
+            current_channels = out_channels
+
+    def forward(self, x):
+        for block in self.blocks:
+            x = block(x)
+        return x
+
+class UNetDecoder(nn.Module):
+    def __init__(self, in_channels, channels: List[int], kernel_size, stride, padding, output_padding, negative_slope=0.1, final_bn=True):
+        super(UNetDecoder, self).__init__()
+        self.blocks = nn.ModuleList()
+        current_channels = in_channels
+        
+        for i, out_channels in enumerate(channels):
+            # Don't apply batch norm on the final layer if specified
+            apply_bn = True if (i < len(channels) - 1 or final_bn) else False
+            self.blocks.append(UNetDecoderBlock(current_channels, out_channels, kernel_size, stride, padding, output_padding, negative_slope, apply_bn))
+            current_channels = out_channels
+
+    def forward(self, x):
+        for block in self.blocks:
+            x = block(x)
+        return x
+
 class ConvSegmenterUNet(nn.Module):
     def __init__(self, num_classes=2, negative_slope=0.1):
         super(ConvSegmenterUNet, self).__init__()
         self.kernel = (15, 5)
         self.stride = (1, 2)
+        self.output_padding = (0, 0)
         pad = dynamic_padding(self.kernel)
         
         # Initialize channel dimensions for layers
-        self.channels = [8, 16, 32, 64, 128]
+        self.channels = [8, 16, 32]
         
-        # Encoder layers as ModuleLists
-        self.enc_conv = nn.ModuleList()
-        self.enc_bn = nn.ModuleList()
         self.first_bn = nn.BatchNorm2d(1)
         
-        # Input channel is 1 (grayscale spectrogram)
-        in_channels = 1
+        # Encoder 1
+        self.encoder1 = UNetEncoder(1, self.channels, self.kernel, self.stride, pad, negative_slope)
         
-        # Create encoder layers
-        for out_channels in self.channels:
-            self.enc_conv.append(nn.Conv2d(in_channels, out_channels, kernel_size=self.kernel, 
-                          stride=self.stride, padding=pad))
-            self.enc_bn.append(nn.BatchNorm2d(out_channels))
-            in_channels = out_channels
+        # Decoder 1
+        dec1_channels = list(reversed(self.channels[:-1])) + [self.channels[-1]]  # Output matches E2 input
+        self.decoder1 = UNetDecoder(self.channels[-1], dec1_channels, self.kernel, self.stride, pad, self.output_padding, negative_slope)
         
-        # Decoder layers as ModuleLists
-        self.dec_deconv = nn.ModuleList()
-        self.dec_bn = nn.ModuleList()
+        # Encoder 2
+        self.encoder2 = UNetEncoder(self.channels[-1], self.channels, self.kernel, self.stride, pad, negative_slope)
         
-        # Create decoder layers
-        for i in range(len(self.channels) - 1, -1, -1):
-            out_channels = self.channels[i-1] if i > 0 else num_classes
-            self.dec_deconv.append(nn.ConvTranspose2d(self.channels[i], out_channels, 
-                                kernel_size=self.kernel, stride=self.stride,
-                                padding=pad, output_padding=(0,0)))
-            if i > 0:  # No batch norm on final output layer
-                self.dec_bn.append(nn.BatchNorm2d(out_channels))
-
-        # LeakyReLU activation
-        self.leaky_relu = nn.LeakyReLU(negative_slope)
+        # Decoder 2
+        dec2_channels = list(reversed(self.channels[:-1])) + [self.channels[0]]
+        self.decoder2 = UNetDecoder(self.channels[-1], dec2_channels, self.kernel, self.stride, pad, self.output_padding, negative_slope)
+        
+        # Final classifier
+        self.final_conv = nn.Conv2d(self.channels[0], num_classes, kernel_size=(1, 1))
     
     def forward(self, x):
         # x: (B, N, 129) -> add a channel dimension to get (B, 1, N, 129)
         x = x.unsqueeze(1)
-
         x = self.first_bn(x)
         
-        # Encoder: conv -> BN -> LeakyReLU
-        for i in range(len(self.channels)):
-            x = self.enc_conv[i](x)
-            x = self.enc_bn[i](x)
-            x = self.leaky_relu(x)
+        # Encoder 1 (E1)
+        x_e1 = self.encoder1(x)
         
-        # Decoder: deconv -> BN -> LeakyReLU (except final layer)
-        for i in range(len(self.channels)):
-            x = self.dec_deconv[i](x)
-            if i < len(self.channels) - 1:
-                x = self.dec_bn[i](x)
-                x = self.leaky_relu(x)
+        # Decoder 1 (D1)
+        x = self.decoder1(x_e1)
         
-        # Collapse the width dimension by averaging over the 129-dimension.
+        # Encoder 2 (E2)
+        x = self.encoder2(x)
+        
+        # Add skip connection from E1 to D2 input
+        x = x + x_e1
+        
+        # Decoder 2 (D2)
+        x = self.decoder2(x)
+        
+        # Final classifier
+        x = self.final_conv(x)
+        
+        # Collapse the width dimension by averaging over the 129-dimension
         x = x.mean(dim=3)   # shape: (B, num_classes, N)
         
         return x
-
-
 
 
 import subprocess
@@ -445,9 +504,12 @@ def train_loocv(data_list: List[Preprocessed],
     print(f"Training with {num_folds} subjects")
     print(f"Results will appear in {training_dir}")
 
+    # print a description of the model
+    print(ConvSegmenterUNet())
+
     fold_tqdm = tqdm(range(num_folds))
     for fold in fold_tqdm:
-        fold_str = f"Fold {fold+1}/{num_folds}"
+        fold_str = f"{commit_hash} Fold {fold+1}/{num_folds}"
         fold_tqdm.set_description_str(f"\nSTART OF\n{fold_str}")
         
         fold_test_spec_max = maxes[fold]
