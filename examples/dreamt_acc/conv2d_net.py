@@ -646,7 +646,7 @@ def train_loocv(data_list: List[Preprocessed],
         )
     
         fold_results.append(this_fold_result)
-        write_folds(fold_results, experiment_results_csv)
+        write_folds([fold_results[-1]], experiment_results_csv)
 
         plt.close()
         fig, max_vs_wasa_ax = plt.subplots(figsize=(10, 5))
