@@ -11,7 +11,7 @@ import seaborn as sns
 import numpy as np
 import polars as pl
 from examples.dreamt_acc.constants import *
-from examples.dreamt_acc.conv2d_net import TrainingResult, make_beautiful_specgram_plot, train_loocv
+from examples.dreamt_acc.conv2d_net import TrainingResult, make_beautiful_specgram_plot, train_loocv, get_git_commit_hash
 from examples.dreamt_acc.preprocess import Preprocessed
 from pisces.data_sets import DataSetObject
 from tqdm import tqdm
@@ -130,14 +130,14 @@ if __name__ == '__main__':
     results = train_loocv(
         prepro_values, 
         num_epochs=2, 
-        batch_size=6,
+        batch_size=8,
         experiment_results_csv=Path(os.getcwd()) / 'dreamt_results.csv',
         lr=1e-3
     )
     time_end = time.time()
     print(f"Training took {time_end - time_start:.1f} seconds // {(time_end - time_start) / 60:.1f} minutes")
 
-    np.savez('dreamt_results.npz', results)
+    np.savez(f'{get_git_commit_hash()}_dreamt_results.npz', results)
     # results = np.load('dreamt_results.npz', allow_pickle=True)['arr_0'] 
 
     # for (inputs, outputs) in zip(prepro_values, results):
