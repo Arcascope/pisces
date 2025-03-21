@@ -79,6 +79,10 @@ def preprocess_data(
 
     print(f"Written to {output_filename}")
 
+
+EXAMPLE_DIR = Path(__file__).resolve().parent
+EXPERIMENT_RESULTS_CSV = EXAMPLE_DIR / 'dreamt_results.csv'
+
 if __name__ == '__main__':
     EXCLUDE_THRESHOLD = 18.0
     output_filename = 'dreamt_prepro_data.npz'
@@ -130,8 +134,8 @@ if __name__ == '__main__':
     results = train_loocv(
         prepro_values, 
         num_epochs=2, 
-        batch_size=8,
-        experiment_results_csv=Path(os.getcwd()) / 'dreamt_results.csv',
+        batch_size=16,
+        experiment_results_csv=EXPERIMENT_RESULTS_CSV,
         lr=1e-3
     )
     time_end = time.time()

@@ -116,20 +116,13 @@ def write_folds(fold_results, file_path):
     write_header = not file_path.exists()
     
     with open(file_path, 'a', newline='') as csvfile:
-        fieldnames = ['idno', 'fold', 'logits_threshold', 'wake_acc', 'sleep_acc', 'best_model_path']
+        fieldnames = TrainingResult.get_header()
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
         
         if write_header:
             writer.writeheader()
         for result in fold_results:
-            writer.writerow({
-                'idno': result.idno,
-                'fold': result.fold,
-                'logits_threshold': result.logits_threshold,
-                'wake_acc': result.wake_acc,
-                'sleep_acc': result.sleep_acc,
-                'best_model_path': f'{result.best_model_path}'
-            })
+            writer.writerow(result.to_row())
 
 def print_histogram(data, bins: int=10):
     """prints a text histogram into the terminal"""
@@ -258,15 +251,68 @@ def wasa(model, X_test_tensor, y_test_tensor, target_sleep_acc) -> WASAResult:
 @dataclass
 class TrainingResult:
     idno: str
+    experiment_hash: str
     fold: int
     logits_threshold: float
     wake_acc: float
     sleep_acc: float
-    best_model_path: str
     wasa_result: WASAResult
     test_X: np.ndarray
     test_y: np.ndarray
     sleep_logits: np.ndarray
+    max_X: float = 0.0
+    min_X: float = 0.0
+    mean_X: float = 0.0
+    median_X: float = 0.0
+    std_X: float = 0.0
+
+    def to_row(self):
+        return {
+            'idno': self.idno,
+            'experiment_hash': self.experiment_hash,
+            'fold': self.fold,
+            'logits_threshold': self.logits_threshold,
+            'wake_acc': self.wake_acc,
+            'sleep_acc': self.sleep_acc,
+            'max_X': self.max_X,
+            'min_X': self.min_X,
+            'mean_X': self.mean_X,
+            'median_X': self.median_X,
+            'std_X': self.std_X,
+        }
+    
+    @classmethod
+    def from_csv(cls, row):
+        return cls(
+            idno=row.get('idno'),
+            experiment_hash=row.get('experiment_hash'),
+            fold=row.get('fold'),
+            logits_threshold=row.get('logits_threshold'),
+            wake_acc=row.get('wake_acc'),
+            sleep_acc=row.get('sleep_acc'),
+            max_X=row.get('max_X'),
+            min_X=row.get('min_X'),
+            mean_X=row.get('mean_X'),
+            median_X=row.get('median_X'),
+            std_X=row.get('std_X')
+        )
+
+    @classmethod
+    def get_header(cls):
+        return  [
+            'idno',
+            'experiment_hash',
+            'fold',
+            'logits_threshold',
+            'wake_acc', 
+            'sleep_acc',
+            'max_X',
+            'min_X',
+            'mean_X',
+            'median_X',
+            'std_X'
+        ]
+
 
 def softmax(x, axis=1):
     exp_x = np.exp(x - np.max(x, axis=axis, keepdims=True))
@@ -340,8 +386,8 @@ def make_beautiful_specgram_plot(
 
 
 def train_loocv(data_list: List[Preprocessed], 
+                experiment_results_csv: Path,
                 num_epochs=20, lr=1e-3, batch_size=1,
-                experiment_results_csv: Path = None,
                 min_spec_max: float = 0.1,  # we will filter out subjects with specgram max < this. Excludes poor quality data.
                 plot=True,
                 device=torch.device("cuda" if torch.cuda.is_available() else "cpu")) -> List[TrainingResult]:
@@ -378,7 +424,7 @@ def train_loocv(data_list: List[Preprocessed],
     fig.savefig("max_min_hist.png")
 
     commit_hash = get_git_commit_hash()
-    training_dir = Path(os.getcwd()).resolve() / 'dreamt_training_logs' / commit_hash
+    training_dir = experiment_results_csv.parent / 'dreamt_training_logs' / commit_hash
     writer = SummaryWriter(training_dir)
     report_freq = 5
     WASA_ACC = 0.95
@@ -514,11 +560,11 @@ def train_loocv(data_list: List[Preprocessed],
         test_outputs = model(X_test_tensor)[0].cpu().detach().numpy()
         this_fold_result = TrainingResult(
             idno=test_subject.idno,
+            experiment_hash=commit_hash,
             fold=fold,
             logits_threshold=best_threshold,
             wake_acc=wake_acc,
             sleep_acc=sleep_acc,
-            best_model_path=best_model_path,
             wasa_result=best_wasa_result,
             test_X=test_subject.x_spec.specgram,
             test_y=test_subject.y,
