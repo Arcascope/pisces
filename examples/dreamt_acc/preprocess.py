@@ -65,7 +65,7 @@ class STFT:
             self.compute_specgram()
         ax.imshow(self.specgram.T, 
                   aspect='auto', origin='lower', 
-                  extent=[self.t[0], self.t[-1], self.f[0], self.f[-1]],
+                  extent=[0, len(self.t), self.f[0], self.f[-1]],
                   vmin=-6.1, vmax=0.75
                   )
         ax.set_ylabel('Frequency [Hz]')
