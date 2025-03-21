@@ -7,7 +7,7 @@ from conv2d_net import TrainingResult
 
 # Load the CSV file
 
-df = pd.read_csv(EXPERIMENT_RESULTS_CSV)
+df = pd.read_csv(EXPERIMENT_RESULTS_CSV, names=TrainingResult.get_header())
 fig, axis = plt.subplots(figsize=(20, 10))
 
 plt.rcParams.update({'font.size': 14})
