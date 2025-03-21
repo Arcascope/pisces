@@ -134,7 +134,7 @@ if __name__ == '__main__':
     results = train_loocv(
         prepro_values, 
         num_epochs=3, 
-        batch_size=2,
+        batch_size=1,
         experiment_results_csv=EXPERIMENT_RESULTS_CSV,
         lr=1e-3
     )
