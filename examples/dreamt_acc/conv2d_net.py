@@ -562,6 +562,7 @@ def train_loocv(data_list: List[Preprocessed],
         best_wasa_result: WASAResult
         best_threshold = 0.0
         for epoch in range(num_epochs):
+            print(f"Epoch {epoch+1}/{num_epochs}")
             running_loss = 0.0
             # shuffle data
             indices = torch.randperm(X_train_tensor.size(0))
@@ -570,10 +571,11 @@ def train_loocv(data_list: List[Preprocessed],
             # epoch_X = X_train_tensor
             # epoch_y = y_train_tensor
             batch_tqdm = tqdm(range(0, epoch_X.size(0), batch_size))
+            best_wasa_str = "NULL"
             for batch_idx in batch_tqdm:
                 print_batch = batch_idx // batch_size + 1
                 print_n_batches = epoch_X.size(0) // batch_size + 1
-                batch_tqdm.set_description_str(f'Batch {print_batch}/{print_n_batches}')
+                batch_tqdm.set_description_str(f'Batch {print_batch}/{print_n_batches} {best_wasa_str}')
                 # Get batch
                 batch_X = epoch_X[batch_idx:batch_idx+batch_size]
                 batch_y = epoch_y[batch_idx:batch_idx+batch_size]
@@ -617,7 +619,8 @@ def train_loocv(data_list: List[Preprocessed],
                                 epoch_wasa,
                                 epoch * len(data_list) + batch_idx)
                 if epoch_wasa > best_wasa:
-                    print("NEW BEST WASA", epoch_wasa)
+                    best_wasa_str = f"{100 * best_wasa:.2f}"
+                    # print("\nNEW BEST WASA", epoch_wasa, "\n")
                     best_wasa = epoch_wasa
                     best_threshold = epoch_wasa_result.threshold
                     best_wasa_result = epoch_wasa_result
