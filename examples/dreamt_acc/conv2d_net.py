@@ -266,13 +266,25 @@ class TrainingResult:
     median_X: float = 0.0
     std_X: float = 0.0
 
+    @classmethod
+    def experiment_id_column(cls) -> str:
+        return 'experiment_hash'
+
+    @classmethod
+    def id_column(cls) -> str:
+        return 'idno'
+    
+    @classmethod
+    def wake_acc_column(cls) -> str:
+        return 'wake_acc'
+
     def to_row(self):
         return {
-            'idno': self.idno,
-            'experiment_hash': self.experiment_hash,
+            self.id_column(): self.idno,
+            self.experiment_id_column(): self.experiment_hash,
             'fold': self.fold,
             'logits_threshold': self.logits_threshold,
-            'wake_acc': self.wake_acc,
+            self.wake_acc_column(): self.wake_acc,
             'sleep_acc': self.sleep_acc,
             'max_X': self.max_X,
             'min_X': self.min_X,
