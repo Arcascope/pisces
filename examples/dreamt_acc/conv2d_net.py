@@ -405,7 +405,9 @@ def make_beautiful_specgram_plot(
         N_ROWS += 1
     if training_res is not None:
         N_ROWS += 1
-    fig, ax = plt.subplots(nrows=N_ROWS, figsize=(20, 10), sharex=True)
+    fig, ax = plt.subplots(nrows=N_ROWS, figsize=(20, 10))
+    for a in ax:
+        a.set_xlim(0, prepro_x_y.y.shape[0])
     fig.tight_layout(w_pad=2.0)
     if prepro_x_y.x_spec is None:
         prepro_x_y.compute_specgram()
