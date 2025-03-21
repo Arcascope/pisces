@@ -573,7 +573,7 @@ def train_loocv(data_list: List[Preprocessed],
             for batch_idx in batch_tqdm:
                 print_batch = batch_idx // batch_size + 1
                 print_n_batches = epoch_X.size(0) // batch_size + 1
-                batch_tqdm.set_description_str(f'{fold_str} Batch {print_batch}/{print_n_batches}')
+                batch_tqdm.set_description_str(f'Batch {print_batch}/{print_n_batches}')
                 # Get batch
                 batch_X = epoch_X[batch_idx:batch_idx+batch_size]
                 batch_y = epoch_y[batch_idx:batch_idx+batch_size]
@@ -594,8 +594,6 @@ def train_loocv(data_list: List[Preprocessed],
                         
                     loss = ce_loss(sig_outputs, batch_y)
 
-                    print(" Loss", loss.item())
-                    
                     # Check for NaNs in loss
                     if torch.isnan(loss):
                         print("Warning: NaN loss detected")
@@ -630,7 +628,7 @@ def train_loocv(data_list: List[Preprocessed],
         wake_acc = best_wasa_result.wake_acc
         sleep_acc = best_wasa_result.sleep_acc
 
-        print(f"Fold {fold+1} Test: At threshold {best_threshold:.2f}, Sleep Acc = {sleep_acc:.2f}, Wake Acc = {wake_acc:.2f}, Spec max: {fold_test_spec_max:.3f}")
+        # print(f"Fold {fold+1} Test: At threshold {best_threshold:.2f}, Sleep Acc = {sleep_acc:.2f}, Wake Acc = {wake_acc:.2f}, Spec max: {fold_test_spec_max:.3f}")
         
 
         test_outputs = model(X_test_tensor)[0].cpu().detach().numpy()
@@ -679,6 +677,10 @@ def train_loocv(data_list: List[Preprocessed],
             plt.close(fig)
         
         del model, X_test_tensor, y_test_tensor, X_train_tensor, y_train_tensor
+
+        # make print nicer??
+        fold_str = f"{commit_hash} Fold {fold+2}/{num_folds}"
+        fold_tqdm.set_description_str(f"\nSTART OF\n{fold_str}")
     
     return fold_results
 
