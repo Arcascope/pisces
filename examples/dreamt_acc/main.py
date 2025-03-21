@@ -138,12 +138,12 @@ if __name__ == '__main__':
     print(f"Training took {time_end - time_start:.1f} seconds // {(time_end - time_start) / 60:.1f} minutes")
 
     np.savez('dreamt_results.npz', results)
-    results = np.load('dreamt_results.npz', allow_pickle=True)['arr_0'] 
+    # results = np.load('dreamt_results.npz', allow_pickle=True)['arr_0'] 
 
-    for (inputs, outputs) in zip(prepro_values, results):
-        print(inputs.idno)
-        fig, ax = make_beautiful_specgram_plot(inputs, outputs)
-        print("Saving image to", images_dir)
-        plt.savefig(images_dir /  f'{inputs.idno}_specgram.png', dpi=300)
-        plt.close(fig)
+    # for (inputs, outputs) in zip(prepro_values, results):
+    #     print(inputs.idno)
+    #     fig, ax = make_beautiful_specgram_plot(inputs, outputs)
+    #     print("Saving image to", images_dir)
+    #     plt.savefig(images_dir /  f'{inputs.idno}_specgram.png', dpi=300)
+    #     plt.close(fig)
 

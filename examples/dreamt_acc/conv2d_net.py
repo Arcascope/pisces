@@ -368,8 +368,9 @@ def train_loocv(data_list: List[Preprocessed],
             1,
             data_subject.y)
     
-    maxes_keep = [i for i, m in enumerate(maxes) if m >= min_spec_max]
-    data_list = [data_list[i] for i in maxes_keep]
+    maxes_keep_idx = [i for i, m in enumerate(maxes) if m >= min_spec_max]
+    data_list = [data_list[i] for i in maxes_keep_idx]
+    maxes = [maxes[i] for i in maxes_keep_idx]
     num_folds = len(data_list)
     fig, ax = plt.subplots(ncols=1, figsize=(10, 5))
     sns.histplot(maxes, bins=10, ax=ax)
@@ -441,11 +442,11 @@ def train_loocv(data_list: List[Preprocessed],
         for epoch in range(num_epochs):
             running_loss = 0.0
             # shuffle data
-            # indices = torch.randperm(X_train_tensor.size(0))
-            # epoch_X = X_train_tensor[indices]
-            # epoch_y = y_train_tensor[indices]
-            epoch_X = X_train_tensor
-            epoch_y = y_train_tensor
+            indices = torch.randperm(X_train_tensor.size(0))
+            epoch_X = X_train_tensor[indices]
+            epoch_y = y_train_tensor[indices]
+            # epoch_X = X_train_tensor
+            # epoch_y = y_train_tensor
             batch_tqdm = tqdm(range(0, epoch_X.size(0), batch_size))
             for batch_idx in batch_tqdm:
                 print_batch = batch_idx // batch_size + 1
