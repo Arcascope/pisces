@@ -4,6 +4,7 @@ from logging import warning
 import os
 from pathlib import Path
 import sys
+import time
 from typing import List
 from matplotlib import pyplot as plt
 import torch
@@ -311,6 +312,7 @@ def wasa(model, X_test_tensor, y_test_tensor, target_sleep_acc) -> WASAResult:
 class TrainingResult:
     idno: str
     experiment_hash: str
+    epoch_seconds: int
     fold: int
     logits_threshold: float
     wake_acc: float
@@ -336,15 +338,24 @@ class TrainingResult:
     @classmethod
     def wake_acc_column(cls) -> str:
         return 'wake_acc'
+    
+    @classmethod
+    def sleep_acc_column(cls) -> str:
+        return 'sleep_acc'
+    
+    @classmethod
+    def epoch_seconds_column(self) -> str:
+        return 'epoch_seconds'
 
     def to_row(self):
         return {
             self.id_column(): self.idno,
             self.experiment_id_column(): self.experiment_hash,
+            self.epoch_seconds_column(): self.epoch_seconds,
             'fold': self.fold,
             'logits_threshold': self.logits_threshold,
             self.wake_acc_column(): self.wake_acc,
-            'sleep_acc': self.sleep_acc,
+            self.sleep_acc_column(): self.sleep_acc,
             'max_X': self.max_X,
             'min_X': self.min_X,
             'mean_X': self.mean_X,
@@ -357,6 +368,7 @@ class TrainingResult:
         return cls(
             idno=row.get('idno'),
             experiment_hash=row.get('experiment_hash'),
+            epoch_seconds=row.get('epoch_seconds'),
             fold=row.get('fold'),
             logits_threshold=row.get('logits_threshold'),
             wake_acc=row.get('wake_acc'),
@@ -373,6 +385,7 @@ class TrainingResult:
         return  [
             'idno',
             'experiment_hash',
+            'epoch_seconds',
             'fold',
             'logits_threshold',
             'wake_acc', 
@@ -497,6 +510,7 @@ def train_loocv(data_list: List[Preprocessed],
     fig.savefig("max_min_hist.png")
 
     commit_hash = get_git_commit_hash()
+    timestamp = int(time.time())
     training_dir = experiment_results_csv.parent / 'dreamt_training_logs' / commit_hash
     writer = SummaryWriter(training_dir)
     report_freq = 5
@@ -638,6 +652,7 @@ def train_loocv(data_list: List[Preprocessed],
         this_fold_result = TrainingResult(
             idno=test_subject.idno,
             experiment_hash=commit_hash,
+            epoch_seconds=timestamp,
             fold=fold,
             logits_threshold=best_threshold,
             wake_acc=wake_acc,

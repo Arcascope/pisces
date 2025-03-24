@@ -15,17 +15,22 @@ plt.rcParams.update({'font.size': 14})
 ID_COL = TrainingResult.id_column()
 EXPERIMENT_COL = TrainingResult.experiment_id_column()
 WAKE_ACC_COL = TrainingResult.wake_acc_column()
-SLEEP_ACC_COL = 'sleep_acc'  # Assuming this is the column name
+EPOCH_TIME_COL = TrainingResult.epoch_seconds_column()
+SLEEP_ACC_COL = TrainingResult.sleep_acc_column()
 
 # Get the experiment plot axis (top-left)
 experiment_plot_axis = axes[0, 0]
 
-wake_df = df[[ID_COL, EXPERIMENT_COL, WAKE_ACC_COL]].copy()
+wake_df = df[[ID_COL, EXPERIMENT_COL, EPOCH_TIME_COL, WAKE_ACC_COL]].copy()
+# sort wake_df by epoch time
+wake_df = wake_df.sort_values(by=EPOCH_TIME_COL)
+# drop rows with NaN values
 wake_df = wake_df.dropna()
 
 # Get unique experiment IDs in the order they appear in the CSV
-experiment_ids = df[EXPERIMENT_COL].unique()
+experiment_ids = wake_df[EXPERIMENT_COL].unique()
 last_experiment_hash = experiment_ids[-1]
+
 
 # Group by test_id and plot
 for test_id, group in wake_df.groupby(ID_COL):
@@ -112,7 +117,7 @@ if 'max_X' in df.columns:
     
     # Plot the latest experiment in orange
     sns.scatterplot(x='max_X', y=WAKE_ACC_COL, data=last_exp_df, ax=axes[1, 0], 
-                    alpha=0.7, color='orange', label=f'Latest Exp {last_experiment_hash}')
+                    alpha=1.0, color='orange', marker='X', label=f'Latest Exp {last_experiment_hash}')
     
     # Only run regplot on the latest experiment data
     if not last_exp_df.empty:
@@ -133,7 +138,7 @@ if 'mean_X' in df.columns:
     
     # Plot the latest experiment in orange
     sns.scatterplot(x='mean_X', y=WAKE_ACC_COL, data=last_exp_df, ax=axes[1, 1], 
-                    alpha=0.7, color='orange', label=f'Latest Exp {last_experiment_hash}')
+                    alpha=1.0, color='orange', marker='X', label=f'Latest Exp {last_experiment_hash}')
     
     # Only run regplot on the latest experiment data
     if not last_exp_df.empty:
@@ -154,7 +159,7 @@ if 'std_X' in df.columns:
     
     # Plot the latest experiment in orange
     sns.scatterplot(x='std_X', y=WAKE_ACC_COL, data=last_exp_df, ax=axes[1, 2], 
-                    alpha=0.7, color='orange', label=f'Latest Exp {last_experiment_hash}')
+                    alpha=1.0, color='orange', marker='X', label=f'Latest Exp {last_experiment_hash}')
     
     # Only run regplot on the latest experiment data
     if not last_exp_df.empty:
