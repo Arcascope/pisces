@@ -28,8 +28,8 @@ wake_df = wake_df.sort_values(by=EPOCH_TIME_COL)
 wake_df = wake_df.dropna()
 
 # Get unique experiment IDs in the order they appear in the CSV
-experiment_ids = wake_df[EXPERIMENT_COL].unique()
-last_experiment_hash = experiment_ids[-1]
+experiment_ids = wake_df[[EXPERIMENT_COL, EPOCH_TIME_COL]].unique()
+last_experiment_hash = experiment_ids.sort_values(by=EPOCH_TIME_COL)[-1]
 
 
 # Group by test_id and plot
@@ -39,7 +39,7 @@ for test_id, group in wake_df.groupby(ID_COL):
               alpha=0.5)
 
 # Now plot the median trend line
-median = wake_df[[EXPERIMENT_COL, WAKE_ACC_COL]].groupby(EXPERIMENT_COL).median()
+median = wake_df[[EXPERIMENT_COL, WAKE_ACC_COL]].groupby(EXPERIMENT_COL).median().sort_values
 experiment_plot_axis.plot(median.index, median[WAKE_ACC_COL], label='Median', color='black', linewidth=4, linestyle='--')
 experiment_plot_axis.fill_between(median.index, median[WAKE_ACC_COL], color='gray', alpha=0.3)
 
