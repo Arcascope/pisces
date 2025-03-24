@@ -101,13 +101,13 @@ class UNetDecoder(nn.Module):
 class ConvSegmenterUNet(nn.Module):
     def __init__(self, num_classes=2, negative_slope=0.1):
         super(ConvSegmenterUNet, self).__init__()
-        self.kernel = (15, 5)
+        self.kernel = (7, 5)
         self.stride = (1, 2)
         self.output_padding = (0, 0)
         pad = dynamic_padding(self.kernel)
         
         # Initialize channel dimensions for layers
-        self.channels = [8, 16, 32]
+        self.channels = [8, 16, 32, 64]
         
         self.first_bn = nn.BatchNorm2d(1)
         

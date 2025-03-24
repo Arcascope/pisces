@@ -133,8 +133,8 @@ if __name__ == '__main__':
     time_start = time.time()
     results = train_loocv(
         prepro_values, 
-        num_epochs=4, 
-        batch_size=1,
+        num_epochs=3, 
+        batch_size=2,
         experiment_results_csv=EXPERIMENT_RESULTS_CSV,
         lr=1e-3
     )
