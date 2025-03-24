@@ -60,19 +60,17 @@ class PerformanceMetrics:
 
 
 def apply_threshold(labels, predictions, threshold):
-    true_wakes = np.where(labels == 0)[0]
-    predicted_wakes = np.where((predictions > threshold) & (labels != -1))[0]
+    true_wakes = labels == 0
+    predicted_wakes = predictions > threshold & (labels != -1)
 
     # calculate the number of true positives
-    wake_accuracy = len(set(true_wakes).intersection(
-        set(predicted_wakes))) / len(true_wakes)
+    wake_accuracy = np.sum(predicted_wakes & true_wakes) / np.sum(true_wakes)
 
     # calculate the sleep accuracy
-    true_sleeps = np.where(labels > 0)[0]
-    predicted_sleeps = np.where((predictions <= threshold) & (labels != -1))[0]
+    true_sleeps = labels > 0
+    predicted_sleeps = (predictions <= threshold) & (labels != -1)
 
-    sleep_accuracy = len(set(true_sleeps).intersection(
-        set(predicted_sleeps))) / len(true_sleeps)
+    sleep_accuracy = np.sum(predicted_sleeps & true_sleeps) / np.sum(true_sleeps)
 
     tst_error = (len(true_sleeps) - len(predicted_sleeps)) / 2  # Minutes
 
