@@ -432,6 +432,28 @@ class DataSetObject:
             else:
                 min_end = min([min_end, time.max()])
         return (max_start, min_end)
+    
+    def set_feature_data(self, feature: str, id: str, data: pl.DataFrame):
+        self._feature_cache[feature][id] = data
+    
+    def save_feature_data(self, feature: str, id: str, path: Path):
+        data = self.get_feature_data(feature, id)
+        if data is None:
+            warnings.warn(f"No data found for {feature} and {id}")
+            return
+        data.write_csv(path)
+    
+    def save_set(self, path: Path):
+        path.mkdir(parents=True, exist_ok=True)
+        for feature in self.features:
+            feature_path = path.joinpath(self.FEATURE_PREFIX + feature)
+            feature_path.mkdir(parents=True, exist_ok=True)
+            for id in self.ids:
+                data = self.get_feature_data(feature, id)
+                if data is None:
+                    warnings.warn(f"No data found for {feature} and {id}")
+                    continue
+                data.write_csv(feature_path.joinpath(f"{id}.csv"))
 
 # %% ../nbs/01_data_sets.ipynb 15
 def psg_to_sleep_wake(psg: pl.DataFrame) -> np.ndarray:
