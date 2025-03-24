@@ -3,6 +3,7 @@ from pathlib import Path
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
+import numpy as np
 from main import EXPERIMENT_RESULTS_CSV
 from conv2d_net import TrainingResult
 
@@ -27,24 +28,38 @@ wake_df = wake_df.sort_values(by=EPOCH_TIME_COL)
 # drop rows with NaN values
 wake_df = wake_df.dropna()
 
-# Get unique experiment IDs in the order they appear in the CSV
-experiment_ids = wake_df[[EXPERIMENT_COL, EPOCH_TIME_COL]].unique()
-last_experiment_hash = experiment_ids.sort_values(by=EPOCH_TIME_COL)[-1]
+# Get unique experiment IDs ordered by time
+exp_time_df = wake_df[[EXPERIMENT_COL, EPOCH_TIME_COL]].drop_duplicates()
+exp_time_df = exp_time_df.sort_values(by=EPOCH_TIME_COL)
+ordered_exp_ids = exp_time_df[EXPERIMENT_COL].values
+last_experiment_hash = ordered_exp_ids[-1]
 
+# Set x-axis ordering based on experiment time
+experiment_plot_axis.set_xticks(range(len(ordered_exp_ids)))
+experiment_plot_axis.set_xticklabels([])
 
 # Group by test_id and plot
 for test_id, group in wake_df.groupby(ID_COL):
-    experiment_plot_axis.plot(group[EXPERIMENT_COL], 
-              group[WAKE_ACC_COL], 
-              alpha=0.5)
+    # Map experiment hash to its position in time order
+    x_pos = [np.where(ordered_exp_ids == exp)[0][0] for exp in group[EXPERIMENT_COL]]
+    experiment_plot_axis.plot(x_pos, group[WAKE_ACC_COL], alpha=0.5)
 
-# Now plot the median trend line
-median = wake_df[[EXPERIMENT_COL, WAKE_ACC_COL]].groupby(EXPERIMENT_COL).median().sort_values
-experiment_plot_axis.plot(median.index, median[WAKE_ACC_COL], label='Median', color='black', linewidth=4, linestyle='--')
-experiment_plot_axis.fill_between(median.index, median[WAKE_ACC_COL], color='gray', alpha=0.3)
+# Calculate median and mean while preserving order
+median_values = []
+mean_values = []
+x_positions = []
 
-mean = wake_df[[EXPERIMENT_COL, WAKE_ACC_COL]].groupby(EXPERIMENT_COL).mean()
-experiment_plot_axis.plot(mean.index, mean[WAKE_ACC_COL], 'x-', label='Mean', color='black', linewidth=2)
+for i, exp_id in enumerate(ordered_exp_ids):
+    exp_data = wake_df[wake_df[EXPERIMENT_COL] == exp_id]
+    if not exp_data.empty:
+        median_values.append(exp_data[WAKE_ACC_COL].median())
+        mean_values.append(exp_data[WAKE_ACC_COL].mean())
+        x_positions.append(i)
+
+# Plot median and mean in the correct order
+experiment_plot_axis.plot(x_positions, median_values, label='Median', color='black', linewidth=4, linestyle='--')
+experiment_plot_axis.fill_between(x_positions, median_values, color='gray', alpha=0.3)
+experiment_plot_axis.plot(x_positions, mean_values, 'x-', label='Mean', color='black', linewidth=2)
 
 # Now plot the established values "to beat"
 blur_wasa = 0.59
@@ -53,12 +68,10 @@ mo_wasa = 0.66
 experiment_plot_axis.axhline(y=blur_wasa, color='r', linestyle=':', linewidth=4, label='Blur')
 experiment_plot_axis.axhline(y=mo_wasa, color='g', linestyle=':', linewidth=4, label='MO')
 
-experiment_plot_axis.set_xlabel('Experiment ID')
+experiment_plot_axis.set_xlabel('Experiment ID (Time Ordered)')
 experiment_plot_axis.set_ylabel('wasa95')
 experiment_plot_axis.set_title('wasa95 grouped by test_id')
 experiment_plot_axis.legend()
-experiment_plot_axis.tick_params(axis='x', rotation=75)
-experiment_plot_axis.set_xticklabels([])  # Remove xtick labels
 experiment_plot_axis.set_ylim(0.0, 1.0)
 experiment_plot_axis.grid(visible=True, axis='both')
 
@@ -68,7 +81,7 @@ if SLEEP_ACC_COL in df.columns:
     sleep_data = df[[EXPERIMENT_COL, SLEEP_ACC_COL]].dropna()
     
     # Plot all experiments except the last one in blue with 0.5 opacity
-    for i, exp_id in enumerate(experiment_ids[:-1]):
+    for i, exp_id in enumerate(ordered_exp_ids[:-1]):
         exp_data = sleep_data[sleep_data[EXPERIMENT_COL] == exp_id]
         if not exp_data.empty:
             ax.hist(exp_data[SLEEP_ACC_COL], bins=20, alpha=0.5, color='blue', label=f'Exp {exp_id}' if i == 0 else None)
@@ -89,7 +102,7 @@ ax = axes[0, 2]
 wake_data = df[[EXPERIMENT_COL, WAKE_ACC_COL]].dropna()
 
 # Plot all experiments except the last one in blue with 0.5 opacity
-for i, exp_id in enumerate(experiment_ids[:-1]):
+for i, exp_id in enumerate(ordered_exp_ids[:-1]):
     exp_data = wake_data[wake_data[EXPERIMENT_COL] == exp_id]
     if not exp_data.empty:
         ax.hist(exp_data[WAKE_ACC_COL], bins=20, alpha=0.5, color='blue', label=f'Exp {exp_id}' if i == 0 else None)

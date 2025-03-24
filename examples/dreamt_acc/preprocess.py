@@ -1,11 +1,14 @@
-
+import time
 
 from dataclasses import dataclass
 from typing import List
+from pathlib import Path
 
 from matplotlib import pyplot as plt
 import numpy as np
 from scipy import signal
+import polars as pl
+from tqdm import tqdm
 
 from examples.dreamt_acc.constants import MASK_VALUE, PSG_MAX_IDX, TIMESTAMP_HZ
 
@@ -137,20 +140,86 @@ class Preprocessed:
             self.y = self.y[:PSG_MAX_IDX]
 
 
-def resample_walch_dataset(walch_set: DataSetObject) -> DataSetObject:
+def resample_walch_dataset(walch_set: DataSetObject, resampled_acc_hz: int = 64) -> DataSetObject:
     """Walch et al's data set has accelerometer at 50 Hz, and PSG every 30 seconds.
 
     This function adjusts that to fit our setup here by doing 2 things:
     - resampling the accelerometer data to 64 Hz
     - 30x repeating the PSG labels, so we have 1 Hz labels like we have preprocessed with DREAMT.
     """
-    preprocessed = []
-    for idno in walch_set.ids:
-        accel_data = walch_set.get_feature_data('accelerometer', idno)
-        psg_data = walch_set.get_feature_data('psg', idno)
-        # resample the accelerometer data to 64 Hz
-        accel_data = signal.resample(accel_data, int(len(accel_data) * 64 / 50))
-        # repeat the PSG labels 30 times
-        psg_data = np.repeat(psg_data, 30)
-        preprocessed.append(Preprocessed(idno, accel_data, psg_data))
-    return preprocessed
+    new_set_name = f'{walch_set.name}_{resampled_acc_hz}hz'
+    new_set = DataSetObject(new_set_name, walch_set.path.parent / new_set_name)
+    new_set.ids = walch_set.ids
+    # new_set.features = ['accelerometer', 'psg']
+    id_tqdm = tqdm(walch_set.ids)
+    for idno in id_tqdm:
+        id_tqdm.set_description(f'Processing {idno}')
+        try:
+            accel_data = walch_set.get_feature_data('accelerometer', idno).to_numpy()
+            accel_data = accel_data[accel_data[:, 0].argsort()]
+            psg_data = walch_set.get_feature_data('psg', idno).to_numpy()
+            psg_data = psg_data[psg_data[:, 0].argsort()]
+
+            # Get PSG time
+            psg_y = psg_data[:, 1]
+            psg_t = np.round(psg_data[:, 0])  # convert to pure seconds
+            # resample the accelerometer data to 64 Hz
+            accel_raw = accel_data[:, 1:]
+            accel_raw_t = accel_data[:, 0]
+            max_gap = 0.25
+            # bool array that's True when it's a gap.
+            gap_idx = np.diff(accel_raw_t) > max_gap  # seconds
+
+            for acc_t_idx, acc_t in enumerate(accel_raw_t[:-1]):
+                if not gap_idx[acc_t_idx]:
+                    continue
+                psg_gap_select = (psg_t >= acc_t) & (psg_t < acc_t + max_gap)
+                psg_y[psg_gap_select] = MASK_VALUE
+            
+            # resample PSG to 1 Hz from the given one
+            psg_gap = psg_t[1] - psg_t[0]
+            repeat_n = int(psg_gap)
+            psg_y_1hz = np.repeat(psg_y, repeat_n)
+            psg_t_1hz = np.linspace(psg_t[0], psg_t[-1] + psg_gap - 1, len(psg_y_1hz))
+
+            psg_df = pl.DataFrame({
+                'time': psg_t_1hz,
+                'psg': psg_y_1hz})
+
+
+            t_50 = np.arange(accel_raw_t[0], accel_raw_t[-1], 1/50)
+
+            accel_50 = np.zeros((len(t_50), 3))
+            for i in range(3):
+                accel_50[:, i] = np.interp(t_50, accel_raw_t, accel_raw[:, i])
+            
+            accel_64 = signal.resample(
+                accel_50,
+                int(len(accel_data) * resampled_acc_hz / 50))
+            t_64 = np.linspace(
+                accel_raw_t[0],
+                accel_raw_t[-1] + 1/resampled_acc_hz,
+                len(accel_64))
+            accel_df = pl.DataFrame({
+                'time': t_64,
+                'x': accel_64[:, 0],
+                'y': accel_64[:, 1],
+                'z': accel_64[:, 2]
+            })
+
+            new_set.set_feature_data('accelerometer', idno, accel_df)
+            new_set.set_feature_data('psg', idno, psg_df)
+        except Exception as e:
+            print(f"Error processing {idno}: {e}")
+
+    return new_set
+
+
+if __name__ == '__main__':
+    sets = DataSetObject.find_data_sets(Path('data'))
+    walch = sets['walch_et_al']
+    start_time = time.time()
+    walch_resampled = resample_walch_dataset(walch)
+    print(f"Resampling took {time.time() - start_time:.2f} seconds.")
+    walch_resampled.save_set(walch_resampled.path)
+    print("Resampled data saved.")
