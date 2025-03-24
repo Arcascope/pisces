@@ -1,12 +1,15 @@
 
 
 from dataclasses import dataclass
+from typing import List
 
 from matplotlib import pyplot as plt
 import numpy as np
 from scipy import signal
 
 from examples.dreamt_acc.constants import MASK_VALUE, PSG_MAX_IDX, TIMESTAMP_HZ
+
+from pisces.data_sets import DataSetObject
 
 
 @dataclass
@@ -132,3 +135,22 @@ class Preprocessed:
                 constant_values=MASK_VALUE)
         elif self.y.shape[0] > PSG_MAX_IDX:
             self.y = self.y[:PSG_MAX_IDX]
+
+
+def resample_walch_dataset(walch_set: DataSetObject) -> DataSetObject:
+    """Walch et al's data set has accelerometer at 50 Hz, and PSG every 30 seconds.
+
+    This function adjusts that to fit our setup here by doing 2 things:
+    - resampling the accelerometer data to 64 Hz
+    - 30x repeating the PSG labels, so we have 1 Hz labels like we have preprocessed with DREAMT.
+    """
+    preprocessed = []
+    for idno in walch_set.ids:
+        accel_data = walch_set.get_feature_data('accelerometer', idno)
+        psg_data = walch_set.get_feature_data('psg', idno)
+        # resample the accelerometer data to 64 Hz
+        accel_data = signal.resample(accel_data, int(len(accel_data) * 64 / 50))
+        # repeat the PSG labels 30 times
+        psg_data = np.repeat(psg_data, 30)
+        preprocessed.append(Preprocessed(idno, accel_data, psg_data))
+    return preprocessed
