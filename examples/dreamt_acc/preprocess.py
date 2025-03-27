@@ -1,7 +1,6 @@
 import time
 
 from dataclasses import dataclass
-from typing import List
 from pathlib import Path
 
 from matplotlib import pyplot as plt
@@ -183,8 +182,8 @@ def resample_walch_dataset(walch_set: DataSetObject, resampled_acc_hz: int = 64)
             psg_t_1hz = np.linspace(psg_t[0], psg_t[-1] + psg_gap - 1, len(psg_y_1hz))
 
             psg_df = pl.DataFrame({
-                'time': psg_t_1hz,
-                'psg': psg_y_1hz})
+                'TIMESTAMP': psg_t_1hz,
+                'PSG': psg_y_1hz})
 
 
             t_50 = np.arange(accel_raw_t[0], accel_raw_t[-1], 1/50)
@@ -201,10 +200,10 @@ def resample_walch_dataset(walch_set: DataSetObject, resampled_acc_hz: int = 64)
                 accel_raw_t[-1] + 1/resampled_acc_hz,
                 len(accel_64))
             accel_df = pl.DataFrame({
-                'time': t_64,
-                'x': accel_64[:, 0],
-                'y': accel_64[:, 1],
-                'z': accel_64[:, 2]
+                'TIMESTAMP': t_64,
+                'ACC_X': accel_64[:, 0],
+                'ACC_Y': accel_64[:, 1],
+                'ACC_Z': accel_64[:, 2]
             })
 
             new_set.set_feature_data('accelerometer', idno, accel_df)

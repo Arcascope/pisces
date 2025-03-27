@@ -1,9 +1,7 @@
 from dataclasses import dataclass
 from hashlib import sha256
-from logging import warning
 import os
 from pathlib import Path
-import sys
 import time
 from typing import List
 from matplotlib import pyplot as plt
@@ -11,18 +9,16 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import numpy as np
-from sklearn.metrics import roc_curve
 import seaborn as sns
 
 
-from torch.cuda.amp import autocast, GradScaler
 from tqdm import tqdm
 
 from torch.utils.tensorboard import SummaryWriter
 
 
-from examples.dreamt_acc.constants import MASK_VALUE, PSG_MAX_IDX
-from examples.dreamt_acc.preprocess import STFT, Preprocessed
+from examples.dreamt_acc.constants import MASK_VALUE
+from examples.dreamt_acc.preprocess import Preprocessed
 
 
 import torch
@@ -702,20 +698,193 @@ def train_loocv(data_list: List[Preprocessed],
     
     return fold_results
 
-# ---------------------------
-# Example Usage:
-# TODO: rewrite to fit new shapes
-# if __name__ == '__main__':
-#     num_subjects = 5
-#     dummy_data = []
-#     N = 100  # e.g., each subject has 100 segments
-#     for _ in range(num_subjects):
-#         x_spec = STFT(f=None, t=None, Zxx=np.random.randn(N, 129).astype(np.float32))
-#         # Random labels from {0, 1} with some -1 values as masks.
-#         y = np.random.choice([0, 1, -1], size=(N,), p=[0.4, 0.5, 0.1]).astype(np.int64)
-#         dummy_data.append(Preprocessed(x=np.array([]), y=y, x_spec=x_spec))
+def train_eval(train_data_list: List[Preprocessed], 
+               test_data_list: List[Preprocessed],
+               experiment_results_csv: Path,
+               num_epochs=20, lr=1e-3, batch_size=1,
+               min_spec_max: float = 0.1,
+               plot=True,
+               device=torch.device("cuda" if torch.cuda.is_available() else "cpu")) -> List[TrainingResult]:
+    """Train on one dataset and evaluate on another"""
+    print("Training using", torch.cuda.get_device_name() if torch.cuda.is_available() else "CPU")
+    test_results: List[TrainingResult] = []
+    scaler = torch.amp.GradScaler()
     
-#     results = train_loocv(dummy_data, num_epochs=10)
-#     print("\nLOOCV Results:")
-#     for res in results:
-#         print(res)
+    # Preprocess all training data
+    train_maxes = []
+    for data_subject in train_data_list:
+        # if data_subject.x_spec is None:
+        data_subject.x_spec.compute_specgram(normalization_window_idx=None, freq_max=10)
+        train_maxes.append(data_subject.x_spec.specgram.max())
+        # Convert to binary labels: 0, 1, leaving -1 masks as is
+        data_subject.y = np.where(data_subject.y > 0, 1, data_subject.y)
+    
+    # Filter out low-quality data from training
+    train_keep_idx = [i for i, m in enumerate(train_maxes) if m >= min_spec_max]
+    filtered_train_list = [train_data_list[i] for i in train_keep_idx]
+    filtered_train_maxes = [train_maxes[i] for i in train_keep_idx]
+    
+    # Preprocess all test data
+    for data_subject in test_data_list:
+        if data_subject.x_spec is None:
+            data_subject.compute_specgram(normalization_window_idx=None, freq_max=10)
+        # Convert to binary labels: 0, 1, leaving -1 masks as is
+        data_subject.y = np.where(data_subject.y > 0, 1, data_subject.y)
+    
+    # Setup experiment tracking
+    commit_hash = get_git_commit_hash()
+    timestamp = int(time.time())
+    training_dir = experiment_results_csv.parent / 'dreamt_training_logs' / commit_hash
+    os.makedirs(training_dir, exist_ok=True)
+    writer = SummaryWriter(training_dir)
+    
+    report_freq = 5
+    WASA_ACC = 0.95
+    wasa_key = f'wasa{WASA_ACC}'
+
+    print(f"Training with {len(filtered_train_list)} subjects, testing on {len(test_data_list)} subjects")
+    print(f"Results will appear in {training_dir}")
+    print(ConvSegmenterUNet())  # Print model description
+
+    # Prepare training data
+    X_train = np.array([
+        train_subject.x_spec.specgram
+        for train_subject in filtered_train_list
+    ], dtype=np.float32)
+    y_train = np.array([
+        train_subject.y
+        for train_subject in filtered_train_list
+    ], dtype=np.int64)
+    
+    # Convert numpy arrays to torch tensors for training
+    X_train_tensor = torch.tensor(X_train, dtype=torch.float32, device=device)
+    y_train_tensor = torch.tensor(y_train, dtype=torch.long, device=device)
+    
+    # Initialize model, optimizer, and loss function
+    model = ConvSegmenterUNet(num_classes=2).to(device)
+    optimizer = optim.Adam(model.parameters(), lr=lr)
+    
+    # Use balanced weights for cross-entropy loss
+    balancing_weights = torch.tensor([1.0, 1.0], dtype=torch.float32, device=device)
+    ce_loss = nn.CrossEntropyLoss(ignore_index=MASK_VALUE, weight=balancing_weights)
+    
+    # Training loop
+    best_avg_wasa = 0.0
+    best_model_path = training_dir / 'best_model.pth'
+    
+    for epoch in range(num_epochs):
+        print("="*4, f"\nEpoch {epoch+1}/{num_epochs}\n", "="*4)
+        running_loss = 0.0
+        
+        # Shuffle training data
+        indices = torch.randperm(X_train_tensor.size(0))
+        epoch_X = X_train_tensor[indices]
+        epoch_y = y_train_tensor[indices]
+        
+        batch_tqdm = tqdm(range(0, epoch_X.size(0), batch_size))
+        for batch_idx in batch_tqdm:
+            print_batch = batch_idx // batch_size + 1
+            print_n_batches = epoch_X.size(0) // batch_size + 1
+            batch_tqdm.set_description_str(f'Batch {print_batch}/{print_n_batches}')
+            
+            # Get batch
+            batch_X = epoch_X[batch_idx:batch_idx+batch_size]
+            batch_y = epoch_y[batch_idx:batch_idx+batch_size]
+            
+            # Forward pass with mixed precision
+            with torch.amp.autocast('cuda'):
+                # Check for NaNs in input
+                if torch.isnan(batch_X).any():
+                    print("Warning: NaN values detected in input batch")
+                    
+                outputs = model(batch_X)
+                loss = ce_loss(outputs, batch_y)
+
+                # Check for NaNs in loss
+                if torch.isnan(loss):
+                    print("Warning: NaN loss detected")
+                    continue  # Skip this batch
+            
+            # Backward and optimize with scaling
+            optimizer.zero_grad()
+            scaler.scale(loss).backward()
+            scaler.step(optimizer)
+            scaler.update()
+            running_loss += loss.item()
+            
+            if (batch_idx + 1) % report_freq == 0:
+                writer.add_scalar('training loss',
+                                running_loss / report_freq,
+                                epoch * len(filtered_train_list) + batch_idx)
+                running_loss = 0.0
+        
+        # Evaluate on test set after each epoch
+        epoch_wasas = []
+        for test_idx, test_subject in enumerate(test_data_list):
+            X_test = np.array([test_subject.x_spec.specgram], dtype=np.float32)
+            y_test = np.array([test_subject.y], dtype=np.int64)
+            
+            X_test_tensor = torch.tensor(X_test, dtype=torch.float32, device=device)
+            y_test_tensor = torch.tensor(y_test, dtype=torch.long, device=device)
+            
+            wasa_result = wasa(model, X_test_tensor, y_test_tensor, WASA_ACC)
+            epoch_wasas.append(wasa_result.wake_acc)
+        
+        avg_epoch_wasa = np.mean(epoch_wasas)
+        writer.add_scalar(f'average {wasa_key}', avg_epoch_wasa, epoch)
+        print(f"Epoch {epoch+1} Average WASA: {avg_epoch_wasa:.4f}")
+        
+        if avg_epoch_wasa > best_avg_wasa:
+            best_avg_wasa = avg_epoch_wasa
+            torch.save(model.state_dict(), best_model_path)
+            print(f"New best model saved with average WASA: {best_avg_wasa:.4f}")
+    
+    # Load best model for final evaluation
+    model.load_state_dict(torch.load(best_model_path))
+    model.eval()
+    
+    # Final evaluation on all test subjects
+    test_tqdm = tqdm(enumerate(test_data_list), total=len(test_data_list))
+    for test_idx, test_subject in test_tqdm:
+        X_test = np.array([test_subject.x_spec.specgram], dtype=np.float32)
+        y_test = np.array([test_subject.y], dtype=np.int64)
+        
+        X_test_tensor = torch.tensor(X_test, dtype=torch.float32, device=device)
+        y_test_tensor = torch.tensor(y_test, dtype=torch.long, device=device)
+        
+        wasa_result = wasa(model, X_test_tensor, y_test_tensor, WASA_ACC)
+        test_outputs = model(X_test_tensor)[0].cpu().detach().numpy()
+        
+        this_subject_result = TrainingResult(
+            idno=test_subject.idno,
+            experiment_hash=commit_hash,
+            epoch_seconds=timestamp,
+            fold=test_idx,  # Use test_idx as the fold number
+            logits_threshold=wasa_result.threshold,
+            wake_acc=wasa_result.wake_acc,
+            sleep_acc=wasa_result.sleep_acc,
+            wasa_result=wasa_result,
+            test_X=test_subject.x_spec.specgram,
+            test_y=test_subject.y,
+            sleep_logits=test_outputs,
+            max_X=test_subject.x_spec.specgram.max(),
+            min_X=test_subject.x_spec.specgram.min(),
+            mean_X=test_subject.x_spec.specgram.mean(),
+            median_X=np.median(test_subject.x_spec.specgram),
+            std_X=test_subject.x_spec.specgram.std()
+        )
+        
+        test_results.append(this_subject_result)
+        write_folds([this_subject_result], experiment_results_csv)
+        
+        if plot:
+            fig, ax = make_beautiful_specgram_plot(test_subject, this_subject_result, from_logits=False)
+            plot_dir = training_dir / f'{test_subject.idno}_result.png'
+            plt.savefig(plot_dir, dpi=300)
+            plt.close(fig)
+    
+    # Print summary statistics
+    print("\nTest Results Summary:")
+    print_histogram([r.wake_acc for r in test_results], bins=10)
+    
+    return test_results
