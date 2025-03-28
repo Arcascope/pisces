@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from datetime import datetime
 from hashlib import sha256
 import os
 from pathlib import Path
@@ -711,30 +712,27 @@ def train_eval(train_data_list: List[Preprocessed],
     scaler = torch.amp.GradScaler()
     
     # Preprocess all training data
-    train_maxes = []
-    for data_subject in train_data_list:
-        # if data_subject.x_spec is None:
-        data_subject.x_spec.compute_specgram(normalization_window_idx=None, freq_max=10)
-        train_maxes.append(data_subject.x_spec.specgram.max())
-        # Convert to binary labels: 0, 1, leaving -1 masks as is
-        data_subject.y = np.where(data_subject.y > 0, 1, data_subject.y)
+    train_maxes = prepare_subjects(train_data_list)
+    prepare_subjects(test_data_list)
     
     # Filter out low-quality data from training
     train_keep_idx = [i for i, m in enumerate(train_maxes) if m >= min_spec_max]
     filtered_train_list = [train_data_list[i] for i in train_keep_idx]
     filtered_train_maxes = [train_maxes[i] for i in train_keep_idx]
     
-    # Preprocess all test data
-    for data_subject in test_data_list:
-        if data_subject.x_spec is None:
-            data_subject.compute_specgram(normalization_window_idx=None, freq_max=10)
-        # Convert to binary labels: 0, 1, leaving -1 masks as is
-        data_subject.y = np.where(data_subject.y > 0, 1, data_subject.y)
+    # # Preprocess all test data
+    # for data_subject in test_data_list:
+    #     if data_subject.x_spec is None:
+    #         data_subject.compute_specgram(normalization_window_idx=None, freq_max=10)
+    #     # Convert to binary labels: 0, 1, leaving -1 masks as is
+    #     data_subject.y = np.where(data_subject.y > 0, 1, data_subject.y)
     
     # Setup experiment tracking
     commit_hash = get_git_commit_hash()
     timestamp = int(time.time())
-    training_dir = experiment_results_csv.parent / 'dreamt_training_logs' / commit_hash
+    dttm = datetime.fromtimestamp(timestamp).isoformat()
+    dttm = dttm.replace(":", "-")
+    training_dir = experiment_results_csv.parent / 'dreamt_walch_logs' / f'{dttm}_{commit_hash}'
     os.makedirs(training_dir, exist_ok=True)
     writer = SummaryWriter(training_dir)
     
@@ -888,3 +886,13 @@ def train_eval(train_data_list: List[Preprocessed],
     print_histogram([r.wake_acc for r in test_results], bins=10)
     
     return test_results
+
+def prepare_subjects(prepro_data_list) -> List[float]:
+    train_maxes = []
+    for data_subject in prepro_data_list:
+        # if data_subject.x_spec is None:
+        data_subject.x_spec.compute_specgram(normalization_window_idx=None, freq_max=10)
+        train_maxes.append(data_subject.x_spec.specgram.max())
+        # Convert to binary labels: 0, 1, leaving -1 masks as is
+        data_subject.y = np.where(data_subject.y > 0, 1, data_subject.y)
+    return train_maxes

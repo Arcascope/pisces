@@ -15,7 +15,6 @@ from examples.dreamt_acc.conv2d_net import TrainingResult, make_beautiful_specgr
 from examples.dreamt_acc.preprocess import Preprocessed
 from pisces.data_sets import DataSetObject
 
-# First, let's modify the train_loocv function to train_eval for cross-dataset evaluation
 def train_eval(train_data_list, test_data_list, experiment_results_csv, num_epochs=20, lr=1e-3, batch_size=1, min_spec_max=0.1, plot=True):
     """Adapts the train_loocv function to train on one dataset and evaluate on another.
     Imports the actual implementation from conv2d_net to avoid circular imports.
