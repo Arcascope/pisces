@@ -83,7 +83,7 @@ def preprocess_data(set_ids, data_set, quality_df=None, exclude_threshold=18.0):
         
         # Create Preprocessed object directly instead of compressing first
         prepro_data[d] = Preprocessed(d, x, y)
-        prepro_data[d].compute_specgram()
+        prepro_data[d].compute_stft()
 
     return prepro_data
 
