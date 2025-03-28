@@ -715,10 +715,18 @@ def train_eval(train_data_list: List[Preprocessed],
     train_maxes = prepare_subjects(train_data_list)
     test_maxes = prepare_subjects(test_data_list)
 
-    bins_arr = np.linspace(-5, 5, 120)
-    sns.histplot(train_maxes, bins=bins_arr)
-    sns.histplot(test_maxes, bins=bins_arr)
+    min_max = -10
+    max_max = 10
+    # 10 samples per 1 unit of max
+    bins_arr = np.linspace(-10, 10, (max_max - min_max) * 10)
+    sns.histplot(train_maxes, bins=bins_arr, label='Train')
+    sns.histplot(test_maxes, bins=bins_arr, label='Test')
+    plt.xlabel('Max Value')
+    plt.ylabel('Count')
+    plt.title('Max Value Histogram')
+    plt.legend()
     plt.savefig(experiment_results_csv.parent / "train_test_max_hist.png")
+    plt.close()
     
     # Filter out low-quality data from training
     train_keep_idx = [i for i, m in enumerate(train_maxes) if m >= min_spec_max]

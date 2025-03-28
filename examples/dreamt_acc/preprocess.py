@@ -40,8 +40,6 @@ class STFT:
             self.specgram = np.clip(self.specgram, 
                                 np.percentile(self.specgram, n_tile_clamp),
                                 np.percentile(self.specgram, 100 - n_tile_clamp))
-        if normalization_window_len is not None:
-            self.apply_local_stdnorm_to_specgram(normalization_window_len)
         if freq_min is not None:
             f_select = self.f >= freq_min
             self.specgram = self.specgram[:, f_select]
@@ -52,6 +50,8 @@ class STFT:
             self.specgram = self.specgram[:, f_select]
             self.f = self.f[f_select]
             self.Zxx = self.Zxx[:, f_select]
+        if normalization_window_len is not None:
+            self.apply_local_stdnorm_to_specgram(normalization_window_len)
         return abs_array
     
     def apply_local_stdnorm_to_specgram(self, window_size: int = 5) -> np.ndarray:
