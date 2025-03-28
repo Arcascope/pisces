@@ -719,11 +719,14 @@ def train_eval(train_data_list: List[Preprocessed],
     max_max = 45
     # 10 samples per 1 unit of max
     # bins_arr = np.linspace(min_max, 10, (max_max - min_max) * 10)
+    # fix, (ax_bottom, ax_top) = plt.subplots(nrows=2, figsize=(10, 10), sharey=True)
     ax_bottom = plt.gca()
-    ax_top = ax_bottom.sharey()
+    ax_top = ax_bottom.twiny()
+    # ax_bottom = ax_top.twinx()
+    # ax_top = ax_bottom.()
     bins_arr = 10
-    sns.histplot(train_maxes, bins=bins_arr, label='Train', kde=True, ax=ax_bottom)
-    sns.histplot(test_maxes, bins=bins_arr, label='Test', kde=True, ax=ax_top)
+    sns.histplot(train_maxes, bins=bins_arr, color='tab:blue', label='Train', kde=True, ax=ax_bottom)
+    sns.histplot(test_maxes, bins=bins_arr, color='tab:orange', label='Test', kde=True, ax=ax_top)
     # plt.xlim(min_max, max_max)
     plt.xlabel('Max Value')
     plt.ylabel('Count')
@@ -731,6 +734,7 @@ def train_eval(train_data_list: List[Preprocessed],
     plt.legend()
     plt.savefig(experiment_results_csv.parent / "train_test_max_hist.png")
     plt.close()
+    exit(0)
     
     # Filter out low-quality data from training
     train_keep_idx = [i for i, m in enumerate(train_maxes) if m >= min_spec_max]
@@ -905,7 +909,16 @@ def prepare_subjects(prepro_data_list) -> List[float]:
         if data_subject.x_spec.specgram is None:
             data_subject.x_spec.compute_specgram(normalization_window_len=-1, freq_max=10)
         train_maxes.append(data_subject.x_spec.specgram.max())
+        specgram = data_subject.x_spec.specgram
+        stats_report = ''
+        stats_report += f'Max: {specgram.max():.2f}'
+        stats_report += f', Mean: {specgram.mean():.2f} +/- {specgram.std():.2f}'
+        stats_report += f', Median: {np.median(specgram):.2f}'
+        stats_report += f', Min: {specgram.min():.2f}'
+
+        print(stats_report)
 
         # Convert to binary labels: 0, 1, leaving -1 masks as is
         data_subject.y = np.where(data_subject.y > 0, 1, data_subject.y)
+    print("!!!!!!!!!!!")
     return train_maxes
