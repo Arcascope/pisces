@@ -893,10 +893,6 @@ def train_eval(train_data_list: List[Preprocessed],
             plot_dir = training_dir / f'{test_subject.idno}_result.png'
             plt.savefig(plot_dir, dpi=200)
             plt.close(fig)
-            for i in range(3):
-                plt.plot(test_subject.x[:, i])
-            plt.savefig(training_dir / f'{test_subject.idno}_raw.png', dpi=200)
-            plt.close(fig)
 
     
     # Print summary statistics

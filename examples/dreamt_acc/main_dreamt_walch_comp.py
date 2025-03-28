@@ -66,6 +66,8 @@ def preprocess_data(set_ids, data_set, quality_df=None, exclude_threshold=18.0):
         # Pad to full timestamp length
         n_pad = TIMESTAMP_HZ - (x.shape[0] % TIMESTAMP_HZ)
         x = np.pad(x, ((0, n_pad), (0, 0)), mode='constant')
+        x /= 50 # Normalize accelerometer data so g = 1
+
         y = np.pad(y, (0, n_pad), mode='constant')
         y = y.reshape(-1, TIMESTAMP_HZ)
         
