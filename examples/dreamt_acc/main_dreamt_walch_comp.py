@@ -286,7 +286,7 @@ if __name__ == '__main__':
     ]
     labels = ['DREAMT → Walch', 'Walch → DREAMT']
     
-    ax.boxplot(data, labels=labels)
+    ax.boxplot(data, tick_labels=labels)
     ax.set_title('Cross-Dataset Performance (WASA)')
     ax.set_ylabel('Wake Accuracy when Sleep Accuracy = 0.95')
     ax.grid(True, linestyle='--', alpha=0.7)
