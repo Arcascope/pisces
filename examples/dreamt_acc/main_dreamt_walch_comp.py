@@ -66,7 +66,7 @@ def preprocess_data(set_ids, data_set, quality_df=None, exclude_threshold=18.0):
         # Pad to full timestamp length
         n_pad = TIMESTAMP_HZ - (x.shape[0] % TIMESTAMP_HZ)
         x = np.pad(x, ((0, n_pad), (0, 0)), mode='constant')
-        x /= 50 # Normalize accelerometer data so g = 1
+        x *= 9.81 / 50  # Convert to m/s^2
 
         y = np.pad(y, (0, n_pad), mode='constant')
         y = y.reshape(-1, TIMESTAMP_HZ)
@@ -122,6 +122,7 @@ def preprocess_walch_data(set_ids, data_set, quality_df=None, exclude_threshold=
                 continue
                 
             x = acc_df[:, 1:4]  # Extract accelerometer data
+            x *= 9.81  # Convert to m/s^2
             y = psg_df[:, 1]  # Extract PSG data
             
             
