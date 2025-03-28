@@ -906,9 +906,9 @@ def prepare_subjects(prepro_data_list) -> List[float]:
         # if data_subject.x_spec is None:
         if data_subject.x_spec.specgram is None:
             data_subject.x_spec.compute_specgram(
-                # normalization_window_len=-1,
+                normalization_window_len=-1,
                 freq_max=10,
-                unit_minmax_transform=True,
+                unit_minmax_transform=False,
                 )
         train_maxes.append(data_subject.x_spec.specgram.max())
         specgram = data_subject.x_spec.specgram
