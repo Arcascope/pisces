@@ -713,7 +713,12 @@ def train_eval(train_data_list: List[Preprocessed],
     
     # Preprocess all training data
     train_maxes = prepare_subjects(train_data_list)
-    prepare_subjects(test_data_list)
+    test_maxes = prepare_subjects(test_data_list)
+
+    bins_arr = np.linspace(-10, 2, 120)
+    sns.histplot(train_maxes, bins=bins_arr)
+    sns.histplot(test_maxes, bins=bins_arr)
+    plt.savefig(experiment_results_csv.parent / "train_test_max_hist.png")
     
     # Filter out low-quality data from training
     train_keep_idx = [i for i, m in enumerate(train_maxes) if m >= min_spec_max]
@@ -891,8 +896,10 @@ def prepare_subjects(prepro_data_list) -> List[float]:
     train_maxes = []
     for data_subject in prepro_data_list:
         # if data_subject.x_spec is None:
-        data_subject.x_spec.compute_specgram(normalization_window_idx=None, freq_max=10)
+        if data_subject.x_spec.specgram is None:
+            data_subject.x_spec.compute_specgram(normalization_window_idx=None, freq_max=10)
         train_maxes.append(data_subject.x_spec.specgram.max())
+
         # Convert to binary labels: 0, 1, leaving -1 masks as is
         data_subject.y = np.where(data_subject.y > 0, 1, data_subject.y)
     return train_maxes

@@ -43,11 +43,15 @@ class STFT:
         if normalization_window_idx is not None:
             self.apply_local_stdnorm_to_specgram(normalization_window_idx)
         if freq_min is not None:
-            self.specgram = self.specgram[:, self.f >= freq_min]
-            self.f = self.f[self.f >= freq_min]
+            f_select = self.f >= freq_min
+            self.specgram = self.specgram[:, f_select]
+            self.f = self.f[f_select]
+            self.Zxx = self.Zxx[:, f_select]
         if freq_max is not None:
-            self.specgram = self.specgram[:, self.f <= freq_max]
-            self.f = self.f[self.f <= freq_max]
+            f_select = self.f <= freq_max
+            self.specgram = self.specgram[:, f_select]
+            self.f = self.f[f_select]
+            self.Zxx = self.Zxx[:, f_select]
         return abs_array
     
     def apply_local_stdnorm_to_specgram(self, window_size: int = 5) -> np.ndarray:
