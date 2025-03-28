@@ -4,7 +4,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
-from main import EXPERIMENT_RESULTS_CSV
+# from main import EXPERIMENT_RESULTS_CSV
+from main_dreamt_walch_comp import DREAMT_TO_WALCH_CSV as EXPERIMENT_RESULTS_CSV
 from conv2d_net import TrainingResult
 
 # Load the CSV file
