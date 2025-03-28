@@ -59,6 +59,8 @@ class STFT:
            
         if normalization_window_len is not None:
             self.apply_local_stdnorm_to_specgram(normalization_window_len)
+            abs_max = 4
+            self.specgram = np.clip(self.specgram, -abs_max, abs_max)
         return abs_array
     
     def apply_local_stdnorm_to_specgram(self, window_size: int = 5) -> np.ndarray:
@@ -90,7 +92,7 @@ class STFT:
         ax.imshow(self.specgram.T, 
                   aspect='auto', origin='lower', 
                   extent=[0, len(self.t), self.f[0], self.f[-1]],
-                  vmin=-6.1, vmax=0.75
+                #   vmin=-6.1, vmax=0.75
                   )
         ax.set_ylabel('Frequency [Hz]')
         ax.set_xlabel('Time [s]')
