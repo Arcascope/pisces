@@ -897,7 +897,7 @@ def prepare_subjects(prepro_data_list) -> List[float]:
     for data_subject in prepro_data_list:
         # if data_subject.x_spec is None:
         if data_subject.x_spec.specgram is None:
-            data_subject.x_spec.compute_specgram(normalization_window_idx=None, freq_max=10)
+            data_subject.x_spec.compute_specgram(normalization_window_idx=-1, freq_max=10)
         train_maxes.append(data_subject.x_spec.specgram.max())
 
         # Convert to binary labels: 0, 1, leaving -1 masks as is

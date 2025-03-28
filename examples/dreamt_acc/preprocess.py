@@ -56,13 +56,21 @@ class STFT:
     
     def apply_local_stdnorm_to_specgram(self, window_size: int = 5) -> np.ndarray:
         """Applies local standardization to the specgram
+
+        Args:
+            window_size (int, optional): Size of the window to use for local standardization. 
+                Defaults to 5. If <= 0, uses the mean and std of the entire specgram.
         """
         means_array = np.zeros_like(self.specgram)
         stdevs_array = np.zeros_like(self.specgram)
-        for i in range(self.specgram.shape[0]):
-            specgram_window = self.specgram[max(0, i - window_size):i + window_size, :]
-            means_array[i, :] = np.mean(specgram_window, axis=0)
-            stdevs_array[i, :] = np.std(specgram_window, axis=0) + 1e-6
+        if window_size <= 0:
+            means_array += np.mean(self.specgram)
+            stdevs_array += np.std(self.specgram) + 1e-6
+        else:
+            for i in range(self.specgram.shape[0]):
+                specgram_window = self.specgram[max(0, i - window_size):i + window_size, :]
+                means_array[i, :] = np.mean(specgram_window, axis=0)
+                stdevs_array[i, :] = np.std(specgram_window, axis=0) + 1e-6
         self.specgram = (self.specgram - means_array) / stdevs_array
         return self.specgram
 
