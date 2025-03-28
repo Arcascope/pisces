@@ -906,6 +906,7 @@ def prepare_subjects(prepro_data_list) -> List[float]:
         # if data_subject.x_spec is None:
         if data_subject.x_spec.specgram is None:
             data_subject.x_spec.compute_specgram(
+                n_tile_clamp=.25,
                 normalization_window_len=-1,
                 freq_max=10,
                 unit_minmax_transform=False,

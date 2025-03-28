@@ -48,6 +48,9 @@ class STFT:
             self.f = self.f[f_select]
             self.Zxx = self.Zxx[:, f_select]
         if n_tile_clamp > 0:
+            if n_tile_clamp > 1:  # guess it's a percentage
+                n_tile_clamp = n_tile_clamp / 100
+            # clamp the values to the given percentile
             self.specgram = np.clip(self.specgram, 
                                 np.percentile(self.specgram, n_tile_clamp),
                                 np.percentile(self.specgram, 100 - n_tile_clamp))
