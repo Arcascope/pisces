@@ -197,5 +197,5 @@ if __name__ == "__main__":
     from main_dreamt_walch_comp import WALCH_TO_DREAMT_CSV, DREAMT_TO_WALCH_CSV
 
     # plot(EXPERIMENT_RESULTS_CSV)
-    # plot(WALCH_TO_DREAMT_CSV)
+    plot(WALCH_TO_DREAMT_CSV)
     plot(DREAMT_TO_WALCH_CSV)

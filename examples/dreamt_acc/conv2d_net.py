@@ -718,21 +718,21 @@ def train_eval(train_data_list: List[Preprocessed],
     # 10 samples per 1 unit of max
     # bins_arr = np.linspace(min_max, 10, (max_max - min_max) * 10)
     # fix, (ax_bottom, ax_top) = plt.subplots(nrows=2, figsize=(10, 10), sharey=True)
-    ax_bottom = plt.gca()
-    ax_top = ax_bottom.twiny()
-    # ax_bottom = ax_top.twinx()
-    # ax_top = ax_bottom.()
-    bins_arr = 10
-    sns.histplot(train_maxes, bins=bins_arr, color='tab:blue', label='Train', kde=True, ax=ax_bottom)
-    sns.histplot(test_maxes, bins=bins_arr, color='tab:orange', label='Test', kde=True, ax=ax_top)
-    # plt.xlim(min_max, max_max)
-    ax_top.set_xlabel('TEST Max Value')
-    ax_bottom.set_xlabel('TRAIN Max Value')
-    ax_bottom.set_ylabel('Count')
-    ax_bottom.set_title('Max Value Histogram')
-    ax_bottom.legend()
-    plt.savefig(experiment_results_csv.parent / "train_test_max_hist.png")
-    plt.close()
+    # ax_bottom = plt.gca()
+    # ax_top = ax_bottom.twiny()
+    # # ax_bottom = ax_top.twinx()
+    # # ax_top = ax_bottom.()
+    # bins_arr = 10
+    # sns.histplot(train_maxes, bins=bins_arr, color='tab:blue', label='Train', kde=True, ax=ax_bottom)
+    # sns.histplot(test_maxes, bins=bins_arr, color='tab:orange', label='Test', kde=True, ax=ax_top)
+    # # plt.xlim(min_max, max_max)
+    # ax_top.set_xlabel('TEST Max Value')
+    # ax_bottom.set_xlabel('TRAIN Max Value')
+    # ax_bottom.set_ylabel('Count')
+    # ax_bottom.set_title('Max Value Histogram')
+    # ax_bottom.legend()
+    # plt.savefig(experiment_results_csv.parent / "train_test_max_hist.png")
+    # plt.close()
     
     # Filter out low-quality data from training
     train_keep_idx = [i for i, m in enumerate(train_maxes) if m >= min_spec_max]
@@ -891,8 +891,13 @@ def train_eval(train_data_list: List[Preprocessed],
         if plot:
             fig, ax = make_beautiful_specgram_plot(test_subject, this_subject_result, from_logits=False)
             plot_dir = training_dir / f'{test_subject.idno}_result.png'
-            plt.savefig(plot_dir, dpi=300)
+            plt.savefig(plot_dir, dpi=200)
             plt.close(fig)
+            for i in range(3):
+                plt.plot(test_subject.x[:, i])
+            plt.savefig(training_dir / f'{test_subject.idno}_raw.png', dpi=200)
+            plt.close(fig)
+
     
     # Print summary statistics
     print("\nTest Results Summary:")
