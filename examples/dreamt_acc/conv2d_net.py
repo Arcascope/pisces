@@ -481,7 +481,7 @@ def train_loocv(data_list: List[Preprocessed],
     for data_subject in data_list:
         # Compute spectrograms for all subjects.
         # this speeds up per-split X_train, X_test computation.
-        data_subject.x_spec.compute_specgram(normalization_window_idx=None,
+        data_subject.x_spec.compute_specgram(normalization_window_len=None,
                                              freq_max=10)
         print("Frequency filtered specgram size: ", data_subject.x_spec.specgram.shape)
         spec_max = data_subject.x_spec.specgram.max()
@@ -715,7 +715,7 @@ def train_eval(train_data_list: List[Preprocessed],
     train_maxes = prepare_subjects(train_data_list)
     test_maxes = prepare_subjects(test_data_list)
 
-    bins_arr = np.linspace(-10, 2, 120)
+    bins_arr = np.linspace(-5, 5, 120)
     sns.histplot(train_maxes, bins=bins_arr)
     sns.histplot(test_maxes, bins=bins_arr)
     plt.savefig(experiment_results_csv.parent / "train_test_max_hist.png")
@@ -725,12 +725,6 @@ def train_eval(train_data_list: List[Preprocessed],
     filtered_train_list = [train_data_list[i] for i in train_keep_idx]
     filtered_train_maxes = [train_maxes[i] for i in train_keep_idx]
     
-    # # Preprocess all test data
-    # for data_subject in test_data_list:
-    #     if data_subject.x_spec is None:
-    #         data_subject.compute_specgram(normalization_window_idx=None, freq_max=10)
-    #     # Convert to binary labels: 0, 1, leaving -1 masks as is
-    #     data_subject.y = np.where(data_subject.y > 0, 1, data_subject.y)
     
     # Setup experiment tracking
     commit_hash = get_git_commit_hash()
@@ -897,7 +891,7 @@ def prepare_subjects(prepro_data_list) -> List[float]:
     for data_subject in prepro_data_list:
         # if data_subject.x_spec is None:
         if data_subject.x_spec.specgram is None:
-            data_subject.x_spec.compute_specgram(normalization_window_idx=-1, freq_max=10)
+            data_subject.x_spec.compute_specgram(normalization_window_len=-1, freq_max=10)
         train_maxes.append(data_subject.x_spec.specgram.max())
 
         # Convert to binary labels: 0, 1, leaving -1 masks as is

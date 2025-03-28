@@ -114,7 +114,7 @@ if __name__ == '__main__':
 
         
         prepro_k = Preprocessed(v.idno, x, y)
-        prepro_k.compute_specgram()
+        prepro_k.compute_stft()
         print(k, prepro_k.x_spec.shape, prepro_k.y.shape)
         if prepro_k.x_spec.shape[0] != PSG_MAX_IDX:
             print(f"Padding {k} to {PSG_MAX_IDX}")

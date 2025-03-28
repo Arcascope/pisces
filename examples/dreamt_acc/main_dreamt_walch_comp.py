@@ -180,7 +180,7 @@ if __name__ == '__main__':
                 x = decompress_in_memory(v.x)
                 y = decompress_in_memory(v.y)
                 prepro_k = Preprocessed(v.idno, x, y)
-                prepro_k.compute_specgram()
+                prepro_k.compute_stft()
                 dreamt_preproc[k] = prepro_k
     else:
         print("Preprocessing DREAMT data from scratch...")
@@ -215,7 +215,7 @@ if __name__ == '__main__':
                 x = decompress_in_memory(v.x)
                 y = decompress_in_memory(v.y)
                 prepro_k = Preprocessed(v.idno, x, y)
-                prepro_k.compute_specgram()
+                prepro_k.compute_stft()
                 walch_preproc[k] = prepro_k
     else:
         print("Preprocessing Walch data from scratch...")
