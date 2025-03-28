@@ -92,7 +92,7 @@ class STFT:
     @classmethod
     def from_acc(cls, 
                  x: np.ndarray, 
-                 fs: float = None, 
+                 fs: int = None, 
                  nperseg: int = None, 
                  noverlap: int = None) -> 'STFT':
         fs = fs or TIMESTAMP_HZ
@@ -115,8 +115,10 @@ class Preprocessed:
     y: np.ndarray
     x_spec: STFT = None
 
-    def compute_stft(self, pad_to_psg_max_idx: bool = True):
-        self.x_spec = STFT.from_acc(self.x)
+    def compute_stft(self,
+                     pad_to_psg_max_idx: bool = True,
+                     fs: int = None):
+        self.x_spec = STFT.from_acc(self.x, fs=fs)
         if pad_to_psg_max_idx:
             self.pad_to_psg_max_idx()
     

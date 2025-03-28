@@ -132,7 +132,7 @@ def preprocess_walch_data(set_ids, data_set, quality_df=None, exclude_threshold=
             
             # Create Preprocessed object
             prepro_data[d] = Preprocessed(d, x, y)
-            prepro_data[d].compute_specgram()
+            prepro_data[d].compute_stft()
             
         except Exception as e:
             print(f"Error processing {d}: {e}")
@@ -144,7 +144,6 @@ EXAMPLE_DIR = Path(__file__).resolve().parent
 DREAMT_TO_WALCH_CSV = EXAMPLE_DIR / 'dreamt_to_walch_results.csv'
 WALCH_TO_DREAMT_CSV = EXAMPLE_DIR / 'walch_to_dreamt_results.csv'
 RESULTS_DIR = EXAMPLE_DIR / 'cross_dataset_results'
-EXCLUDE_THRESHOLD = 0.18
 
 if __name__ == '__main__':
     # Create results directory
@@ -164,10 +163,10 @@ if __name__ == '__main__':
     quality_df = pl.read_csv(quality_analysis_file)
     
     # Check if we have preprocessed DREAMT data
-    dreamt_npz = Path('dreamt_prepro_data.npz')
+    dreamt_npz = Path(EXAMPLE_DIR / 'dreamt_prepro_data.npz')
     if dreamt_npz.exists():
         print("Loading preprocessed DREAMT data...")
-        dreamt_prepro_data = np.load('dreamt_prepro_data.npz', allow_pickle=True)['arr_0'].item()
+        dreamt_prepro_data = np.load(dreamt_npz, allow_pickle=True)['arr_0'].item()
         
         # Convert compressed data to Preprocessed objects
         dreamt_preproc = {}
@@ -185,7 +184,16 @@ if __name__ == '__main__':
     else:
         print("Preprocessing DREAMT data from scratch...")
         dreamt_ids = dreamt.ids
-        dreamt_preproc = preprocess_data(dreamt_ids, dreamt, quality_df, EXCLUDE_THRESHOLD)
+        dreamt_preproc = preprocess_data(dreamt_ids, dreamt, quality_df, )
+        # Save preprocessed Walch data
+        dreamt_compressed = {}
+        for k, v in tqdm(dreamt_preproc.items(), desc="Compressing dreamt data"):
+            # Store compressed versions for potential future use
+            x_compressed = compress_in_memory(v.x)
+            y_compressed = compress_in_memory(v.y)
+            dreamt_compressed[k] = Preprocessed(v.idno, x_compressed, y_compressed)
+        np.savez(dreamt_npz, dreamt_compressed)
+        del dreamt_compressed  # Free up memory
     
     # 2. Load and preprocess Walch dataset
     print("\n=== Processing Walch dataset ===")
@@ -199,10 +207,10 @@ if __name__ == '__main__':
         walch_quality_df = pl.read_csv(walch_quality_file)
 
     # Check if we have preprocessed Walch data
-    walch_npz = Path('walch_prepro_data.npz')
+    walch_npz = Path(EXAMPLE_DIR / 'walch_prepro_data.npz')
     if walch_npz.exists():
         print("Loading preprocessed Walch data...")
-        walch_prepro_data = np.load('walch_prepro_data.npz', allow_pickle=True)['arr_0'].item()
+        walch_prepro_data = np.load(walch_npz, allow_pickle=True)['arr_0'].item()
         
         # Convert compressed data to Preprocessed objects
         walch_preproc = {}
@@ -230,7 +238,8 @@ if __name__ == '__main__':
             x_compressed = compress_in_memory(v.x)
             y_compressed = compress_in_memory(v.y)
             walch_compressed[k] = Preprocessed(v.idno, x_compressed, y_compressed)
-        np.savez('walch_prepro_data.npz', walch_compressed)
+        np.savez(walch_npz, walch_compressed)
+        del walch_compressed  # Free up memory
     
     # 3. Run cross-dataset training and evaluation
     dreamt_values = list(dreamt_preproc.values())
@@ -251,7 +260,7 @@ if __name__ == '__main__':
     print(f"DREAMT→Walch training took {time_end - time_start:.1f} seconds ({(time_end - time_start) / 60:.1f} minutes)")
     
     # Save results
-    np.savez(RESULTS_DIR / f'{get_git_commit_hash()}_dreamt_to_walch_results.npz', dreamt_to_walch_results)
+    # np.savez(RESULTS_DIR / f'{get_git_commit_hash()}_dreamt_to_walch_results.npz', dreamt_to_walch_results)
     
     # Train on Walch, evaluate on DREAMT
     print("\n=== Training on Walch, testing on DREAMT ===")
@@ -268,7 +277,7 @@ if __name__ == '__main__':
     print(f"Walch→DREAMT training took {time_end - time_start:.1f} seconds ({(time_end - time_start) / 60:.1f} minutes)")
     
     # Save results
-    np.savez(RESULTS_DIR / f'{get_git_commit_hash()}_walch_to_dreamt_results.npz', walch_to_dreamt_results)
+    # np.savez(RESULTS_DIR / f'{get_git_commit_hash()}_walch_to_dreamt_results.npz', walch_to_dreamt_results)
     
     # Print summary statistics
     print("\n=== Cross-Dataset Performance Summary ===")

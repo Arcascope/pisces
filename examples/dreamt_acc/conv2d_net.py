@@ -715,13 +715,16 @@ def train_eval(train_data_list: List[Preprocessed],
     train_maxes = prepare_subjects(train_data_list)
     test_maxes = prepare_subjects(test_data_list)
 
-    min_max = -20
-    max_max = 20
+    min_max = 5
+    max_max = 45
     # 10 samples per 1 unit of max
-    bins_arr = np.linspace(-10, 10, (max_max - min_max) * 10)
-    sns.histplot(train_maxes, bins=bins_arr, label='Train', kde=True)
-    sns.histplot(test_maxes, bins=bins_arr, label='Test', kde=True)
-    plt.xlim(min_max, max_max)
+    # bins_arr = np.linspace(min_max, 10, (max_max - min_max) * 10)
+    ax_bottom = plt.gca()
+    ax_top = ax_bottom.sharey()
+    bins_arr = 10
+    sns.histplot(train_maxes, bins=bins_arr, label='Train', kde=True, ax=ax_bottom)
+    sns.histplot(test_maxes, bins=bins_arr, label='Test', kde=True, ax=ax_top)
+    # plt.xlim(min_max, max_max)
     plt.xlabel('Max Value')
     plt.ylabel('Count')
     plt.title('Max Value Histogram')
