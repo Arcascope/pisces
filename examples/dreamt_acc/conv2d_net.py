@@ -715,6 +715,24 @@ def train_eval(train_data_list: List[Preprocessed],
     train_maxes = prepare_subjects(train_data_list)
     test_maxes = prepare_subjects(test_data_list)
 
+    fig, (train_hist, test_hist) = plt.subplots(ncols=2, figsize=(15, 10))
+
+
+    n_bins = 100
+    print("Train data histogram")
+    for tr in train_data_list:
+        sns.histplot(tr.x_spec.specgram.flatten(), bins=n_bins, ax=train_hist, color='tab:blue', kde=True)
+
+    print("Test data histogram")
+    for te in test_data_list:
+        sns.histplot(te.x_spec.specgram.flatten(), bins=n_bins, ax=test_hist, color='tab:orange', kde=True)
+    train_hist.set_title("Train Data Histogram")
+    test_hist.set_title("Test Data Histogram")
+    fig.savefig(experiment_results_csv.parent / "train_test_specgram_hist.png")
+    plt.close(fig)
+    exit(0)
+
+
     # 10 samples per 1 unit of max
     # bins_arr = np.linspace(min_max, 10, (max_max - min_max) * 10)
     # fix, (ax_bottom, ax_top) = plt.subplots(nrows=2, figsize=(10, 10), sharey=True)
