@@ -29,17 +29,14 @@ class STFT:
                          freq_min: float | None = None,
                          freq_max: float | None = None,
                          n_tile_clamp: float = 0.05,
-                         normalization_window_len: int | None = None) -> np.ndarray:
+                         normalization_window_len: int | None = None,
+                         unit_minmax_transform: bool = True) -> np.ndarray:
         """Produces the absolute value of the STFT, 
         with optional clamping of the values according to
         the given percentile from top/bottom
         """
         abs_array = np.log10(np.abs(self.Zxx) ** 2 + 1e-6)
         self.specgram = abs_array
-        if n_tile_clamp > 0:
-            self.specgram = np.clip(self.specgram, 
-                                np.percentile(self.specgram, n_tile_clamp),
-                                np.percentile(self.specgram, 100 - n_tile_clamp))
         if freq_min is not None:
             f_select = self.f >= freq_min
             self.specgram = self.specgram[:, f_select]
@@ -50,6 +47,16 @@ class STFT:
             self.specgram = self.specgram[:, f_select]
             self.f = self.f[f_select]
             self.Zxx = self.Zxx[:, f_select]
+        if n_tile_clamp > 0:
+            self.specgram = np.clip(self.specgram, 
+                                np.percentile(self.specgram, n_tile_clamp),
+                                np.percentile(self.specgram, 100 - n_tile_clamp))
+        if unit_minmax_transform:
+            spec_min = np.min(self.specgram)
+            spec_max = np.max(self.specgram)
+            if spec_max - spec_min > 0:
+                self.specgram = (self.specgram - spec_min) / (spec_max - spec_min)
+           
         if normalization_window_len is not None:
             self.apply_local_stdnorm_to_specgram(normalization_window_len)
         return abs_array
