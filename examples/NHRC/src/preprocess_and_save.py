@@ -42,6 +42,7 @@ ACTIVITY_KERNEL_WIDTH += 1 - (ACTIVITY_KERNEL_WIDTH % 2)  # Ensure it is odd
 DATA_LOCATION = Path('/home/eric/Engineering/Work/pisces/data')
 
 
+
 def clean_and_save_accelerometer_data():
     '''Used to convert raw acceleration from PhysioNet into CSV format'''
     walch_et_al_dir = DATA_LOCATION.joinpath('walch_et_al')
@@ -108,7 +109,6 @@ def process_data(dataset: pds.DataSetObject,
           post_mask_wakes, "\n\tWakes masked", wakes_masked)
 
     # Convert accelerometer data to spectrograms
-
     sample_rate = 50
     if acc_Hz_str == "dyn":
         int_hz = int(avg_time_hz)
@@ -140,7 +140,6 @@ def process_data(dataset: pds.DataSetObject,
     return {"spectrogram": padded_spectrograms,
             "activity": activity_data,
             "psg": psg_data}
-
 
 
 def process_data_set(data_set: pds.DataSetObject,

@@ -41,3 +41,4 @@ plt.grid(visible=True, axis='both')
 plt.tight_layout(pad=0.1)
 # plt.show()
 plt.savefig(cwd / 'saved_outputs/wasa95.png', bbox_inches='tight', dpi=200)
+

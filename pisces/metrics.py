@@ -80,7 +80,6 @@ def apply_threshold(labels, predictions, threshold):
 
 def threshold_from_binary_search(labels, wake_probabilities,
                                  target_sleep_accuracy) -> float:
-
     # How close to the target wake false positive rate we need to be before stopping
     false_positive_buffer = 0.0001
     fraction_sleep_scored_as_sleep = -1

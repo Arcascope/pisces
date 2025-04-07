@@ -185,7 +185,6 @@ def train_rgb_cnn(
         # network instance to be trained
         cnn = make_segmenter()
 
-
         # Get the data
         train_data, train_labels, train_sample_weights = rgb_gather_reshape(
             static_data_bundle, train_idx_tensor,
@@ -377,7 +376,16 @@ def evaluate_and_save_test(
 
 
 def load_and_train(preprocessed_path: Path,
-                   max_splits: int = -1, epochs: int = 1, lr: float = 1e-4, batch_size: int = 1, use_logits = False, n_classes=4, predictions_path: str = None, sleep_proba: bool = True, wasa_sleep_target = 0.95, use_mel: bool = True) -> float:
+                   max_splits: int = -1,
+                   epochs: int = 1,
+                   lr: float = 1e-4,
+                   batch_size: int = 1,
+                   use_logits = False,
+                   n_classes=4,
+                   predictions_path: str = None,
+                   sleep_proba: bool = True,
+                   wasa_sleep_target = 0.95,
+                   use_mel: bool = True) -> float:
 
     
     pre_proc_config = {

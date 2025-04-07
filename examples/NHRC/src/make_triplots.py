@@ -11,6 +11,7 @@ from constants import ACC_HZ as acc_hz, TARGET_SLEEP
 plt.rcParams['font.family'] = 'Arial'
 COLOR_PALETTE = sns.color_palette("colorblind")
 
+
 def plot_single_person(static_predictions,
                        hybrid_predictions,
                        true_labels,
@@ -182,7 +183,6 @@ def create_histogram(run_mode="naive"):
         print(f"Threshold: {static_threshold}")
         static_perform = apply_threshold(
             true_labels, static_predictions, static_threshold)
-
 
         hybrid_static_thresh_perform = apply_threshold(
             true_labels, hybrid_predictions, static_threshold)
