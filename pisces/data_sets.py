@@ -227,7 +227,7 @@ class IdExtractor(SimplifiablePrefixTree):
         return self.simplified().flattened(1).reversed()
     
 
-# %% ../nbs/01_data_sets.ipynb 13
+# %% ../nbs/01_data_sets.ipynb 12
 LOG_LEVEL = logging.INFO
 
 class DataSetObject:
@@ -247,17 +247,44 @@ class DataSetObject:
         self.ids: List[str] = []
 
         # keeps track of the files for each feature and user
+        # eg:
+        # {
+        #     'psg': {
+        #         '001': '001_psg.csv',
+        #         '002': '002_psg.csv',
+        #     },
+        #     'eeg': {
+        #         '001': '001_eeg.csv',
+        #         '002': '002_eeg.csv',
+        #     }
+        # }
         self._feature_map: DefaultDict[str, Dict[str, str]] = defaultdict(dict)
+        # mirrors the structure of _feature_map, but stores the dataframes instead of file names
         self._feature_cache: DefaultDict[str, Dict[str, pl.DataFrame]] = defaultdict(dict)
     
     @property
     def features(self) -> List[str]:
-        return list(self._feature_map.keys())
+        # unique union of features cache and map, since sometimes these get out of sync.
+        # eg when making a new data set in code, assigning dataframes.
+        return list(
+            set(
+                list(self._feature_cache.keys()) 
+                + list(self._feature_map.keys())))
     
     def __str__(self):
         return f"{self.name}: {self.path}"
+    
+    def drop_feature_data(self, feature: str, id: str):
+        if feature not in self.features:
+            warnings.warn(f"Feature {feature} not found in {self.name}.")
+        self._feature_cache[feature].pop(id, None)
 
-    def get_feature_data(self, feature: str, id: str) -> pl.DataFrame | None:
+    def get_feature_data(
+            self,
+            feature: str,
+            id: str,
+            keep_in_memory: bool = True  # should the data be kept in memory? Setting to False is useful when processing large datasets, so the data is discarded once loaded for processing.
+            ) -> pl.DataFrame | None:
         if feature not in self.features:
             warnings.warn(f"Feature {feature} not found in {self.name}. Returning None.")
             return None
@@ -280,7 +307,8 @@ class DataSetObject:
                 return None
             # sort by time when loading
             df.sort(df.columns[0])
-            self._feature_cache[feature][id] = df
+            if keep_in_memory:
+                self._feature_cache[feature][id] = df
         return df
 
     def get_filename(self, feature: str, id: str) -> Path | None:
@@ -335,6 +363,7 @@ class DataSetObject:
     @classmethod
     def find_data_sets(cls, 
                        root: str | Path,
+                       try_parse: bool = True
                        ) -> Dict[str, 'DataSetObject']:
         root = str(root).replace("\\", "/") # Use consistent separators
 
@@ -352,14 +381,19 @@ class DataSetObject:
                     data_sets[data_set.name] = data_set
                 else:
                     data_sets[data_set_name]._feature_map[feature_name] = {}
+        if try_parse:
+            for data_set in data_sets.values():
+                data_set.parse_data()
         return data_sets
 
-    def parse_data_sets(self, 
+    def parse_data(self, 
                         ignore_startswith: List=["."], # Ignore files starting with these strings 
                         ignore_endswith: List=[".tmp"], # Ignore files ending with these strings 
                         id_templates: Dict[str, str] | str | None=None, # The template for extracting IDs from the file names. A template per feature can be provided as a dictionary 
                         id_symbol: str="<<ID>>",
                         ):
+        """Analyzes the files found within a data set and extracts the IDs and file names for each feature. If your data set appears to have no data or `.ids` is empty, you probably need to call this function on the set.
+        """
         for feature in self.features:
             feature_path = self.get_feature_path(feature)
             if not feature_path.exists():
@@ -403,8 +437,30 @@ class DataSetObject:
             else:
                 min_end = min([min_end, time.max()])
         return (max_start, min_end)
+    
+    def set_feature_data(self, feature: str, id: str, data: pl.DataFrame):
+        self._feature_cache[feature][id] = data
+    
+    def save_feature_data(self, feature: str, id: str, path: Path):
+        data = self.get_feature_data(feature, id)
+        if data is None:
+            warnings.warn(f"No data found for {feature} and {id}")
+            return
+        data.write_csv(path)
+    
+    def save_set(self, path: Path):
+        path.mkdir(parents=True, exist_ok=True)
+        for feature in self.features:
+            feature_path = path.joinpath(self.FEATURE_PREFIX + feature)
+            feature_path.mkdir(parents=True, exist_ok=True)
+            for id in self.ids:
+                data = self.get_feature_data(feature, id)
+                if data is None:
+                    warnings.warn(f"No data found for {feature} and {id}")
+                    continue
+                data.write_csv(feature_path.joinpath(f"{id}.csv"))
 
-# %% ../nbs/01_data_sets.ipynb 15
+# %% ../nbs/01_data_sets.ipynb 14
 def psg_to_sleep_wake(psg: pl.DataFrame) -> np.ndarray:
     """
     * map all positive classes to 1 (sleep)
@@ -446,7 +502,7 @@ def psg_to_WLDM(psg: pl.DataFrame, N4: bool = True) -> np.ndarray:
     """
     return vec_to_WLDM(psg[:, 1].to_numpy(), N4)
 
-# %% ../nbs/01_data_sets.ipynb 18
+# %% ../nbs/01_data_sets.ipynb 17
 class ModelOutputType(Enum):
     SLEEP_WAKE = auto()
     WAKE_LIGHT_DEEP_REM = auto()
@@ -505,7 +561,7 @@ class ModelInputSpectrogram(ModelInput):
         self.input_sampling_hz = float(input_sampling_hz)
         self.spectrogram_preprocessing_config = spectrogram_preprocessing_config
 
-# %% ../nbs/01_data_sets.ipynb 20
+# %% ../nbs/01_data_sets.ipynb 19
 def psg_to_sleep_wake(psg: pl.DataFrame) -> np.ndarray:
     """
     * map all positive classes to 1 (sleep)
@@ -547,7 +603,7 @@ def psg_to_WLDM(psg: pl.DataFrame, N4: bool = True) -> np.ndarray:
     """
     return vec_to_WLDM(psg[:, 1].to_numpy(), N4)
 
-# %% ../nbs/01_data_sets.ipynb 23
+# %% ../nbs/01_data_sets.ipynb 22
 class ModelOutputType(Enum):
     SLEEP_WAKE = auto()
     WAKE_LIGHT_DEEP_REM = auto()
@@ -606,7 +662,7 @@ class ModelInputSpectrogram(ModelInput):
         self.input_sampling_hz = float(input_sampling_hz)
         self.spectrogram_preprocessing_config = spectrogram_preprocessing_config
 
-# %% ../nbs/01_data_sets.ipynb 24
+# %% ../nbs/01_data_sets.ipynb 23
 def get_sample_weights(y: np.ndarray) -> np.ndarray:
      """
      Calculate sample weights based on the distribution of classes in the data.
@@ -714,7 +770,7 @@ def fill_gaps_in_accelerometer_data(acc: pl.DataFrame, smooth: bool = False, fin
 
     return acc_resampled
 
-# %% ../nbs/01_data_sets.ipynb 25
+# %% ../nbs/01_data_sets.ipynb 24
 class DataProcessor:
     def __init__(self,
                  data_set: DataSetObject,

@@ -107,11 +107,7 @@ def segmentation_model(input_shape=NEW_INPUT_SHAPE, output_shape=NEW_OUTPUT_SHAP
     y = decoder_block(y, x2, filters=current_filter, kernel_size=kernel_size_1, up_strides=pool_size,)
     current_filter //= filters_incr_ratio
     y = decoder_block(y, x1, filters=current_filter, kernel_size=kernel_size_1, up_strides=pool_size,)
-    current_filter //= filters_incr_ratio
-    y = decoder_block(y, x0, filters=current_filter, kernel_size=kernel_size_1, up_strides=pool_size,)
-    _, q = encoder_block(y, filters=4, pool_size=pool_size, kernel_size=(3, 3), strides=strides,)
-    _, q = encoder_block(q, filters=2, pool_size=pool_size, kernel_size=(3, 3), strides=strides,)
-    _, q = encoder_block(q, filters=1, pool_size=pool_size, kernel_size=(3, 3), strides=strides,)
+    y, q = encoder_block(y, filters=4, pool_size=pool_size, kernel_size=(3, 3), strides=strides,)
     # q = p4
 
     reshaped_inputs = Reshape((output_shape[0], -1))(q)

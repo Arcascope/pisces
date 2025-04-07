@@ -103,6 +103,7 @@ def train_rgb_cnn(
         static_data_bundle,
         hybrid_data_bundle,
         fit_callbacks: list = [],
+        metric_callbacks: list = [],
         max_splits: int = -1,
         epochs: int = 1,
         lr: float = 1e-4,
@@ -137,8 +138,11 @@ def train_rgb_cnn(
     print("INPUT SHAPE: ", INPUT_SHAPE)
 
     # experiment with normalizing the input data to the NN without breaking downstream plotting code
-    SEG_INPUT_SHAPE = [i for i in INPUT_SHAPE] # copy the list
-    SEG_INPUT_SHAPE[-1] = 1
+    SEG_INPUT_SHAPE = list(static_data_bundle.spectrograms[0].shape)
+    SEG_INPUT_SHAPE.append(1)
+
+    # SEG_INPUT_SHAPE = [i for i in INPUT_SHAPE] # copy the list
+    # SEG_INPUT_SHAPE[-1] = 1
 
     INPUT_SHAPE = SEG_INPUT_SHAPE
 
@@ -153,18 +157,18 @@ def train_rgb_cnn(
     wasas = []
     best_wasa = 0.0
     ids = []
-    that_auc = keras.metrics.AUC(from_logits=use_logits, name="AUC")
     run_time = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
-    commit_hash = ""
-    try:
-        commit_hash = get_git_commit_hash()
-    except Exception as e:
-        print("Error getting git commit hash:", e)
-    unique_id = f'{run_time}_{commit_hash[:8]}'
     
 
     # Split the data into training and testing sets
     for k_train, k_test in tqdm(split_maker.split(static_keys), desc="Next split", total=len(static_keys)):
+        # Grab commit hash every time. This allows us to remember to make a commit after the xperiment starts.
+        commit_hash = ""
+        try:
+            commit_hash = get_git_commit_hash()
+        except Exception as e:
+            print("Error getting git commit hash:", e)
+        unique_id = f'{run_time}_{commit_hash[:8]}'
         # Configure TensorBoard callback
 
         log_dir_cnn = local_dir / log_dir_fn(static_keys[k_test[0]], unique_id=unique_id)
@@ -235,11 +239,7 @@ def train_rgb_cnn(
             loss=keras.losses.BinaryCrossentropy(from_logits=use_logits),
             # loss=bfc,
             optimizer=keras.optimizers.AdamW(learning_rate=lr),
-            weighted_metrics=[
-                # wasa_metric
-                keras.metrics.SpecificityAtSensitivity(WASA_FRAC, name=f"WASA{WASA_PERCENT}", num_thresholds=500),
-                that_auc
-            ]
+            weighted_metrics=metric_callbacks
         )
 
         # channel_shuffler = PermutationDataGenerator(train_data, train_labels_pro, sample_weights=train_sample_weights, batch_size=batch_size) 
@@ -376,7 +376,16 @@ def evaluate_and_save_test(
 
 
 def load_and_train(preprocessed_path: Path,
-                   max_splits: int = -1, epochs: int = 1, lr: float = 1e-4, batch_size: int = 1, use_logits = False, n_classes=4, predictions_path: str = None, sleep_proba: bool = True, use_mel: bool = True) -> float:
+                   max_splits: int = -1,
+                   epochs: int = 1,
+                   lr: float = 1e-4,
+                   batch_size: int = 1,
+                   use_logits = False,
+                   n_classes=4,
+                   predictions_path: str = None,
+                   sleep_proba: bool = True,
+                   wasa_sleep_target = 0.95,
+                   use_mel: bool = True) -> float:
 
     
     pre_proc_config = {
@@ -394,21 +403,41 @@ def load_and_train(preprocessed_path: Path,
                                       **pre_proc_config)
 
     start_time = time.time()
+    
+    # Set up metrics to watch
+
+    auc_name = "AUC"
+    that_auc = keras.metrics.AUC(from_logits=use_logits, name=auc_name)
+    WASA_PERCENT = int(wasa_sleep_target * 100)
+    wasa_name = f"WASA{WASA_PERCENT}"
+    wasa = keras.metrics.SpecificityAtSensitivity(wasa_sleep_target, name=wasa_name, num_thresholds=500)
+    auc_watch_name = f"val_{auc_name}"
+    wasa_watch_name = f"val_{wasa_name}"
 
     # Define the learning rate scheduler callback
     reduce_lr = ReduceLROnPlateau(
-        monitor='val_loss',  # Metric to monitor
+        monitor=wasa_watch_name,  # Metric to monitor
         factor=0.75,          # Factor by which the learning rate will be reduced
         patience=3,         # Number of epochs with no improvement after which learning rate will be reduced
         min_lr=lr / 8          # Lower bound on the learning rate
     )
 
+    # This callback saves the model after every epoch, if it is the best so far
+    models_path = Path(predictions_path).joinpath("saved_models")
+    checkpoint_callback = keras.callbacks.ModelCheckpoint(
+        models_path / "{epoch:02d}-{val_loss:.2f}.keras", save_best_only=True,
+        monitor=auc_watch_name, mode='max'
+    )
 
     train_rgb_cnn(
         static_keys,
         static_data_bundle,
         hybrid_data_bundle,
-        fit_callbacks=[reduce_lr],
+        fit_callbacks=[reduce_lr, checkpoint_callback],
+        metric_callbacks=[
+            wasa,
+            that_auc
+        ],
         max_splits=max_splits,
         epochs=epochs,
         batch_size=batch_size,
@@ -417,7 +446,7 @@ def load_and_train(preprocessed_path: Path,
         n_classes=n_classes,
         predictions_path=predictions_path,
         sleep_proba=sleep_proba,
-        models_path=Path(predictions_path).joinpath("saved_models")
+        models_path=models_path
     )
     # train_logreg(static_keys, static_data_bundle)
     end_time = time.time()

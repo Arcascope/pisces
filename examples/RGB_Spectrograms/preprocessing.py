@@ -96,6 +96,23 @@ def prepare_data(preprocessed_data,
         for k in list(preprocessed_data.keys())
     ])
 
+    specgram_freqs = preprocessed_data[list(preprocessed_data.keys())[0]]['spec_freqs']
+    # {
+    #     "args": {
+    #         "nfft": 512,
+    #         "f_max": 2.1,
+    #         "f_min": 0.1,
+    #         "f_sub": 1,
+    #         "window": 320,
+    #         "noverlap": 256
+    #     },
+    #     "type": "cal_psd"
+    # }
+    # from pisces.deep_unet_support, 
+    freqs_selectd = (specgram_freqs >= 0.1) & (specgram_freqs <= 2.1)
+
+    spectrogram_stack = spectrogram_stack[..., freqs_selectd[:-1], 0]
+
     if use_mel:
         spectrogram_stack = apply_mel_scale(spectrogram_stack)
 

@@ -29,7 +29,8 @@ if __name__ == "__main__":
 
     total_time = 0
     # total_time += do_preprocessing(big_specgram_process, cache_dir=preprocessed_data_path)
-    # total_time += do_preprocessing(norm_big_specgram_process, cache_dir=preprocessed_data_path)
+    total_time += do_preprocessing(norm_big_specgram_process, cache_dir=preprocessed_data_path)
+
     total_time += load_and_train(
         preprocessed_path=preprocessed_data_path, 
         epochs=25,  # 37 is eyeballed from TesnorBoard
